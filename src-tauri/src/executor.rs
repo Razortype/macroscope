@@ -32,7 +32,7 @@ pub struct ExecutionReport {
 // (after tilde expansion). Order is irrelevant; deny list is checked first.
 const ALLOWED_PREFIXES: &[&str] = &[
     "~/.cache/",
-    "~/.npm/_cacache/",
+    "~/.npm/",
     "~/Library/Caches/",
     "~/Library/Application Support/Notion/Partitions/notion/Service Worker/",
     "~/Library/Application Support/Notion/Partitions/notion/Cache/",
