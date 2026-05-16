@@ -34,9 +34,8 @@ const ALLOWED_PREFIXES: &[&str] = &[
     "~/.cache/",
     "~/.npm/",
     "~/Library/Caches/",
-    "~/Library/Application Support/Notion/Partitions/notion/Service Worker/",
-    "~/Library/Application Support/Notion/Partitions/notion/Cache/",
-    "~/Library/Application Support/Notion/Partitions/notion/Code Cache/",
+    "~/Library/Application Support/",
+    "~/Library/Preferences/",
     "~/Library/Developer/Xcode/DerivedData/",
     "~/Library/Developer/CoreSimulator/Caches/",
     "~/Library/Logs/",
@@ -105,7 +104,18 @@ pub fn check_path(path: &str) -> Result<PathBuf, AppError> {
         }
     }
 
-    // 2. Exact-prefix allowlist
+    // 2. Deny com.apple.* paths even under allowed prefixes (system data)
+    let last_component = expanded
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_default();
+    if last_component.starts_with("com.apple.") {
+        return Err(AppError::PathNotAllowed(format!(
+            "{path}: system data (com.apple.*) is never deletable"
+        )));
+    }
+
+    // 3. Exact-prefix allowlist
     for raw_prefix in ALLOWED_PREFIXES {
         let allowed = expand_tilde(raw_prefix);
         // Path must start with the allowed directory, OR be the directory itself
@@ -116,7 +126,7 @@ pub fn check_path(path: &str) -> Result<PathBuf, AppError> {
         }
     }
 
-    // 3. Glob allowlist
+    // 4. Glob allowlist
     let home = dirs::home_dir().ok_or_else(|| AppError::Config("no home dir".into()))?;
     let mut builder = GlobSetBuilder::new();
     for raw_glob in ALLOWED_GLOBS {
@@ -411,5 +421,23 @@ mod tests {
         // A random path that is not in any allowlist entry
         let result = check_path("~/Desktop/Orkun/random.txt");
         assert!(result.is_err(), "expected Err for non-allowlisted path");
+    }
+
+    #[test]
+    fn leftover_directories_are_allowed() {
+        let result = check_path("~/Library/Application Support/Adobe");
+        assert!(result.is_ok(), "expected Application Support/Adobe to be allowed: {result:?}");
+
+        let result = check_path("~/Library/Preferences/com.adobe.Acrobat.plist");
+        assert!(result.is_ok(), "expected Preferences plist to be allowed: {result:?}");
+    }
+
+    #[test]
+    fn apple_paths_are_denied_even_under_allowed_prefix() {
+        let result = check_path("~/Library/Application Support/com.apple.calendarservices");
+        assert!(result.is_err(), "expected com.apple.* to be denied: {result:?}");
+
+        let result = check_path("~/Library/Preferences/com.apple.Safari.plist");
+        assert!(result.is_err(), "expected com.apple.* plist to be denied: {result:?}");
     }
 }
