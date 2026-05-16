@@ -125,6 +125,7 @@ export default function Dashboard() {
   const [partialPaths, setPartialPaths] = useState<Set<string>>(new Set());
   const [dialogOpen, setDialogOpen] = useState(false);
   const [analyzeError, setAnalyzeError] = useState<string | null>(null);
+  const [showProgress, setShowProgress] = useState(false);
 
   // ── Queries ───────────────────────────────────────────────────────────────
   const claudeQuery = useQuery<ClaudeStatus>({
@@ -165,6 +166,7 @@ export default function Dashboard() {
     // onMutate fires synchronously before the async work — clears stale data immediately
     // so the old findings panel unmounts right when the button is clicked.
     onMutate: () => {
+      setShowProgress(true);
       setFindings(null);
       setSelectedIds(new Set());
       setExecutedPaths(new Set());
@@ -187,12 +189,16 @@ export default function Dashboard() {
     onSuccess: (data) => {
       setFindings(sortFindings(data));
     },
-    onError: (err) => setAnalyzeError(err),
+    onError: (err) => {
+      setShowProgress(false);
+      setAnalyzeError(err);
+    },
   });
 
   // Re-analyze without taking a new snapshot
   const reAnalyze = useMutation<Finding[], string>({
     onMutate: () => {
+      setShowProgress(true);
       setFindings(null);
       setSelectedIds(new Set());
       setExecutedPaths(new Set());
@@ -209,7 +215,10 @@ export default function Dashboard() {
     onSuccess: (data) => {
       setFindings(sortFindings(data));
     },
-    onError: (err) => setAnalyzeError(err),
+    onError: (err) => {
+      setShowProgress(false);
+      setAnalyzeError(err);
+    },
   });
 
   // Load an older snapshot from history
@@ -244,6 +253,7 @@ export default function Dashboard() {
   // ── Derived ───────────────────────────────────────────────────────────────
   const claudeStatus = claudeQuery.data ?? null;
   const isAnalyzing = runFullScan.isPending || reAnalyze.isPending;
+  const showingProgress = showProgress || isAnalyzing;
   const isTakingFirst = runFullScan.isPending && activeSnapshotId == null;
   const hasSnapshot = latestIdQuery.data != null;
 
@@ -393,10 +403,13 @@ export default function Dashboard() {
         {analyzeError && <ErrorBanner message={analyzeError} />}
 
         {/* Dual-track analysis progress indicator */}
-        <AnalysisProgress isActive={isAnalyzing} />
+        <AnalysisProgress
+          isActive={showingProgress}
+          onComplete={() => setShowProgress(false)}
+        />
 
         {/* Findings */}
-        {!isAnalyzing && findings !== null && (
+        {!showingProgress && findings !== null && (
           <FindingsSection
             findings={findings}
             selectedIds={selectedIds}
