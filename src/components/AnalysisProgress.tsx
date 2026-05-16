@@ -57,7 +57,7 @@ interface FailedPayload {
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
-const PROBE_KEYS = ["disk", "processes", "network", "persistence", "users", "kernel"] as const;
+const PROBE_KEYS = ["disk", "processes", "network", "persistence", "users", "kernel", "apps"] as const;
 type ProbeKey = (typeof PROBE_KEYS)[number];
 
 const PROBE_LABELS: Record<ProbeKey, string> = {
@@ -67,6 +67,7 @@ const PROBE_LABELS: Record<ProbeKey, string> = {
   persistence: "launch agents",
   users: "user accounts",
   kernel: "kernel extensions",
+  apps: "installed apps",
 };
 
 const makeProbes = (): ProbeState[] =>
@@ -165,7 +166,7 @@ function ProbeSection({ probes, allComplete }: { probes: ProbeState[]; allComple
             ? `complete · ${fmtS(totalDur!)}`
             : runningCount > 0
             ? "running…"
-            : `${doneCount}/6`}
+            : `${doneCount}/${probes.length}`}
         </span>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px 20px" }}>

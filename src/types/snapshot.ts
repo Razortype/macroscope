@@ -101,6 +101,25 @@ export interface KernelReport {
   extensions: KernelExtension[];
 }
 
+export interface InstalledApp {
+  name: string;
+  bundle_id: string | null;
+  path: string;
+  size_bytes: number;
+  last_opened_days_ago: number | null;
+}
+
+export interface LeftoverDir {
+  path: string;
+  size_bytes: number;
+  matched_app_name: string | null;
+}
+
+export interface AppsSnapshot {
+  installed: InstalledApp[];
+  leftovers: LeftoverDir[];
+}
+
 export interface Snapshot {
   created_at: string;           // ISO 8601 UTC
   disk: DiskReport | null;
@@ -109,6 +128,7 @@ export interface Snapshot {
   persistence: PersistenceReport | null;
   users: UserAccount[] | null;
   kernel: KernelReport | null;
+  apps: AppsSnapshot | null;
   partial_failures: ProbeFailure[]; // always an array, never null
 }
 

@@ -1,3 +1,4 @@
+pub mod apps;
 pub mod disk;
 pub mod kernel;
 pub mod network;
@@ -11,6 +12,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter};
 
+use self::apps::AppsSnapshot;
 use self::disk::DiskReport;
 use self::kernel::KernelReport;
 use self::network::NetworkReport;
@@ -39,6 +41,7 @@ pub struct Snapshot {
     pub persistence: Option<PersistenceReport>,
     pub users: Option<Vec<UserAccount>>,
     pub kernel: Option<KernelReport>,
+    pub apps: Option<AppsSnapshot>,
     pub partial_failures: Vec<ProbeFailure>,
 }
 
@@ -76,6 +79,7 @@ pub async fn take_snapshot(app: &AppHandle) -> Snapshot {
     let persist_res = probe_timed(app, "persistence", persistence::probe()).await;
     let users_res = probe_timed(app, "users", users::probe()).await;
     let kernel_res = probe_timed(app, "kernel", kernel::probe()).await;
+    let apps_res = probe_timed(app, "apps", apps::probe()).await;
 
     macro_rules! unwrap_probe {
         ($result:expr, $name:literal) => {
@@ -98,6 +102,7 @@ pub async fn take_snapshot(app: &AppHandle) -> Snapshot {
     let persistence = unwrap_probe!(persist_res, "persistence");
     let users = unwrap_probe!(users_res, "users");
     let kernel = unwrap_probe!(kernel_res, "kernel");
+    let apps = unwrap_probe!(apps_res, "apps");
 
     // Note: persistence.login_items errors are NOT added to partial_failures —
     // they serialize as Err(message) inside PersistenceReport and the frontend
@@ -111,6 +116,7 @@ pub async fn take_snapshot(app: &AppHandle) -> Snapshot {
         persistence,
         users,
         kernel,
+        apps,
         partial_failures,
     }
 }
