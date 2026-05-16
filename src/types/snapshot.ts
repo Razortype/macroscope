@@ -5,6 +5,11 @@
 //   (serde_json default for Result: tagged enum with "Ok"/"Err" keys)
 // DateTime<Utc> → ISO 8601 string e.g. "2025-11-20T14:32:01.123456Z"
 
+export interface SnapshotMeta {
+  id: number;
+  created_at: string; // ISO 8601 UTC
+}
+
 export interface ProbeFailure {
   probe: string;
   message: string;
