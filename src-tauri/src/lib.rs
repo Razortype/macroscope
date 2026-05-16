@@ -124,15 +124,17 @@ fn get_claude_status(status: State<'_, ClaudeStatus>) -> ClaudeStatus {
 #[tauri::command]
 async fn analyze_snapshot(
     snapshot_id: i64,
-    preset: String,
+    presets: Vec<String>,
     db: State<'_, Db>,
     claude_status: State<'_, ClaudeStatus>,
+    app: tauri::AppHandle,
 ) -> Result<Vec<Finding>, String> {
     analyzer::analyze_snapshot(
         snapshot_id,
-        preset,
+        presets,
         db.inner(),
         claude_status.inner(),
+        &app,
     )
     .await
     .map_err(Into::into)

@@ -2,6 +2,7 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
+use tauri::{AppHandle, Emitter};
 
 use crate::db::{settings_keys, Db};
 use crate::error::AppError;
@@ -187,23 +188,21 @@ fn appsupport_prompt_path(preset: &str) -> Result<PathBuf, AppError> {
 
 // ── Claude spawn ─────────────────────────────────────────────────────────────
 
-/// Run the Claude CLI against a snapshot stored in the DB and return validated findings.
+/// Run all requested presets against a snapshot in parallel. Presets are independent
+/// Claude invocations; each filters the snapshot to only its relevant fields.
 ///
-/// Snapshot JSON (~38 KB) is inlined directly into the prompt argument — no temp
-/// file or file-read tool access required. claude -p receives all context in a
-/// single argument string, well within macOS ARG_MAX.
+/// Each preset's findings are persisted to DB immediately on success. If a preset
+/// fails, `analyzer:preset_failed` is emitted so the UI can surface it without
+/// blocking the overall flow — the other presets' results are still saved and returned.
 ///
-/// Actual command line:
-///   <claude_path> -p "<prompt_template>\n\n# Snapshot data\n\n```json\n<json>\n```" --output-format=json
-///
-/// Output format: `--output-format=json` emits a single JSON object at process exit:
-///   { "type": "result", "subtype": "success", "result": "<text>", "is_error": false, ... }
-/// The `.result` field contains Claude's raw text response (the findings JSON array).
+/// Command line per preset (output-format=json, no temp file, snapshot inlined):
+///   <claude_path> -p "<template>\n\n# Snapshot data\n\n```json\n<json>\n```" --output-format=json
 pub async fn analyze_snapshot(
     snapshot_id: i64,
-    preset: String,
+    presets: Vec<String>,
     db: &Db,
     claude_status: &ClaudeStatus,
+    app: &AppHandle,
 ) -> Result<Vec<Finding>, AppError> {
     if !claude_status.available {
         return Err(AppError::ClaudeCli(
@@ -215,21 +214,72 @@ pub async fn analyze_snapshot(
     }
     let claude_path = claude_status.path.clone().unwrap();
 
-    // Load snapshot payload from DB
+    // Load and parse snapshot once — shared across all preset tasks via clone
     let payload = db.get_snapshot_payload(snapshot_id)?;
     let snapshot: Snapshot = serde_json::from_str(&payload)?;
 
-    // Filter to only the fields this preset needs
-    let filtered = filter_snapshot_for_preset(&snapshot, &preset)?;
+    // Spawn one task per preset; each task is fully self-contained
+    let tasks: Vec<_> = presets
+        .into_iter()
+        .map(|preset| {
+            let snap = snapshot.clone();
+            let path = claude_path.clone();
+            let db = db.clone();
+            let app = app.clone();
+            tokio::spawn(async move {
+                let result = run_single_preset(&snap, &preset, &path).await;
+                match result {
+                    Ok(findings) => {
+                        if let Err(e) = db.save_analysis_result(snapshot_id, &preset, &findings) {
+                            eprintln!("[macroscope] Could not persist {preset} results: {e}");
+                        }
+                        (preset, Ok(findings))
+                    }
+                    Err(e) => {
+                        let _ = app.emit(
+                            "analyzer:preset_failed",
+                            serde_json::json!({ "preset": preset, "error": e.to_string() }),
+                        );
+                        (preset, Err(e))
+                    }
+                }
+            })
+        })
+        .collect();
+
+    // Collect results; partial failures have already been emitted as events
+    let mut all_findings: Vec<Finding> = Vec::new();
+    for handle in tasks {
+        match handle.await {
+            Ok((_, Ok(findings))) => all_findings.extend(findings),
+            Ok((preset, Err(e))) => {
+                eprintln!("[macroscope] Preset {preset} failed: {e}");
+            }
+            Err(e) => eprintln!("[macroscope] Task panicked: {e}"),
+        }
+    }
+
+    Ok(all_findings)
+}
+
+// ── Single-preset execution ──────────────────────────────────────────────────
+
+/// Run the Claude CLI for one preset against a pre-loaded Snapshot.
+/// Returns validated findings. Does NOT touch the DB — caller persists.
+async fn run_single_preset(
+    snapshot: &Snapshot,
+    preset: &str,
+    claude_path: &str,
+) -> Result<Vec<Finding>, AppError> {
+    let filtered = filter_snapshot_for_preset(snapshot, preset)?;
     let filtered_json = serde_json::to_string_pretty(&filtered)?;
 
-    // Inline snapshot JSON directly into the prompt — no file I/O needed
-    let template = load_prompt(&preset)?;
+    let template = load_prompt(preset)?;
     let full_prompt = format!("{template}\n\n# Snapshot data\n\n```json\n{filtered_json}\n```");
 
     let output = tokio::time::timeout(
         Duration::from_secs(180),
-        tokio::process::Command::new(&claude_path)
+        tokio::process::Command::new(claude_path)
             .arg("-p")
             .arg(&full_prompt)
             .arg("--output-format=json")
@@ -242,63 +292,47 @@ pub async fn analyze_snapshot(
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
 
-    // Parse the outer --output-format=json envelope
     let envelope: serde_json::Value = serde_json::from_str(&stdout).map_err(|e| {
         AppError::ClaudeCli(format!(
             "Failed to parse claude JSON envelope: {e}\nstdout: {stdout}\nstderr: {stderr}"
         ))
     })?;
 
-    if envelope
-        .get("is_error")
-        .and_then(|v| v.as_bool())
-        .unwrap_or(false)
-    {
-        let msg = envelope
-            .get("result")
-            .and_then(|v| v.as_str())
-            .unwrap_or("unknown error");
+    if envelope.get("is_error").and_then(|v| v.as_bool()).unwrap_or(false) {
+        let msg = envelope.get("result").and_then(|v| v.as_str()).unwrap_or("unknown error");
         return Err(AppError::ClaudeCli(format!("Claude returned an error: {msg}")));
     }
 
     let result_text = envelope
         .get("result")
         .and_then(|v| v.as_str())
-        .ok_or_else(|| {
-            AppError::ClaudeCli(format!(
-                "No 'result' field in claude output. stdout: {stdout}"
-            ))
-        })?;
+        .ok_or_else(|| AppError::ClaudeCli(format!("No 'result' field in claude output. stdout: {stdout}")))?;
 
-    // Defensively strip markdown code fences Claude occasionally emits
     let json_text = strip_code_fences(result_text);
 
     let mut findings: Vec<Finding> = serde_json::from_str(json_text.trim()).map_err(|e| {
-        AppError::ClaudeCli(format!(
-            "Failed to parse findings array: {e}\nContent: {json_text}"
-        ))
+        AppError::ClaudeCli(format!("Failed to parse findings array: {e}\nContent: {json_text}"))
     })?;
 
-    // Validation and normalisation
-    for f in &mut findings {
-        // Fill missing UUIDs (Claude occasionally omits them)
+    validate_findings(&mut findings, preset);
+    Ok(findings)
+}
+
+fn validate_findings(findings: &mut Vec<Finding>, preset: &str) {
+    for f in findings.iter_mut() {
         if f.id.trim().is_empty() {
             f.id = uuid::Uuid::new_v4().to_string();
         }
-        // Security-audit must never delete paths — override if Claude ignored the instruction
         if preset == "security-audit" && f.suggested_action == SuggestedAction::DeletePaths {
             f.suggested_action = SuggestedAction::Investigate;
             f.paths_to_remove = None;
             f.estimated_bytes_freed = None;
         }
-        // Ensure optional fields are absent when action is not delete_paths
         if f.suggested_action != SuggestedAction::DeletePaths {
             f.paths_to_remove = None;
             f.estimated_bytes_freed = None;
         }
     }
-
-    Ok(findings)
 }
 
 /// Strip ```json ... ``` or ``` ... ``` code fences if Claude wraps its response.
