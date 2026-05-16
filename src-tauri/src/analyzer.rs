@@ -15,6 +15,7 @@ use crate::snapshot::Snapshot;
 // Compiled-in defaults — always present regardless of AppSupport directory state.
 const DISK_AUDIT_PROMPT: &str = include_str!("../prompts/disk-audit.md");
 const SECURITY_AUDIT_PROMPT: &str = include_str!("../prompts/security-audit.md");
+const APP_LIFECYCLE_AUDIT_PROMPT: &str = include_str!("../prompts/app-lifecycle-audit.md");
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClaudeStatus {
@@ -121,6 +122,7 @@ pub fn filter_snapshot_for_preset(
             "kernel",
             "partial_failures",
         ],
+        "app-lifecycle-audit" => &["created_at", "apps"],
         other => return Err(AppError::Config(format!("unknown preset: {other}"))),
     };
 
@@ -152,6 +154,7 @@ pub fn load_prompt(preset: &str) -> Result<String, AppError> {
     match preset {
         "disk-audit" => Ok(DISK_AUDIT_PROMPT.to_string()),
         "security-audit" => Ok(SECURITY_AUDIT_PROMPT.to_string()),
+        "app-lifecycle-audit" => Ok(APP_LIFECYCLE_AUDIT_PROMPT.to_string()),
         other => Err(AppError::Config(format!("unknown preset: {other}"))),
     }
 }
@@ -170,6 +173,7 @@ pub fn copy_default_prompts() -> Result<(), AppError> {
     for (name, content) in [
         ("disk-audit", DISK_AUDIT_PROMPT),
         ("security-audit", SECURITY_AUDIT_PROMPT),
+        ("app-lifecycle-audit", APP_LIFECYCLE_AUDIT_PROMPT),
     ] {
         let dest = dir.join(format!("{name}.md"));
         if !dest.exists() {
@@ -400,6 +404,7 @@ async fn run_single_preset(
 }
 
 fn validate_findings(findings: &mut Vec<Finding>, preset: &str) {
+    use crate::finding::Category;
     for f in findings.iter_mut() {
         if f.id.trim().is_empty() {
             f.id = uuid::Uuid::new_v4().to_string();
@@ -408,6 +413,9 @@ fn validate_findings(findings: &mut Vec<Finding>, preset: &str) {
             f.suggested_action = SuggestedAction::Investigate;
             f.paths_to_remove = None;
             f.estimated_bytes_freed = None;
+        }
+        if preset == "app-lifecycle-audit" {
+            f.category = Category::Apps;
         }
         if f.suggested_action != SuggestedAction::DeletePaths {
             f.paths_to_remove = None;

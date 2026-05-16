@@ -17,6 +17,7 @@ pub enum Category {
     Network,
     Persistence,
     Process,
+    Apps,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
