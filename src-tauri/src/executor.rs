@@ -354,6 +354,28 @@ fn audit_log_path() -> Result<PathBuf, AppError> {
         .join("audit.log"))
 }
 
+// ── Allowlist/denylist accessors (exposed as Tauri commands) ──────────────────
+
+#[tauri::command]
+pub fn get_allowed_prefixes() -> Vec<String> {
+    ALLOWED_PREFIXES.iter().map(|s| s.to_string()).collect()
+}
+
+#[tauri::command]
+pub fn get_allowed_globs() -> Vec<String> {
+    ALLOWED_GLOBS.iter().map(|s| s.to_string()).collect()
+}
+
+#[tauri::command]
+pub fn get_denied_prefixes() -> Vec<String> {
+    DENIED_PREFIXES.iter().map(|s| s.to_string()).collect()
+}
+
+#[tauri::command]
+pub fn get_denied_exact() -> Vec<String> {
+    DENIED_EXACT.iter().map(|s| s.to_string()).collect()
+}
+
 // ── Unit tests ────────────────────────────────────────────────────────────────
 
 #[cfg(test)]

@@ -7,7 +7,7 @@ pub mod snapshot;
 
 use analyzer::ClaudeStatus;
 use db::Db;
-use executor::ExecutionReport;
+use executor::{ExecutionReport, get_allowed_prefixes, get_allowed_globs, get_denied_prefixes, get_denied_exact};
 use finding::Finding;
 use snapshot::{Snapshot, SnapshotMeta};
 use tauri::State;
@@ -152,6 +152,24 @@ async fn analyze_snapshot(
     .map_err(Into::into)
 }
 
+// ── System utility commands ───────────────────────────────────────────────────
+
+#[tauri::command]
+async fn reveal_in_finder(path: String) -> Result<(), String> {
+    let expanded = analyzer::expand_tilde(&path);
+    tokio::process::Command::new("open")
+        .args(["-R", &expanded.display().to_string()])
+        .status()
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+fn get_app_version() -> String {
+    env!("CARGO_PKG_VERSION").to_string()
+}
+
 // ── App setup ────────────────────────────────────────────────────────────────
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -196,6 +214,12 @@ pub fn run() {
             latest_snapshot_id,
             get_findings_for_snapshot,
             execute_paths,
+            get_allowed_prefixes,
+            get_allowed_globs,
+            get_denied_prefixes,
+            get_denied_exact,
+            reveal_in_finder,
+            get_app_version,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

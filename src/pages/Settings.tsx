@@ -3,11 +3,12 @@ import { Link } from "react-router-dom";
 import { useForm, useFormContext } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-import { ArrowLeft, Activity } from "lucide-react";
+import { ArrowLeft, Activity, ExternalLink } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage, FormDescription } from "../components/ui/form";
 import { Input } from "../components/ui/input";
 import { Checkbox } from "../components/ui/checkbox";
+import { Separator } from "../components/ui/separator";
 import { settingsSchema, type SettingsValues } from "../types/settings";
 import { loadSettings, saveSettings } from "../lib/settings";
 import type { ClaudeStatus } from "../types/snapshot";
@@ -250,8 +251,137 @@ function SectionHotkey() {
   );
 }
 
+// ── Section: Safety ───────────────────────────────────────────────────────────
+
+function PathList({ paths, globs }: { paths: string[]; globs?: string[] }) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: "3px",
+        background: "var(--color-bg-elev-2)",
+        borderRadius: "var(--radius-sm)",
+        padding: "8px 10px",
+        border: "1px solid var(--color-border-subtle)",
+      }}
+    >
+      {paths.map((p) => (
+        <span
+          key={p}
+          style={{
+            fontFamily: "var(--font-mono)",
+            fontSize: "var(--text-xs)",
+            color: "var(--color-text-secondary)",
+          }}
+        >
+          {p}
+        </span>
+      ))}
+      {globs?.map((g) => (
+        <span key={g} style={{ fontFamily: "var(--font-mono)", fontSize: "var(--text-xs)" }}>
+          <span style={{ color: "var(--color-text-secondary)" }}>{g}</span>
+          <span style={{ color: "var(--color-text-disabled)", marginLeft: "6px" }}>(glob)</span>
+        </span>
+      ))}
+    </div>
+  );
+}
+
 function SectionSafety() {
-  return <Section title="Safety" />;
+  const [allowedPrefixes, setAllowedPrefixes] = useState<string[]>([]);
+  const [allowedGlobs, setAllowedGlobs] = useState<string[]>([]);
+  const [deniedPrefixes, setDeniedPrefixes] = useState<string[]>([]);
+  const [deniedExact, setDeniedExact] = useState<string[]>([]);
+  const auditLogPath = "~/Library/Application Support/Macroscope/audit.log";
+
+  useEffect(() => {
+    Promise.all([
+      invoke<string[]>("get_allowed_prefixes"),
+      invoke<string[]>("get_allowed_globs"),
+      invoke<string[]>("get_denied_prefixes"),
+      invoke<string[]>("get_denied_exact"),
+    ]).then(([ap, ag, dp, de]) => {
+      setAllowedPrefixes(ap);
+      setAllowedGlobs(ag);
+      setDeniedPrefixes(dp);
+      setDeniedExact(de);
+    });
+  }, []);
+
+  async function revealAuditLog() {
+    await invoke("reveal_in_finder", { path: auditLogPath }).catch((e) => {
+      toast.error(`Could not open Finder: ${String(e)}`);
+    });
+  }
+
+  return (
+    <Section title="Safety">
+      <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+        {/* Allowed paths */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+          <p style={{ margin: 0, fontSize: "var(--text-xs)", fontWeight: 600, color: "var(--color-text-muted)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+            Allowed paths
+          </p>
+          <p style={{ margin: 0, fontSize: "var(--text-xs)", color: "var(--color-text-muted)" }}>
+            Macroscope can only move items to Trash from these locations.
+          </p>
+          <PathList paths={allowedPrefixes} globs={allowedGlobs} />
+        </div>
+
+        <Separator />
+
+        {/* Denied paths */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+          <p style={{ margin: 0, fontSize: "var(--text-xs)", fontWeight: 600, color: "var(--color-text-muted)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+            Denied paths (always blocked)
+          </p>
+          <p style={{ margin: 0, fontSize: "var(--text-xs)", color: "var(--color-text-muted)" }}>
+            These locations are never touched, regardless of any other rule.
+          </p>
+          <PathList paths={[...deniedExact, ...deniedPrefixes]} />
+        </div>
+
+        <Separator />
+
+        {/* Audit log */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+          <p style={{ margin: 0, fontSize: "var(--text-xs)", fontWeight: 600, color: "var(--color-text-muted)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+            Audit log
+          </p>
+          <p style={{ margin: 0, fontSize: "var(--text-xs)", color: "var(--color-text-muted)" }}>
+            Every move-to-Trash operation is recorded for review.
+          </p>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <span style={{ fontFamily: "var(--font-mono)", fontSize: "var(--text-xs)", color: "var(--color-text-muted)" }}>
+              {auditLogPath}
+            </span>
+            <button
+              type="button"
+              onClick={revealAuditLog}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "4px",
+                background: "none",
+                border: "1px solid var(--color-border-subtle)",
+                borderRadius: "var(--radius-sm)",
+                padding: "3px 8px",
+                color: "var(--color-text-secondary)",
+                fontSize: "var(--text-xs)",
+                fontFamily: "var(--font-sans)",
+                cursor: "pointer",
+                flexShrink: 0,
+              }}
+            >
+              <ExternalLink size={12} />
+              Reveal in Finder
+            </button>
+          </div>
+        </div>
+      </div>
+    </Section>
+  );
 }
 
 function SectionAbout() {
