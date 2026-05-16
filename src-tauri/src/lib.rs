@@ -1,10 +1,14 @@
+pub mod analyzer;
 pub mod db;
 pub mod error;
 pub mod snapshot;
 
+use analyzer::ClaudeStatus;
 use db::Db;
 use snapshot::{Snapshot, SnapshotMeta};
 use tauri::State;
+
+// ── Snapshot commands ────────────────────────────────────────────────────────
 
 #[tauri::command]
 async fn take_snapshot() -> Result<Snapshot, String> {
@@ -12,10 +16,7 @@ async fn take_snapshot() -> Result<Snapshot, String> {
 }
 
 #[tauri::command]
-async fn save_snapshot(
-    snapshot: Snapshot,
-    db: State<'_, Db>,
-) -> Result<i64, String> {
+async fn save_snapshot(snapshot: Snapshot, db: State<'_, Db>) -> Result<i64, String> {
     let created_at = snapshot.created_at.to_rfc3339();
     let payload = serde_json::to_string(&snapshot).map_err(|e| e.to_string())?;
     let db = db.inner().clone();
@@ -62,6 +63,8 @@ async fn delete_snapshot(id: i64, db: State<'_, Db>) -> Result<(), String> {
         .map_err(Into::into)
 }
 
+// ── Settings commands ────────────────────────────────────────────────────────
+
 #[tauri::command]
 async fn get_setting(key: String, db: State<'_, Db>) -> Result<Option<String>, String> {
     let db = db.inner().clone();
@@ -89,12 +92,36 @@ async fn list_settings(db: State<'_, Db>) -> Result<Vec<(String, String)>, Strin
         .map_err(Into::into)
 }
 
+// ── Analyzer commands ────────────────────────────────────────────────────────
+
+#[tauri::command]
+fn get_claude_status(status: State<'_, ClaudeStatus>) -> ClaudeStatus {
+    status.inner().clone()
+}
+
+// ── App setup ────────────────────────────────────────────────────────────────
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let db = Db::new().expect("failed to open database");
+    let claude_status = analyzer::compute_claude_status(&db);
+
+    if claude_status.available {
+        println!(
+            "[macroscope] Claude CLI: {} ({})",
+            claude_status.path.as_deref().unwrap_or("?"),
+            claude_status.version.as_deref().unwrap_or("?")
+        );
+    } else {
+        println!(
+            "[macroscope] Claude CLI unavailable: {}",
+            claude_status.error.as_deref().unwrap_or("unknown error")
+        );
+    }
 
     tauri::Builder::default()
         .manage(db)
+        .manage(claude_status)
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             take_snapshot,
@@ -105,6 +132,7 @@ pub fn run() {
             get_setting,
             set_setting,
             list_settings,
+            get_claude_status,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
