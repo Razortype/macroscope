@@ -7,6 +7,7 @@ import { ArrowLeft, Activity } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage, FormDescription } from "../components/ui/form";
 import { Input } from "../components/ui/input";
+import { Checkbox } from "../components/ui/checkbox";
 import { settingsSchema, type SettingsValues } from "../types/settings";
 import { loadSettings, saveSettings } from "../lib/settings";
 import type { ClaudeStatus } from "../types/snapshot";
@@ -198,8 +199,55 @@ function SectionClaudeCLI() {
   );
 }
 
+// ── Section: Hotkey ───────────────────────────────────────────────────────────
+
 function SectionHotkey() {
-  return <Section title="Hotkey" />;
+  const form = useFormContext<SettingsValues>();
+  return (
+    <Section
+      title="Hotkey"
+      description="Global hotkey to summon Macroscope from anywhere. Activation arrives in a future update."
+    >
+      <div style={{ opacity: 0.75, display: "flex", flexDirection: "column", gap: "16px" }}>
+        <FormField
+          control={form.control}
+          name="hotkey_enabled"
+          render={({ field }) => (
+            <FormItem>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <FormControl>
+                  <Checkbox
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+                <FormLabel style={{ cursor: "pointer", margin: 0 }}>
+                  Enable global hotkey
+                </FormLabel>
+              </div>
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="hotkey_combo"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Hotkey combination</FormLabel>
+              <FormControl>
+                <Input readOnly style={{ width: "160px", cursor: "default" }} {...field} />
+              </FormControl>
+            </FormItem>
+          )}
+        />
+
+        <p style={{ margin: 0, fontSize: "var(--text-xs)", color: "var(--color-text-disabled)", fontStyle: "italic" }}>
+          Currently inactive — values saved but not registered with the system.
+        </p>
+      </div>
+    </Section>
+  );
 }
 
 function SectionSafety() {
