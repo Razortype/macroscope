@@ -16,6 +16,12 @@ use self::processes::ProcessInfo;
 use self::users::UserAccount;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SnapshotMeta {
+    pub id: i64,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProbeFailure {
     pub probe: String,
     pub message: String,
