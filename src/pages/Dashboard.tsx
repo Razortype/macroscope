@@ -45,6 +45,7 @@ export default function Dashboard() {
   const [executedPaths, setExecutedPaths] = useState<Set<string>>(new Set());
   const [partialPaths, setPartialPaths] = useState<Set<string>>(new Set());
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [dialogFindings, setDialogFindings] = useState<Finding[]>([]);
   const [analyzeError, setAnalyzeError] = useState<string | null>(null);
   const [showProgress, setShowProgress] = useState(false);
 
@@ -125,6 +126,22 @@ export default function Dashboard() {
     setSelectedIds((prev) => prev.size === ids.length ? new Set() : new Set(ids));
   }, [findings, deleteableFindings]);
 
+  const handleCleanLeftover = useCallback((paths: string[], name: string, bytes: number) => {
+    const stubFinding: Finding = {
+      id: `leftover_clean_${name.replace(/\s+/g, "_")}`,
+      severity: "medium",
+      category: "apps",
+      title: `Clean leftover: ${name}`,
+      description: `Remove orphaned application data for ${name}.`,
+      rationale: "Application is no longer installed.",
+      suggested_action: "delete_paths",
+      paths_to_remove: paths,
+      estimated_bytes_freed: bytes,
+    };
+    setDialogFindings([stubFinding]);
+    setDialogOpen(true);
+  }, []);
+
   const handleExecuteComplete = useCallback(({ moved, partial }: ExecuteResult) => {
     setExecutedPaths((prev) => new Set([...prev, ...moved]));
     setPartialPaths((prev) => new Set([...prev, ...partial]));
@@ -162,7 +179,12 @@ export default function Dashboard() {
       <TabBar
         active={active}
         onChange={setActive}
-        counts={{ findings: findings?.length }}
+        counts={{
+          findings: findings?.length,
+          apps: activeSnapshot?.apps
+            ? activeSnapshot.apps.installed.length + activeSnapshot.apps.leftovers.length
+            : undefined,
+        }}
       />
 
       <div style={{ flex: 1, overflow: "auto" }}>
@@ -209,7 +231,12 @@ export default function Dashboard() {
             deleteableCount={deleteableFindings.length}
           />
         )}
-        {active === "apps" && <AppsTab />}
+        {active === "apps" && (
+          <AppsTab
+            apps={activeSnapshot?.apps ?? null}
+            onCleanLeftover={handleCleanLeftover}
+          />
+        )}
         {active === "files" && <FilesTab />}
         {active === "security" && <SecurityTab />}
       </div>
@@ -235,7 +262,7 @@ export default function Dashboard() {
             )}
           </span>
           <button
-            onClick={() => setDialogOpen(true)}
+            onClick={() => { setDialogFindings(selectedFindings); setDialogOpen(true); }}
             style={{
               background: "var(--color-accent)",
               color: "var(--color-accent-on)",
@@ -256,7 +283,7 @@ export default function Dashboard() {
       <ExecuteDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
-        findings={selectedFindings}
+        findings={dialogFindings}
         onComplete={handleExecuteComplete}
       />
     </div>

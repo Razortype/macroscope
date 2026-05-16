@@ -432,7 +432,12 @@ export default function OverviewTab({
             <span style={{ fontSize: "12px", color: "var(--color-text-muted)" }}>→</span>
           </div>
           <span style={{ fontSize: "var(--text-sm)", color: "var(--color-text-secondary)" }}>
-            47 installed · 12 leftovers · 4 stale
+            {(() => {
+              const a = latestSnapshot.apps;
+              if (!a) return "Take a snapshot to scan apps";
+              const stale = a.installed.filter((app) => (app.last_opened_days_ago ?? 0) > 180).length;
+              return `${a.installed.length} installed · ${a.leftovers.length} leftovers · ${stale} stale`;
+            })()}
           </span>
         </button>
 
