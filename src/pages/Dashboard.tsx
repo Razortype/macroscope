@@ -7,7 +7,7 @@ import TopBar from "../components/TopBar";
 import TabBar, { type TabId } from "../components/TabBar";
 import ExecuteDialog, { type ExecuteResult } from "../components/ExecuteDialog";
 import AnalysisProgress from "../components/AnalysisProgress";
-import OverviewTab from "./tabs/OverviewTab";
+import OverviewTab, { type LastAnalysisSummary } from "./tabs/OverviewTab";
 import FindingsTab from "./tabs/FindingsTab";
 import AppsTab from "./tabs/AppsTab";
 import FilesTab from "./tabs/FilesTab";
@@ -22,6 +22,22 @@ function formatBytes(bytes: number): string {
 }
 
 const ALL_PRESETS = ["disk-audit", "security-audit", "app-lifecycle-audit"];
+
+function buildLastAnalysis(
+  data: Finding[],
+  startedAt: number | null
+): LastAnalysisSummary {
+  const now = Date.now();
+  return {
+    completedAt: now,
+    totalDurationMs: now - (startedAt ?? now),
+    audits: [
+      { preset: "disk-audit", label: "disk", findingCount: data.filter((f) => f.category === "disk").length },
+      { preset: "security-audit", label: "security", findingCount: data.filter((f) => ["security", "persistence", "network"].includes(f.category)).length },
+      { preset: "app-lifecycle-audit", label: "apps", findingCount: data.filter((f) => f.category === "apps").length },
+    ],
+  };
+}
 
 const SEVERITY_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2, info: 3 };
 function sortFindings(fs: Finding[]): Finding[] {
@@ -48,6 +64,8 @@ export default function Dashboard() {
   const [dialogFindings, setDialogFindings] = useState<Finding[]>([]);
   const [analyzeError, setAnalyzeError] = useState<string | null>(null);
   const [showProgress, setShowProgress] = useState(false);
+  const [lastAnalysis, setLastAnalysis] = useState<LastAnalysisSummary | null>(null);
+  const [analysisStartedAt, setAnalysisStartedAt] = useState<number | null>(null);
 
   const latestIdQuery = useQuery<number | null>({
     queryKey: ["latest_snapshot_id"],
@@ -76,6 +94,7 @@ export default function Dashboard() {
       setExecutedPaths(new Set());
       setPartialPaths(new Set());
       setAnalyzeError(null);
+      setAnalysisStartedAt(Date.now());
     },
     mutationFn: async () => {
       const snap = await invoke<Snapshot>("take_snapshot");
@@ -85,7 +104,10 @@ export default function Dashboard() {
       qc.invalidateQueries({ queryKey: ["latest_snapshot_id"] });
       return invoke<Finding[]>("analyze_snapshot", { snapshotId: id, presets: ALL_PRESETS });
     },
-    onSuccess: (data) => { setFindings(sortFindings(data)); },
+    onSuccess: (data) => {
+      setFindings(sortFindings(data));
+      setLastAnalysis(buildLastAnalysis(data, analysisStartedAt));
+    },
     onError: (err) => { setShowProgress(false); setAnalyzeError(err); },
   });
 
@@ -97,12 +119,16 @@ export default function Dashboard() {
       setExecutedPaths(new Set());
       setPartialPaths(new Set());
       setAnalyzeError(null);
+      setAnalysisStartedAt(Date.now());
     },
     mutationFn: async () => {
       if (activeSnapshotId == null) throw new Error("No snapshot loaded");
       return invoke<Finding[]>("analyze_snapshot", { snapshotId: activeSnapshotId, presets: ALL_PRESETS });
     },
-    onSuccess: (data) => { setFindings(sortFindings(data)); },
+    onSuccess: (data) => {
+      setFindings(sortFindings(data));
+      setLastAnalysis(buildLastAnalysis(data, analysisStartedAt));
+    },
     onError: (err) => { setShowProgress(false); setAnalyzeError(err); },
   });
 
@@ -215,6 +241,7 @@ export default function Dashboard() {
           <OverviewTab
             latestSnapshot={activeSnapshot}
             findings={findings}
+            lastAnalysis={lastAnalysis}
             onJumpToFindings={() => setActive("findings")}
             onJumpToApps={() => setActive("apps")}
             onJumpToFiles={() => setActive("files")}

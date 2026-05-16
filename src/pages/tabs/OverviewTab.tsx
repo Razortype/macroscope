@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import type { Finding, Severity } from "../../types/finding";
 import type { Snapshot } from "../../types/snapshot";
 
@@ -17,11 +18,32 @@ function diskBarColor(pct: number): string {
   return "var(--color-severity-low-fg)";
 }
 
+function formatRelativeTime(ts: number): string {
+  const secs = Math.floor((Date.now() - ts) / 1000);
+  if (secs < 60) return `${secs}s ago`;
+  if (secs < 3600) return `${Math.floor(secs / 60)}m ago`;
+  if (secs < 86400) return `${Math.floor(secs / 3600)}h ago`;
+  return `${Math.floor(secs / 86400)}d ago`;
+}
+
 // ── Types ─────────────────────────────────────────────────────────────────────
+
+export interface LastAnalysisAudit {
+  preset: string;
+  label: string;
+  findingCount: number;
+}
+
+export interface LastAnalysisSummary {
+  completedAt: number;
+  totalDurationMs: number;
+  audits: LastAnalysisAudit[];
+}
 
 export interface OverviewTabProps {
   latestSnapshot: Snapshot | null;
   findings: Finding[] | null;
+  lastAnalysis: LastAnalysisSummary | null;
   onJumpToFindings: () => void;
   onJumpToApps: () => void;
   onJumpToFiles: () => void;
@@ -229,11 +251,110 @@ function CompactFindingRow({ finding: f, isLast }: { finding: Finding; isLast: b
   );
 }
 
+function AuditSummaryCard({ label, findingCount }: { label: string; findingCount: number }) {
+  return (
+    <div
+      style={{
+        background: "var(--color-bg-elev-2)",
+        borderRadius: 4,
+        padding: "10px 12px",
+        display: "flex",
+        flexDirection: "column",
+        gap: 6,
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <span
+          style={{
+            width: 7,
+            height: 7,
+            borderRadius: "50%",
+            background: "#5dca8c",
+            display: "inline-block",
+            flexShrink: 0,
+          }}
+        />
+        <span style={{ fontSize: 11, color: "var(--color-text-secondary)", fontWeight: 500 }}>
+          {label}
+        </span>
+      </div>
+      <div style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--color-text-muted)" }}>
+        {findingCount} finding{findingCount !== 1 ? "s" : ""}
+      </div>
+    </div>
+  );
+}
+
+function LastAnalysisSection({ lastAnalysis }: { lastAnalysis: LastAnalysisSummary }) {
+  const [relTime, setRelTime] = useState(() => formatRelativeTime(lastAnalysis.completedAt));
+
+  useEffect(() => {
+    setRelTime(formatRelativeTime(lastAnalysis.completedAt));
+    const id = setInterval(
+      () => setRelTime(formatRelativeTime(lastAnalysis.completedAt)),
+      30_000
+    );
+    return () => clearInterval(id);
+  }, [lastAnalysis.completedAt]);
+
+  const totalSecs = (lastAnalysis.totalDurationMs / 1000).toFixed(0);
+
+  return (
+    <div
+      style={{
+        background: "var(--color-bg-elev-1)",
+        border: "1px solid var(--color-border-subtle)",
+        borderRadius: 6,
+        padding: 14,
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginBottom: 10,
+        }}
+      >
+        <span
+          style={{
+            fontSize: 11,
+            fontWeight: 600,
+            letterSpacing: "0.08em",
+            textTransform: "uppercase",
+            color: "var(--color-text-secondary)",
+          }}
+        >
+          last analysis
+        </span>
+        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+          <span
+            style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--color-text-muted)" }}
+          >
+            {totalSecs}s total
+          </span>
+          <span
+            style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--color-text-muted)" }}
+          >
+            {relTime}
+          </span>
+        </div>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
+        {lastAnalysis.audits.map((a) => (
+          <AuditSummaryCard key={a.preset} label={a.label} findingCount={a.findingCount} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function OverviewTab({
   latestSnapshot,
   findings,
+  lastAnalysis,
   onJumpToFindings,
   onJumpToApps,
   onJumpToFiles,
@@ -334,7 +455,10 @@ export default function OverviewTab({
         </MetricCard>
       </div>
 
-      {/* Row 2 — Top priority */}
+      {/* Row 2 — Last analysis summary */}
+      {lastAnalysis && <LastAnalysisSection lastAnalysis={lastAnalysis} />}
+
+      {/* Row 3 — Top priority */}
       <div
         style={{
           background: "var(--color-bg-elev-1)",
@@ -394,7 +518,7 @@ export default function OverviewTab({
         )}
       </div>
 
-      {/* Row 3 — Cross-tab preview cards */}
+      {/* Row 4 — Cross-tab preview cards */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
         {/* Apps preview */}
         <button
