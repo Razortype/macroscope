@@ -3,6 +3,8 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 
 use crate::db::{settings_keys, Db};
+use crate::error::AppError;
+use crate::snapshot::Snapshot;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClaudeStatus {
@@ -89,4 +91,38 @@ pub(crate) fn expand_tilde(s: &str) -> PathBuf {
         }
     }
     PathBuf::from(s)
+}
+
+// ── Snapshot filtering ───────────────────────────────────────────────────────
+
+/// Returns a serde_json::Value containing only the snapshot keys relevant to
+/// the given preset, reducing token cost and keeping Claude focused.
+pub fn filter_snapshot_for_preset(
+    snapshot: &Snapshot,
+    preset: &str,
+) -> Result<serde_json::Value, AppError> {
+    let keys: &[&str] = match preset {
+        "disk-audit" => &["created_at", "disk", "processes"],
+        "security-audit" => &[
+            "created_at",
+            "network",
+            "persistence",
+            "users",
+            "kernel",
+            "partial_failures",
+        ],
+        other => return Err(AppError::Config(format!("unknown preset: {other}"))),
+    };
+
+    let full = serde_json::to_value(snapshot)?;
+    let map = full
+        .as_object()
+        .ok_or_else(|| AppError::Config("snapshot is not a JSON object".into()))?;
+
+    let filtered: serde_json::Map<String, serde_json::Value> = keys
+        .iter()
+        .filter_map(|k| map.get(*k).map(|v| (k.to_string(), v.clone())))
+        .collect();
+
+    Ok(serde_json::Value::Object(filtered))
 }
