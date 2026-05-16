@@ -107,7 +107,7 @@ function StatusBadge({ status }: { status: "active" | "stale" | "leftover" }) {
   );
 }
 
-const GRID = "50px 1fr 110px 100px 90px 80px";
+const GRID = "50px minmax(0, 1fr) 110px 100px 90px 80px";
 const ROW_STYLE: React.CSSProperties = {
   display: "grid",
   gridTemplateColumns: GRID,
@@ -141,8 +141,8 @@ function InstalledRow({ row }: { row: AppRow & { type: "installed" } }) {
       <IconCell>
         <Package size={14} color="var(--color-text-muted)" />
       </IconCell>
-      <div>
-        <div style={{ fontSize: "13px", color: "var(--color-text-primary)" }}>{app.name}</div>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontSize: "13px", color: "var(--color-text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{app.name}</div>
         <div style={{ fontSize: "10px", color: "var(--color-text-muted)", fontFamily: "var(--font-mono)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {app.path}
         </div>
@@ -173,8 +173,8 @@ function LeftoverRow({
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
         <FolderX size={14} color="var(--color-severity-medium-fg)" />
       </div>
-      <div>
-        <div style={{ fontSize: "13px", color: "var(--color-text-primary)" }}>{displayName}</div>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontSize: "13px", color: "var(--color-text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{displayName}</div>
         <div style={{ fontSize: "10px", color: "var(--color-text-muted)", fontFamily: "var(--font-mono)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {leftover.path}
         </div>

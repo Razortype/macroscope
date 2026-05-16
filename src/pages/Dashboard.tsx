@@ -187,7 +187,7 @@ export default function Dashboard() {
         }}
       />
 
-      <div style={{ flex: 1, overflow: "auto" }}>
+      <div style={{ flex: 1, overflow: "auto", overflowX: "hidden" }}>
         {showingProgress && (
           <div style={{ padding: "20px 20px 0" }}>
             <AnalysisProgress
