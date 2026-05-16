@@ -1,0 +1,96 @@
+@import "tailwindcss";
+
+@theme {
+  --color-bg-base:     hsl(220 14% 7%);
+  --color-bg-elev-1:   hsl(220 13% 10%);
+  --color-bg-elev-2:   hsl(220 12% 14%);
+  --color-bg-elev-3:   hsl(220 11% 18%);
+
+  --color-text-primary:    hsl(210 15% 95%);
+  --color-text-secondary:  hsl(220 10% 70%);
+  --color-text-muted:      hsl(220 8% 50%);
+  --color-text-disabled:   hsl(220 8% 35%);
+
+  --color-border-subtle:   hsl(220 10% 18%);
+  --color-border-strong:   hsl(220 10% 28%);
+  --color-border-divider:  hsl(220 10% 12%);
+
+  --color-accent:           hsl(38 92% 55%);
+  --color-accent-hover:     hsl(38 92% 62%);
+  --color-accent-muted:     hsl(38 60% 45%);
+  --color-accent-glow:      hsl(38 92% 55% / 0.12);
+  --color-accent-on:        hsl(38 95% 12%);
+
+  --color-severity-info:    hsl(200 70% 55%);
+  --color-severity-low:     hsl(160 50% 50%);
+  --color-severity-medium:  hsl(38 92% 55%);
+  --color-severity-high:    hsl(0 70% 58%);
+
+  --color-severity-info-bg:    hsl(200 70% 55% / 0.12);
+  --color-severity-low-bg:     hsl(160 50% 50% / 0.12);
+  --color-severity-medium-bg:  hsl(38 92% 55% / 0.12);
+  --color-severity-high-bg:    hsl(0 70% 58% / 0.12);
+
+  --color-severity-info-fg:    hsl(200 75% 68%);
+  --color-severity-low-fg:     hsl(160 55% 62%);
+  --color-severity-medium-fg:  hsl(38 92% 65%);
+  --color-severity-high-fg:    hsl(0 75% 70%);
+
+  --color-status-ok:        hsl(160 50% 50%);
+  --color-status-warning:   hsl(38 92% 55%);
+  --color-status-critical:  hsl(0 70% 58%);
+
+  --font-sans: "Geist", "SF Pro Text", -apple-system, system-ui, sans-serif;
+  --font-mono: "Geist Mono", "SF Mono", "JetBrains Mono", monospace;
+
+  --text-xs:    0.6875rem;
+  --text-sm:    0.8125rem;
+  --text-base:  0.875rem;
+  --text-lg:    1rem;
+  --text-xl:    1.125rem;
+  --text-2xl:   1.375rem;
+  --text-3xl:   1.75rem;
+
+  --leading-tight:  1.25;
+  --leading-snug:   1.4;
+  --leading-base:   1.55;
+
+  --spacing-0_5: 2px;
+  --spacing-1:   4px;
+  --spacing-2:   8px;
+  --spacing-3:   12px;
+  --spacing-4:   16px;
+  --spacing-5:   20px;
+  --spacing-6:   24px;
+  --spacing-8:   32px;
+  --spacing-10:  40px;
+  --spacing-12:  48px;
+  --spacing-16:  64px;
+
+  --radius-xs: 2px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-full: 9999px;
+
+  --shadow-sm: 0 1px 0 0 hsl(220 14% 4% / 0.4);
+  --shadow-md: 0 2px 4px 0 hsl(220 14% 2% / 0.5), 0 1px 0 0 hsl(220 14% 4% / 0.4);
+  --shadow-lg: 0 8px 16px 0 hsl(220 14% 2% / 0.6), 0 2px 4px 0 hsl(220 14% 4% / 0.4);
+
+  --duration-instant:  100ms;
+  --duration-fast:     150ms;
+  --duration-base:     200ms;
+  --duration-slow:     320ms;
+
+  --ease-out:    cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in:     cubic-bezier(0.7, 0, 0.84, 0);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+}
+
+html, body, #root {
+  background: var(--color-bg-base);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: var(--leading-base);
+}
