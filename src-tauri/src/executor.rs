@@ -67,6 +67,15 @@ const DENIED_PREFIXES: &[&str] = &[
 // The root "/" itself is also denied (guards against empty-string expansion).
 const DENIED_EXACT: &[&str] = &["/"];
 
+// Directories where the directory itself can't be trashed atomically but each
+// child can be attempted independently.  Finder/system daemons lock individual
+// com.apple.* subdirs inside ~/Library/Caches; expanding lets us recover the
+// non-locked subset rather than failing the whole operation.
+const EXPAND_ON_EXECUTION: &[&str] = &[
+    "~/Library/Caches/",
+    "~/Library/Logs/",
+];
+
 // ── Path validation ───────────────────────────────────────────────────────────
 
 /// Validate that `path` is safe to move to Trash.
@@ -149,7 +158,7 @@ pub async fn execute_actions(paths: Vec<String>, db: &Db) -> Result<ExecutionRep
 
     for path in paths {
         let item = execute_single(&path, &audit_log).await;
-        if item.status == "moved" {
+        if item.status == "moved" || item.status == "partial" {
             total_freed += item.bytes;
         }
         items.push(item);
@@ -183,6 +192,9 @@ async fn execute_single(path: &str, audit_log: &Path) -> ExecutionItem {
             }
         }
         Ok(canonical) => {
+            if should_expand(&canonical) {
+                return execute_expanded(&canonical, path, audit_log).await;
+            }
             // Capture size BEFORE trashing
             let bytes = dir_size(&canonical).unwrap_or(0);
             match trash::delete(&canonical) {
@@ -207,6 +219,97 @@ async fn execute_single(path: &str, audit_log: &Path) -> ExecutionItem {
                 }
             }
         }
+    }
+}
+
+// ── Expansion logic ───────────────────────────────────────────────────────────
+
+fn should_expand(canonical: &Path) -> bool {
+    let home = match dirs::home_dir() {
+        Some(h) => h,
+        None => return false,
+    };
+    for raw in EXPAND_ON_EXECUTION {
+        let expanded = if raw.starts_with("~/") {
+            home.join(&raw[2..])
+        } else {
+            PathBuf::from(raw)
+        };
+        // EXPAND_ON_EXECUTION entries have trailing slashes; strip before comparing.
+        let base = PathBuf::from(expanded.display().to_string().trim_end_matches('/'));
+        if canonical == base {
+            return true;
+        }
+    }
+    false
+}
+
+/// Trash each direct child of `canonical` independently, aggregating results.
+/// Returns a single ExecutionItem with status "moved" / "partial" / "failed".
+async fn execute_expanded(canonical: &Path, original_path: &str, audit_log: &Path) -> ExecutionItem {
+    let entries = match fs::read_dir(canonical) {
+        Ok(e) => e,
+        Err(e) => {
+            let msg = format!("failed to read directory: {e}");
+            append_audit_log(audit_log, original_path, "failed", 0, Some(&msg));
+            return ExecutionItem {
+                path: original_path.to_string(),
+                status: "failed".to_string(),
+                bytes: 0,
+                error: Some(msg),
+            };
+        }
+    };
+
+    let children: Vec<PathBuf> = entries.filter_map(|e| e.ok().map(|e| e.path())).collect();
+    let total = children.len();
+
+    if total == 0 {
+        append_audit_log(audit_log, original_path, "moved", 0, None);
+        return ExecutionItem {
+            path: original_path.to_string(),
+            status: "moved".to_string(),
+            bytes: 0,
+            error: None,
+        };
+    }
+
+    let mut moved_bytes: u64 = 0;
+    let mut moved_count: usize = 0;
+    let mut failed_count: usize = 0;
+
+    for child in &children {
+        let child_bytes = dir_size(child).unwrap_or(0);
+        match trash::delete(child) {
+            Ok(()) => {
+                moved_bytes += child_bytes;
+                moved_count += 1;
+            }
+            Err(_) => {
+                failed_count += 1;
+            }
+        }
+    }
+
+    let (status, error): (&str, Option<String>) = if failed_count == 0 {
+        ("moved", None)
+    } else if moved_count == 0 {
+        ("failed", Some(format!("all {total} subdirectories could not be moved")))
+    } else {
+        (
+            "partial",
+            Some(format!(
+                "{failed_count} of {total} subdirectories could not be moved (system locks)"
+            )),
+        )
+    };
+
+    append_audit_log(audit_log, original_path, status, moved_bytes, error.as_deref());
+    ExecutionItem {
+        path: original_path.to_string(),
+        status: status.to_string(),
+        bytes: moved_bytes,
+        error,
     }
 }
 
