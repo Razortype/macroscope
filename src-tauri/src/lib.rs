@@ -1,10 +1,12 @@
 pub mod analyzer;
 pub mod db;
 pub mod error;
+pub mod finding;
 pub mod snapshot;
 
 use analyzer::ClaudeStatus;
 use db::Db;
+use finding::Finding;
 use snapshot::{Snapshot, SnapshotMeta};
 use tauri::State;
 
@@ -99,6 +101,23 @@ fn get_claude_status(status: State<'_, ClaudeStatus>) -> ClaudeStatus {
     status.inner().clone()
 }
 
+#[tauri::command]
+async fn analyze_snapshot(
+    snapshot_id: i64,
+    preset: String,
+    db: State<'_, Db>,
+    claude_status: State<'_, ClaudeStatus>,
+) -> Result<Vec<Finding>, String> {
+    analyzer::analyze_snapshot(
+        snapshot_id,
+        preset,
+        db.inner(),
+        claude_status.inner(),
+    )
+    .await
+    .map_err(Into::into)
+}
+
 // ── App setup ────────────────────────────────────────────────────────────────
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -138,6 +157,7 @@ pub fn run() {
             set_setting,
             list_settings,
             get_claude_status,
+            analyze_snapshot,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

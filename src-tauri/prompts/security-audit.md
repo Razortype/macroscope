@@ -8,9 +8,7 @@ When you do flag something, be specific about why it stands out. "This launch ag
 
 # Input
 
-A JSON file will be provided at a path appended to this prompt. Use your file reading capability to read that file before responding.
-
-The file contains a snapshot slice with these top-level fields:
+A JSON snapshot will be appended to this prompt in a fenced code block. The snapshot is a slice with these top-level fields:
 
 - `created_at` — ISO 8601 timestamp of when the snapshot was taken
 - `network` — object with two arrays:
