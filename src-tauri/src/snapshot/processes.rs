@@ -42,26 +42,34 @@ fn parse_ps_line(line: &str) -> Option<ProcessInfo> {
         return None;
     }
 
-    // Fields: pid ppid user rss command... etime
-    // "command" can contain spaces, and etime is the LAST field.
-    // Strategy: split on whitespace, take first 4 fixed fields,
-    // take the last field as etime, everything in between is command.
-    let cols: Vec<&str> = line.splitn(5, char::is_whitespace).collect();
-    // After splitn(5, ...) we have at most: [pid, ppid, user, rss, "command... etime"]
-    if cols.len() < 5 {
+    // split_whitespace() collapses runs of spaces, unlike splitn(n, char::is_whitespace)
+    // which splits on every individual space character and produces empty tokens from
+    // the leading padding that ps adds to right-justify numeric columns.
+    let tokens: Vec<&str> = line.split_whitespace().collect();
+
+    // Minimum viable line: pid ppid user rss command etime = 6 tokens
+    if tokens.len() < 6 {
         return None;
     }
 
-    let pid: u32 = cols[0].trim().parse().ok()?;
-    let ppid: u32 = cols[1].trim().parse().ok()?;
-    let user = cols[2].trim().to_string();
-    let rss_kb: u64 = cols[3].trim().parse().ok()?;
-    let rest = cols[4].trim();
+    let pid: u32 = tokens[0].parse().ok()?;
+    let ppid: u32 = tokens[1].parse().ok()?;
+    let user = tokens[2].to_string();
+    let rss_kb: u64 = tokens[3].parse().ok()?;
 
-    // The last whitespace-separated token in rest is etime, everything before is command
-    let last_space = rest.rfind(char::is_whitespace)?;
-    let command = rest[..last_space].trim().to_string();
-    let etime = rest[last_space..].trim().to_string();
+    // tokens[4..] = command parts (0 or more) + etime (always last)
+    let remaining = &tokens[4..];
+
+    // etime is always the final token and has a known character-class shape.
+    // Validate it before trusting the split — malformed lines are silently dropped.
+    let etime_tok = *remaining.last()?;
+    if !is_etime(etime_tok) {
+        return None;
+    }
+
+    // Everything before the last token is the command (handles paths with spaces,
+    // e.g. "/Applications/Visual Studio Code.app/...")
+    let command = remaining[..remaining.len() - 1].join(" ");
 
     Some(ProcessInfo {
         pid,
@@ -69,6 +77,25 @@ fn parse_ps_line(line: &str) -> Option<ProcessInfo> {
         user,
         rss_bytes: rss_kb * 1024, // ps rss is in KB on macOS
         command,
-        etime,
+        etime: etime_tok.to_string(),
     })
+}
+
+// etime format (from ps(1) man page): [[DD-]HH:]MM:SS
+// Accepts: "MM:SS", "HH:MM:SS", "D-HH:MM:SS", "DD-HH:MM:SS", etc.
+// All tokens are ASCII digits; the only non-digit chars allowed are ':' and
+// a single '-' separating an optional leading day count.
+fn is_etime(s: &str) -> bool {
+    if s.is_empty() {
+        return false;
+    }
+    // Strip optional leading "D-" day prefix (one or more digits then '-')
+    let time_part = match s.find('-') {
+        Some(i) if i > 0 && s[..i].chars().all(|c| c.is_ascii_digit()) => &s[i + 1..],
+        None => s,
+        _ => return false,
+    };
+    let parts: Vec<&str> = time_part.split(':').collect();
+    (2..=3).contains(&parts.len())
+        && parts.iter().all(|p| !p.is_empty() && p.chars().all(|c| c.is_ascii_digit()))
 }
