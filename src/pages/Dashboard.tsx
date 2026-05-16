@@ -7,6 +7,7 @@ import type { ClaudeStatus, Snapshot, SnapshotMeta } from "../types/snapshot";
 import HeroMetrics from "../components/HeroMetrics";
 import FindingCard from "../components/FindingCard";
 import ExecuteDialog, { type ExecuteResult } from "../components/ExecuteDialog";
+import AnalysisProgress from "../components/AnalysisProgress";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -391,8 +392,8 @@ export default function Dashboard() {
         {/* Error banners */}
         {analyzeError && <ErrorBanner message={analyzeError} />}
 
-        {/* Analysis in-progress placeholder */}
-        {isAnalyzing && <AnalyzingPlaceholder />}
+        {/* Dual-track analysis progress indicator */}
+        <AnalysisProgress isActive={isAnalyzing} />
 
         {/* Findings */}
         {!isAnalyzing && findings !== null && (
@@ -469,62 +470,6 @@ export default function Dashboard() {
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
-
-function AnalyzingPlaceholder() {
-  return (
-    <div
-      style={{
-        margin: "0 -20px",
-        padding: "28px 20px",
-        background: "var(--color-bg-elev-1)",
-        borderTop: "1px solid var(--color-border-divider)",
-        borderBottom: "1px solid var(--color-border-divider)",
-        display: "flex",
-        flexDirection: "column",
-        gap: "8px",
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "10px",
-          fontSize: "var(--text-sm)",
-          fontWeight: 500,
-          color: "var(--color-text-primary)",
-        }}
-      >
-        {/* Pulsing dot */}
-        <span
-          style={{
-            width: "8px",
-            height: "8px",
-            borderRadius: "50%",
-            background: "var(--color-accent)",
-            display: "inline-block",
-            animation: "pulse 1.4s ease-in-out infinite",
-            flexShrink: 0,
-          }}
-        />
-        Analyzing your system...
-      </div>
-      <p
-        style={{
-          margin: 0,
-          paddingLeft: "18px",
-          fontSize: "var(--text-xs)",
-          color: "var(--color-text-muted)",
-        }}
-      >
-        Running disk and security audits in parallel · typical duration: 30–90 seconds
-      </p>
-      <style>{`@keyframes pulse {
-        0%, 100% { opacity: 1; transform: scale(1); }
-        50% { opacity: 0.4; transform: scale(0.85); }
-      }`}</style>
-    </div>
-  );
-}
 
 function ErrorBanner({ message }: { message: string }) {
   return (
