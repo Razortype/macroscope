@@ -41,6 +41,8 @@ export default function Dashboard() {
   const [activeSnapshotId, setActiveSnapshotId] = useState<number | null>(null);
   const [findings, setFindings] = useState<Finding[] | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [executedPaths, setExecutedPaths] = useState<Set<string>>(new Set());
+  const [partialPaths, setPartialPaths] = useState<Set<string>>(new Set());
   const [dialogOpen, setDialogOpen] = useState(false);
   const [analyzeError, setAnalyzeError] = useState<string | null>(null);
 
@@ -67,6 +69,8 @@ export default function Dashboard() {
     onMutate: () => {
       setFindings(null);
       setSelectedIds(new Set());
+      setExecutedPaths(new Set());
+      setPartialPaths(new Set());
       setAnalyzeError(null);
     },
     mutationFn: async () => {
@@ -85,6 +89,8 @@ export default function Dashboard() {
     onMutate: () => {
       setFindings(null);
       setSelectedIds(new Set());
+      setExecutedPaths(new Set());
+      setPartialPaths(new Set());
       setAnalyzeError(null);
     },
     mutationFn: async () => {
@@ -100,7 +106,23 @@ export default function Dashboard() {
   const selectedFindings = deleteableFindings.filter((f) => selectedIds.has(f.id));
   const totalBytesToFree = selectedFindings.reduce((sum, f) => sum + (f.estimated_bytes_freed ?? 0), 0);
 
+  const handleSelectChange = useCallback((id: string, checked: boolean) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      checked ? next.add(id) : next.delete(id);
+      return next;
+    });
+  }, []);
+
+  const handleSelectAll = useCallback(() => {
+    if (!findings) return;
+    const ids = deleteableFindings.map((f) => f.id);
+    setSelectedIds((prev) => prev.size === ids.length ? new Set() : new Set(ids));
+  }, [findings, deleteableFindings]);
+
   const handleExecuteComplete = useCallback(({ moved, partial }: ExecuteResult) => {
+    setExecutedPaths((prev) => new Set([...prev, ...moved]));
+    setPartialPaths((prev) => new Set([...prev, ...partial]));
     setSelectedIds((prev) => {
       const next = new Set(prev);
       for (const f of deleteableFindings) {
@@ -163,7 +185,17 @@ export default function Dashboard() {
             onJumpToFiles={() => setActive("files")}
           />
         )}
-        {active === "findings" && <FindingsTab />}
+        {active === "findings" && (
+          <FindingsTab
+            findings={findings}
+            selectedIds={selectedIds}
+            executedPaths={executedPaths}
+            partialPaths={partialPaths}
+            onToggleSelection={handleSelectChange}
+            onSelectAll={handleSelectAll}
+            deleteableCount={deleteableFindings.length}
+          />
+        )}
         {active === "apps" && <AppsTab />}
         {active === "files" && <FilesTab />}
         {active === "security" && <SecurityTab />}
