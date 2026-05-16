@@ -154,7 +154,15 @@ export default function Dashboard() {
             {analyzeError}
           </div>
         )}
-        {active === "overview" && <OverviewTab />}
+        {active === "overview" && (
+          <OverviewTab
+            latestSnapshot={activeSnapshot}
+            findings={findings}
+            onJumpToFindings={() => setActive("findings")}
+            onJumpToApps={() => setActive("apps")}
+            onJumpToFiles={() => setActive("files")}
+          />
+        )}
         {active === "findings" && <FindingsTab />}
         {active === "apps" && <AppsTab />}
         {active === "files" && <FilesTab />}
