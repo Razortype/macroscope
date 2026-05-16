@@ -1,5 +1,8 @@
 use std::path::{Path, PathBuf};
-use std::time::Duration;
+use std::process::Stdio;
+use std::time::{Duration, Instant};
+
+use tokio::io::AsyncBufReadExt;
 
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter};
@@ -227,7 +230,7 @@ pub async fn analyze_snapshot(
             let db = db.clone();
             let app = app.clone();
             tokio::spawn(async move {
-                let result = run_single_preset(&snap, &preset, &path).await;
+                let result = run_single_preset(&snap, &preset, &path, &app).await;
                 match result {
                     Ok(findings) => {
                         if let Err(e) = db.save_analysis_result(snapshot_id, &preset, &findings) {
@@ -265,51 +268,124 @@ pub async fn analyze_snapshot(
 // ── Single-preset execution ──────────────────────────────────────────────────
 
 /// Run the Claude CLI for one preset against a pre-loaded Snapshot.
+///
+/// Phase mapping (emitted as `analyzer:progress` events on `app`):
+///   starting  — before spawn
+///   analyzing — system/init received (Claude processing the prompt)
+///   waiting   — rate_limit_event received (API back-pressure, dominant ~30-90s)
+///   complete  — result event received with success
+///   error     — result event received with is_error=true
+///
 /// Returns validated findings. Does NOT touch the DB — caller persists.
 async fn run_single_preset(
     snapshot: &Snapshot,
     preset: &str,
     claude_path: &str,
+    app: &AppHandle,
 ) -> Result<Vec<Finding>, AppError> {
+    let start = Instant::now();
+
     let filtered = filter_snapshot_for_preset(snapshot, preset)?;
     let filtered_json = serde_json::to_string_pretty(&filtered)?;
-
     let template = load_prompt(preset)?;
     let full_prompt = format!("{template}\n\n# Snapshot data\n\n```json\n{filtered_json}\n```");
 
-    let output = tokio::time::timeout(
-        Duration::from_secs(180),
-        tokio::process::Command::new(claude_path)
-            .arg("-p")
-            .arg(&full_prompt)
-            .arg("--output-format=json")
-            .output(),
-    )
-    .await
-    .map_err(|_| AppError::ClaudeCli("Claude CLI timed out after 180 seconds".into()))?
-    .map_err(|e| AppError::ClaudeCli(format!("Failed to spawn claude: {e}")))?;
+    let _ = app.emit(
+        "analyzer:progress",
+        serde_json::json!({ "preset": preset, "phase": "starting", "elapsed_ms": 0u64 }),
+    );
 
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let stderr = String::from_utf8_lossy(&output.stderr);
+    let mut child = tokio::process::Command::new(claude_path)
+        .arg("-p")
+        .arg(&full_prompt)
+        .arg("--output-format=stream-json")
+        .arg("--verbose")
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .map_err(|e| AppError::ClaudeCli(format!("Failed to spawn claude: {e}")))?;
 
-    let envelope: serde_json::Value = serde_json::from_str(&stdout).map_err(|e| {
-        AppError::ClaudeCli(format!(
-            "Failed to parse claude JSON envelope: {e}\nstdout: {stdout}\nstderr: {stderr}"
-        ))
-    })?;
+    let stdout = child
+        .stdout
+        .take()
+        .ok_or_else(|| AppError::ClaudeCli("No stdout pipe from claude".into()))?;
 
-    if envelope.get("is_error").and_then(|v| v.as_bool()).unwrap_or(false) {
-        let msg = envelope.get("result").and_then(|v| v.as_str()).unwrap_or("unknown error");
+    let mut lines = tokio::io::BufReader::new(stdout).lines();
+    let mut result_text: Option<String> = None;
+    let mut is_error = false;
+
+    let read_result = tokio::time::timeout(Duration::from_secs(300), async {
+        while let Some(line) = lines.next_line().await? {
+            if line.trim().is_empty() {
+                continue;
+            }
+            let Ok(event) = serde_json::from_str::<serde_json::Value>(&line) else {
+                continue;
+            };
+            let elapsed_ms = start.elapsed().as_millis() as u64;
+            match event.get("type").and_then(|v| v.as_str()).unwrap_or("") {
+                "system/init" => {
+                    let _ = app.emit(
+                        "analyzer:progress",
+                        serde_json::json!({
+                            "preset": preset,
+                            "phase": "analyzing",
+                            "elapsed_ms": elapsed_ms,
+                        }),
+                    );
+                }
+                "rate_limit_event" => {
+                    let _ = app.emit(
+                        "analyzer:progress",
+                        serde_json::json!({
+                            "preset": preset,
+                            "phase": "waiting",
+                            "elapsed_ms": elapsed_ms,
+                        }),
+                    );
+                }
+                "result" => {
+                    let error_flag =
+                        event.get("is_error").and_then(|v| v.as_bool()).unwrap_or(false);
+                    is_error = error_flag;
+                    let timing = serde_json::json!({
+                        "duration_ms": event.get("duration_ms").and_then(|v| v.as_u64()),
+                        "duration_api_ms": event.get("duration_api_ms").and_then(|v| v.as_u64()),
+                    });
+                    let _ = app.emit(
+                        "analyzer:progress",
+                        serde_json::json!({
+                            "preset": preset,
+                            "phase": if is_error { "error" } else { "complete" },
+                            "elapsed_ms": elapsed_ms,
+                            "timing": timing,
+                        }),
+                    );
+                    result_text =
+                        event.get("result").and_then(|v| v.as_str()).map(str::to_string);
+                }
+                _ => {}
+            }
+        }
+        Ok::<(), std::io::Error>(())
+    })
+    .await;
+
+    child.wait().await.ok();
+
+    read_result
+        .map_err(|_| AppError::ClaudeCli("Claude CLI timed out after 300 seconds".into()))?
+        .map_err(|e| AppError::ClaudeCli(format!("IO error reading claude output: {e}")))?;
+
+    if is_error {
+        let msg = result_text.as_deref().unwrap_or("unknown error");
         return Err(AppError::ClaudeCli(format!("Claude returned an error: {msg}")));
     }
 
-    let result_text = envelope
-        .get("result")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| AppError::ClaudeCli(format!("No 'result' field in claude output. stdout: {stdout}")))?;
+    let text = result_text
+        .ok_or_else(|| AppError::ClaudeCli("No result event in claude stream-json output".into()))?;
 
-    let json_text = strip_code_fences(result_text);
-
+    let json_text = strip_code_fences(&text);
     let mut findings: Vec<Finding> = serde_json::from_str(json_text.trim()).map_err(|e| {
         AppError::ClaudeCli(format!("Failed to parse findings array: {e}\nContent: {json_text}"))
     })?;
