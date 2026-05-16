@@ -111,3 +111,11 @@ export interface Snapshot {
   kernel: KernelReport | null;
   partial_failures: ProbeFailure[]; // always an array, never null
 }
+
+// Mirror of src-tauri/src/analyzer.rs::ClaudeStatus
+export interface ClaudeStatus {
+  available: boolean;
+  path: string | null;
+  version: string | null;
+  error: string | null;
+}
