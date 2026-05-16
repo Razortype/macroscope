@@ -305,6 +305,8 @@ async fn run_single_preset(
         .spawn()
         .map_err(|e| AppError::ClaudeCli(format!("Failed to spawn claude: {e}")))?;
 
+    let pid = child.id();
+
     let stdout = child
         .stdout
         .take()
@@ -331,6 +333,7 @@ async fn run_single_preset(
                             "preset": preset,
                             "phase": "analyzing",
                             "elapsed_ms": elapsed_ms,
+                            "pid": pid,
                         }),
                     );
                 }
@@ -341,6 +344,7 @@ async fn run_single_preset(
                             "preset": preset,
                             "phase": "waiting",
                             "elapsed_ms": elapsed_ms,
+                            "pid": pid,
                         }),
                     );
                 }
@@ -358,6 +362,7 @@ async fn run_single_preset(
                             "preset": preset,
                             "phase": if is_error { "error" } else { "complete" },
                             "elapsed_ms": elapsed_ms,
+                            "pid": pid,
                             "timing": timing,
                         }),
                     );
