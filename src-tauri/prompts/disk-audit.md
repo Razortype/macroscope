@@ -20,7 +20,13 @@ Note: `watched_paths` is a curated list, not a full recursive scan. You may only
 
 Work through this sequence:
 
-**Step 1 — Volume pressure.** Read `disk.volume.capacity_pct`. If it is above 80 %, produce one `info` finding that states the overall disk state and frames the urgency of what follows. If it is at or below 80 %, skip the volume-level finding entirely — there is nothing general to communicate.
+**Step 1 — Volume pressure.** Read `disk.volume.capacity_pct`. This is critical context for the rest of the analysis:
+
+- If `capacity_pct` > 85%: disk is under pressure. Emit an `info` finding stating overall disk state. Cleanup findings later in this analysis should use full severity (medium 500 MB–5 GB, high >5 GB).
+- If `capacity_pct` is 70–85%: moderate pressure. Skip the volume-level finding. Cleanup findings use normal severity.
+- If `capacity_pct` < 70%: no pressure. Skip the volume-level finding. **Downgrade all cleanup-finding severities by one level**: what would have been `medium` becomes `low`, what would have been `high` becomes `medium`. The user is not in a rush; do not signal urgency that does not exist.
+
+The principle: a 2 GB browser cache on a 95%-full disk is medium-urgency cleanup; the same cache on a 23%-full disk is a low-priority "while you're here" suggestion.
 
 **Step 2 — Path review.** For each entry in `disk.watched_paths` where `exists` is `true` and `size_bytes` is greater than roughly 50 MB:
 
@@ -62,12 +68,12 @@ Return `[]` if there is nothing worth reporting.
 
 # Severity calibration
 
-| Level | Meaning for this audit |
+| Level | Meaning for this audit (adjusted by disk pressure per Step 1) |
 |---|---|
-| `info` | Observational. Disk is healthy, or a large directory is clearly needed and should not be touched. |
-| `low` | Safe cleanup candidate recovering less than 500 MB. |
-| `medium` | Meaningful cleanup: 500 MB – 5 GB, OR directory clearly belongs to software no longer installed. |
-| `high` | Recovers more than 5 GB, OR disk capacity is above 85 % and this is a top contributor, OR runaway process consuming excessive RAM on a related app. |
+| `info` | Observational. Disk is healthy or under pressure (used as context-setting finding). |
+| `low` | Minor cleanup candidate, OR a medium-sized cleanup on a low-pressure disk. |
+| `medium` | Meaningful cleanup under disk pressure, OR significant cleanup on a healthy disk. |
+| `high` | Significant cleanup (>5 GB) under disk pressure, OR disk capacity is above 85% with this finding as a top contributor. |
 
 # Anti-patterns — strictly do not do these
 
