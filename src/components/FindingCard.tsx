@@ -149,7 +149,18 @@ export default function FindingCard({ finding: f, selected, onSelectChange, exec
 
         {/* Paths to remove */}
         {f.paths_to_remove && f.paths_to_remove.length > 0 && (
-          <div style={{ display: "flex", flexDirection: "column", gap: "2px", marginTop: "2px" }}>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "2px",
+              marginTop: "4px",
+              background: "var(--color-bg-elev-3)",
+              border: "1px solid var(--color-border-subtle)",
+              borderRadius: "var(--radius-xs)",
+              padding: "4px 8px",
+            }}
+          >
             {f.paths_to_remove.map((p) => (
               <span
                 key={p}
