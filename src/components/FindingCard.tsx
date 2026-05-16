@@ -18,11 +18,12 @@ interface Props {
   selected: boolean;
   onSelectChange: (selected: boolean) => void;
   executed?: boolean;
+  partial?: boolean;
 }
 
-export default function FindingCard({ finding: f, selected, onSelectChange, executed = false }: Props) {
+export default function FindingCard({ finding: f, selected, onSelectChange, executed = false, partial = false }: Props) {
   const { fg, bg } = severityColors(f.severity);
-  const isSelectable = f.suggested_action === "delete_paths" && !executed;
+  const isSelectable = f.suggested_action === "delete_paths" && !executed && !partial;
 
   return (
     <div
@@ -86,7 +87,11 @@ export default function FindingCard({ finding: f, selected, onSelectChange, exec
             style={{
               fontWeight: 500,
               fontSize: "var(--text-sm)",
-              color: executed ? "var(--color-text-disabled)" : "var(--color-text-primary)",
+              color: executed
+                ? "var(--color-text-disabled)"
+                : partial
+                ? "var(--color-text-muted)"
+                : "var(--color-text-primary)",
               overflow: "hidden",
               textOverflow: "ellipsis",
               whiteSpace: "nowrap",
@@ -106,7 +111,18 @@ export default function FindingCard({ finding: f, selected, onSelectChange, exec
               ✓ Trash
             </span>
           )}
-          {!executed && f.suggested_action !== "delete_paths" && (
+          {partial && !executed && (
+            <span
+              style={{
+                color: "var(--color-status-warning)",
+                fontSize: "var(--text-xs)",
+                flexShrink: 0,
+              }}
+            >
+              ○ partial
+            </span>
+          )}
+          {!executed && !partial && f.suggested_action !== "delete_paths" && (
             <span
               style={{
                 color: "var(--color-text-disabled)",

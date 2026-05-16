@@ -6,7 +6,7 @@ import type { Finding } from "../types/finding";
 import type { ClaudeStatus, Snapshot, SnapshotMeta } from "../types/snapshot";
 import HeroMetrics from "../components/HeroMetrics";
 import FindingCard from "../components/FindingCard";
-import ExecuteDialog from "../components/ExecuteDialog";
+import ExecuteDialog, { type ExecuteResult } from "../components/ExecuteDialog";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -121,6 +121,7 @@ export default function Dashboard() {
   const [findings, setFindings] = useState<Finding[] | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [executedPaths, setExecutedPaths] = useState<Set<string>>(new Set());
+  const [partialPaths, setPartialPaths] = useState<Set<string>>(new Set());
   const [dialogOpen, setDialogOpen] = useState(false);
   const [analyzeError, setAnalyzeError] = useState<string | null>(null);
 
@@ -166,6 +167,7 @@ export default function Dashboard() {
       setFindings(null);
       setSelectedIds(new Set());
       setExecutedPaths(new Set());
+      setPartialPaths(new Set());
       setAnalyzeError(null);
     },
     mutationFn: async () => {
@@ -193,6 +195,7 @@ export default function Dashboard() {
       setFindings(null);
       setSelectedIds(new Set());
       setExecutedPaths(new Set());
+      setPartialPaths(new Set());
       setAnalyzeError(null);
     },
     mutationFn: async () => {
@@ -266,14 +269,17 @@ export default function Dashboard() {
     );
   }, [findings, deleteableFindings]);
 
-  const handleExecuteComplete = useCallback((movedPaths: Set<string>) => {
-    setExecutedPaths((prev) => new Set([...prev, ...movedPaths]));
-    // Deselect findings whose paths were all successfully moved
+  const handleExecuteComplete = useCallback(({ moved, partial }: ExecuteResult) => {
+    setExecutedPaths((prev) => new Set([...prev, ...moved]));
+    setPartialPaths((prev) => new Set([...prev, ...partial]));
+    // Deselect findings whose paths all resolved (moved or partial)
     setSelectedIds((prev) => {
       const next = new Set(prev);
       for (const f of deleteableFindings) {
-        const allMoved = (f.paths_to_remove ?? []).every((p) => movedPaths.has(p));
-        if (allMoved) next.delete(f.id);
+        const allResolved = (f.paths_to_remove ?? []).every(
+          (p) => moved.has(p) || partial.has(p)
+        );
+        if (allResolved) next.delete(f.id);
       }
       return next;
     });
@@ -394,6 +400,7 @@ export default function Dashboard() {
             findings={findings}
             selectedIds={selectedIds}
             executedPaths={executedPaths}
+            partialPaths={partialPaths}
             onSelectChange={handleSelectChange}
             onSelectAll={handleSelectAll}
             deleteableCount={deleteableFindings.length}
@@ -541,6 +548,7 @@ function FindingsSection({
   findings,
   selectedIds,
   executedPaths,
+  partialPaths,
   onSelectChange,
   onSelectAll,
   deleteableCount,
@@ -548,6 +556,7 @@ function FindingsSection({
   findings: Finding[];
   selectedIds: Set<string>;
   executedPaths: Set<string>;
+  partialPaths: Set<string>;
   onSelectChange: (id: string, checked: boolean) => void;
   onSelectAll: () => void;
   deleteableCount: number;
@@ -595,15 +604,21 @@ function FindingsSection({
         </div>
       ) : (
         <div style={{ margin: "0 -20px" }}>
-          {findings.map((f) => (
+          {findings.map((f) => {
+            const paths = f.paths_to_remove ?? [];
+            const isExecuted = paths.length > 0 && paths.every((p) => executedPaths.has(p));
+            const isPartial = !isExecuted && paths.some((p) => partialPaths.has(p));
+            return (
             <FindingCard
               key={f.id}
               finding={f}
               selected={selectedIds.has(f.id)}
-              executed={(f.paths_to_remove ?? []).length > 0 && (f.paths_to_remove ?? []).every((p) => executedPaths.has(p))}
+              executed={isExecuted}
+              partial={isPartial}
               onSelectChange={(checked) => onSelectChange(f.id, checked)}
             />
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

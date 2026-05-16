@@ -31,11 +31,16 @@ function formatBytes(bytes: number): string {
   return `${(bytes / 1e3).toFixed(0)} KB`;
 }
 
+export interface ExecuteResult {
+  moved: Set<string>;
+  partial: Set<string>;
+}
+
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   findings: Finding[];
-  onComplete: (movedPaths: Set<string>) => void;
+  onComplete: (result: ExecuteResult) => void;
 }
 
 export default function ExecuteDialog({ open, onOpenChange, findings, onComplete }: Props) {
@@ -55,25 +60,42 @@ export default function ExecuteDialog({ open, onOpenChange, findings, onComplete
       const moved = new Set(
         report.items.filter((i) => i.status === "moved").map((i) => i.path)
       );
-      const failed = report.items.filter((i) => i.status !== "moved");
+      const partial = new Set(
+        report.items.filter((i) => i.status === "partial").map((i) => i.path)
+      );
+      const partialItems = report.items.filter((i) => i.status === "partial");
+      const hardFailed = report.items.filter(
+        (i) => i.status !== "moved" && i.status !== "partial"
+      );
 
       if (report.total_bytes_freed > 0) {
-        toast.success(`Moved to Trash — ${formatBytes(report.total_bytes_freed)} freed`);
-      } else if (moved.size === 0) {
+        const partialNote =
+          partialItems.length > 0
+            ? ` · ${partialItems.length} path${partialItems.length > 1 ? "s" : ""} partially moved`
+            : "";
+        toast.success(`Moved ${formatBytes(report.total_bytes_freed)} to Trash${partialNote}`);
+      } else if (moved.size === 0 && partial.size === 0) {
         toast.error("Nothing was moved — all paths were denied or failed");
       }
 
-      if (failed.length > 0) {
+      for (const item of partialItems) {
+        toast.warning(item.path, {
+          description: item.error ?? "Some subdirectories could not be moved",
+          duration: 8000,
+        });
+      }
+
+      if (hardFailed.length > 0) {
         toast.error(
-          `${failed.length} path${failed.length > 1 ? "s" : ""} could not be moved`,
+          `${hardFailed.length} path${hardFailed.length > 1 ? "s" : ""} could not be moved`,
           {
-            description: failed.map((i) => `${i.path}: ${i.error ?? i.status}`).join("\n"),
+            description: hardFailed.map((i) => `${i.path}: ${i.error ?? i.status}`).join("\n"),
             duration: 8000,
           }
         );
       }
 
-      onComplete(moved);
+      onComplete({ moved, partial });
       onOpenChange(false);
     } catch (e) {
       toast.error(`Execution failed: ${String(e)}`);
