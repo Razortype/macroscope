@@ -78,7 +78,8 @@ function FindingCard({ f }: { f: Finding }) {
           {f.paths_to_remove.map(p => (
             <div key={p} style={{
               fontFamily: "var(--font-mono)", fontSize: "var(--text-xs)",
-              color: "var(--color-severity-high-fg)", background: "var(--color-severity-high-bg)",
+              color: "var(--color-text-primary)", background: "var(--color-bg-elev-3)",
+              border: "1px solid var(--color-border-subtle)",
               borderRadius: "3px", padding: "2px 6px",
             }}>
               {p}
@@ -226,7 +227,9 @@ export default function Dashboard() {
             id={viewingId} · {viewing.created_at}
             {viewing.partial_failures.length > 0 && (
               <span style={{ color: "var(--color-severity-medium-fg)", marginLeft: "8px" }}>
-                {viewing.partial_failures.length} probe failure(s):{" "}
+                <span style={{ marginRight: "4px" }}>
+                  {viewing.partial_failures.length} probe failure(s):
+                </span>
                 {viewing.partial_failures.map(f => f.probe).join(", ")}
               </span>
             )}
