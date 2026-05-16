@@ -108,10 +108,26 @@ pub(crate) fn expand_tilde(s: &str) -> PathBuf {
 
 /// Returns a serde_json::Value containing only the snapshot keys relevant to
 /// the given preset, reducing token cost and keeping Claude focused.
+///
+/// For `app-lifecycle-audit`, the raw apps array is replaced with a pre-grouped
+/// summary (Rust does deterministic filtering; Claude does insight only).
 pub fn filter_snapshot_for_preset(
     snapshot: &Snapshot,
     preset: &str,
 ) -> Result<serde_json::Value, AppError> {
+    // app-lifecycle-audit uses a summarized payload, not the raw key extraction path
+    if preset == "app-lifecycle-audit" {
+        let summary = snapshot
+            .apps
+            .as_ref()
+            .map(crate::snapshot::apps::summarize_for_analyzer)
+            .unwrap_or_default();
+        return Ok(serde_json::json!({
+            "created_at": snapshot.created_at,
+            "apps": summary,
+        }));
+    }
+
     let keys: &[&str] = match preset {
         "disk-audit" => &["created_at", "disk", "processes"],
         "security-audit" => &[
@@ -122,7 +138,6 @@ pub fn filter_snapshot_for_preset(
             "kernel",
             "partial_failures",
         ],
-        "app-lifecycle-audit" => &["created_at", "apps"],
         other => return Err(AppError::Config(format!("unknown preset: {other}"))),
     };
 
