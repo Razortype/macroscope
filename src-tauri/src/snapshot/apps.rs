@@ -118,7 +118,8 @@ async fn enumerate_apps(home: &Path) -> Result<Vec<PathBuf>, String> {
 }
 
 async fn read_app_meta(app_path: &Path) -> AppMetadata {
-    let (bundle_id, last_opened_days_ago) = read_mdls_meta(app_path).await;
+    let bundle_id = read_bundle_id(app_path).await;
+    let last_opened_days_ago = read_last_opened_days_ago(app_path).await;
     let path_owned = app_path.to_path_buf();
     let size_bytes = tokio::task::spawn_blocking(move || du_path_blocking(&path_owned))
         .await
@@ -126,59 +127,60 @@ async fn read_app_meta(app_path: &Path) -> AppMetadata {
     AppMetadata { bundle_id, last_opened_days_ago, size_bytes }
 }
 
-async fn read_mdls_meta(app_path: &Path) -> (Option<String>, Option<u32>) {
+async fn read_bundle_id(app_path: &Path) -> Option<String> {
     let path_str = app_path.display().to_string();
     let out = Command::new("mdls")
-        .args([
-            "-name",
-            "kMDItemCFBundleIdentifier",
-            "-name",
-            "kMDItemLastUsedDate",
-            &path_str,
-        ])
+        .args(["-name", "kMDItemCFBundleIdentifier", &path_str])
         .output()
-        .await;
-
-    let output = match out {
-        Ok(o) => o,
-        Err(_) => return (None, None),
-    };
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let mut bundle_id: Option<String> = None;
-    let mut last_opened_days_ago: Option<u32> = None;
-
+        .await
+        .ok()?;
+    let stdout = String::from_utf8_lossy(&out.stdout);
     for line in stdout.lines() {
-        let Some((key, val)) = line.split_once('=') else {
-            continue;
-        };
-        let key = key.trim();
-        let val = val.trim();
-        if val == "(null)" {
-            continue;
-        }
-        match key {
-            "kMDItemCFBundleIdentifier" => {
-                bundle_id = Some(val.trim_matches('"').to_string());
+        if let Some((key, val)) = line.split_once('=') {
+            if key.trim() == "kMDItemCFBundleIdentifier" {
+                let val = val.trim();
+                if val != "(null)" && !val.is_empty() {
+                    return Some(val.trim_matches('"').to_string());
+                }
             }
-            "kMDItemLastUsedDate" => {
-                last_opened_days_ago = parse_mdls_date(val);
-            }
-            _ => {}
         }
     }
-
-    (bundle_id, last_opened_days_ago)
+    None
 }
 
-fn parse_mdls_date(s: &str) -> Option<u32> {
-    chrono::DateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S %z")
-        .ok()
-        .map(|dt| {
-            let now = Utc::now();
-            let diff = now.signed_duration_since(dt.with_timezone(&Utc));
-            diff.num_days().max(0) as u32
-        })
+async fn read_last_opened_days_ago(app_path: &Path) -> Option<u32> {
+    let path_str = app_path.display().to_string();
+    // Try in order: kMDItemLastUsedDate is unreliable on newer macOS; fall back to
+    // kMDItemUseDate and kMDItemContentModificationDate as progressively looser signals.
+    let attrs = ["kMDItemLastUsedDate", "kMDItemUseDate", "kMDItemContentModificationDate"];
+    for attr in attrs {
+        let Ok(out) = Command::new("mdls")
+            .args(["-name", attr, "-raw", &path_str])
+            .output()
+            .await
+        else {
+            continue;
+        };
+        let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
+        if s == "(null)" || s.is_empty() {
+            continue;
+        }
+        if let Some(days) = parse_macos_date_to_days_ago(&s) {
+            return Some(days);
+        }
+    }
+    None
+}
+
+fn parse_macos_date_to_days_ago(s: &str) -> Option<u32> {
+    let parsed = chrono::DateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S %z").ok()?;
+    let now = Utc::now();
+    let diff = now.signed_duration_since(parsed.with_timezone(&Utc));
+    let days = diff.num_days();
+    if days < 0 {
+        return Some(0);
+    }
+    Some(days as u32)
 }
 
 fn enumerate_user_library_entries(home: &Path) -> Vec<PathBuf> {
