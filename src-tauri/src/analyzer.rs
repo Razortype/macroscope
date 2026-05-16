@@ -6,6 +6,10 @@ use crate::db::{settings_keys, Db};
 use crate::error::AppError;
 use crate::snapshot::Snapshot;
 
+// Compiled-in defaults — always present regardless of AppSupport directory state.
+const DISK_AUDIT_PROMPT: &str = include_str!("../prompts/disk-audit.md");
+const SECURITY_AUDIT_PROMPT: &str = include_str!("../prompts/security-audit.md");
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClaudeStatus {
     pub available: bool,
@@ -125,4 +129,56 @@ pub fn filter_snapshot_for_preset(
         .collect();
 
     Ok(serde_json::Value::Object(filtered))
+}
+
+// ── Prompt loading ───────────────────────────────────────────────────────────
+
+/// Load a prompt preset. Checks ~/Library/Application Support/Macroscope/prompts/
+/// first so the user can override bundled defaults without rebuilding the app.
+/// Falls back to the compiled-in constant if the file is absent or unreadable.
+pub fn load_prompt(preset: &str) -> Result<String, AppError> {
+    let override_path = appsupport_prompt_path(preset)?;
+    if override_path.exists() {
+        if let Ok(content) = std::fs::read_to_string(&override_path) {
+            return Ok(content);
+        }
+    }
+    match preset {
+        "disk-audit" => Ok(DISK_AUDIT_PROMPT.to_string()),
+        "security-audit" => Ok(SECURITY_AUDIT_PROMPT.to_string()),
+        other => Err(AppError::Config(format!("unknown preset: {other}"))),
+    }
+}
+
+/// Copy bundled defaults to AppSupport/prompts/ on first run so the user
+/// can discover and edit them. Skips files that already exist (no overwrite).
+pub fn copy_default_prompts() -> Result<(), AppError> {
+    let home = dirs::home_dir().ok_or_else(|| AppError::Config("no home dir".into()))?;
+    let dir = home
+        .join("Library")
+        .join("Application Support")
+        .join("Macroscope")
+        .join("prompts");
+    std::fs::create_dir_all(&dir)?;
+
+    for (name, content) in [
+        ("disk-audit", DISK_AUDIT_PROMPT),
+        ("security-audit", SECURITY_AUDIT_PROMPT),
+    ] {
+        let dest = dir.join(format!("{name}.md"));
+        if !dest.exists() {
+            std::fs::write(&dest, content)?;
+        }
+    }
+    Ok(())
+}
+
+fn appsupport_prompt_path(preset: &str) -> Result<PathBuf, AppError> {
+    let home = dirs::home_dir().ok_or_else(|| AppError::Config("no home dir".into()))?;
+    Ok(home
+        .join("Library")
+        .join("Application Support")
+        .join("Macroscope")
+        .join("prompts")
+        .join(format!("{preset}.md")))
 }

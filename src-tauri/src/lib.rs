@@ -104,6 +104,11 @@ fn get_claude_status(status: State<'_, ClaudeStatus>) -> ClaudeStatus {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let db = Db::new().expect("failed to open database");
+
+    if let Err(e) = analyzer::copy_default_prompts() {
+        eprintln!("[macroscope] Warning: could not copy default prompts: {e}");
+    }
+
     let claude_status = analyzer::compute_claude_status(&db);
 
     if claude_status.available {
