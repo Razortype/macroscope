@@ -1,11 +1,13 @@
 pub mod analyzer;
 pub mod db;
 pub mod error;
+pub mod executor;
 pub mod finding;
 pub mod snapshot;
 
 use analyzer::ClaudeStatus;
 use db::Db;
+use executor::ExecutionReport;
 use finding::Finding;
 use snapshot::{Snapshot, SnapshotMeta};
 use tauri::State;
@@ -91,6 +93,16 @@ async fn list_settings(db: State<'_, Db>) -> Result<Vec<(String, String)>, Strin
     tokio::task::spawn_blocking(move || db.list_settings())
         .await
         .map_err(|e| e.to_string())?
+        .map_err(Into::into)
+}
+
+// ── Executor commands ────────────────────────────────────────────────────────
+
+#[tauri::command]
+async fn execute_paths(paths: Vec<String>, db: State<'_, Db>) -> Result<ExecutionReport, String> {
+    let db = db.inner().clone();
+    executor::execute_actions(paths, &db)
+        .await
         .map_err(Into::into)
 }
 
@@ -183,6 +195,7 @@ pub fn run() {
             analyze_snapshot,
             latest_snapshot_id,
             get_findings_for_snapshot,
+            execute_paths,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
