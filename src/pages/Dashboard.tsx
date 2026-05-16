@@ -6,6 +6,7 @@ import type { Finding } from "../types/finding";
 import type { ClaudeStatus, Snapshot, SnapshotMeta } from "../types/snapshot";
 import HeroMetrics from "../components/HeroMetrics";
 import FindingCard from "../components/FindingCard";
+import ExecuteDialog from "../components/ExecuteDialog";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -119,6 +120,8 @@ export default function Dashboard() {
   const [activeSnapshotId, setActiveSnapshotId] = useState<number | null>(null);
   const [findings, setFindings] = useState<Finding[] | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [executedPaths, setExecutedPaths] = useState<Set<string>>(new Set());
+  const [dialogOpen, setDialogOpen] = useState(false);
   const [analyzeError, setAnalyzeError] = useState<string | null>(null);
 
   // ── Queries ───────────────────────────────────────────────────────────────
@@ -162,6 +165,7 @@ export default function Dashboard() {
     onMutate: () => {
       setFindings(null);
       setSelectedIds(new Set());
+      setExecutedPaths(new Set());
       setAnalyzeError(null);
     },
     mutationFn: async () => {
@@ -188,6 +192,7 @@ export default function Dashboard() {
     onMutate: () => {
       setFindings(null);
       setSelectedIds(new Set());
+      setExecutedPaths(new Set());
       setAnalyzeError(null);
     },
     mutationFn: async () => {
@@ -260,6 +265,19 @@ export default function Dashboard() {
       prev.size === ids.length ? new Set() : new Set(ids)
     );
   }, [findings, deleteableFindings]);
+
+  const handleExecuteComplete = useCallback((movedPaths: Set<string>) => {
+    setExecutedPaths((prev) => new Set([...prev, ...movedPaths]));
+    // Deselect findings whose paths were all successfully moved
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      for (const f of deleteableFindings) {
+        const allMoved = (f.paths_to_remove ?? []).every((p) => movedPaths.has(p));
+        if (allMoved) next.delete(f.id);
+      }
+      return next;
+    });
+  }, [deleteableFindings]);
 
   // ── Loading state (initial restore) ──────────────────────────────────────
   if (latestIdQuery.isLoading) {
@@ -375,6 +393,7 @@ export default function Dashboard() {
           <FindingsSection
             findings={findings}
             selectedIds={selectedIds}
+            executedPaths={executedPaths}
             onSelectChange={handleSelectChange}
             onSelectAll={handleSelectAll}
             deleteableCount={deleteableFindings.length}
@@ -404,6 +423,7 @@ export default function Dashboard() {
             )}
           </span>
           <button
+            onClick={() => setDialogOpen(true)}
             style={{
               background: "var(--color-accent)",
               color: "var(--color-accent-on)",
@@ -420,6 +440,14 @@ export default function Dashboard() {
           </button>
         </div>
       )}
+
+      {/* Execute confirmation dialog */}
+      <ExecuteDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        findings={selectedFindings}
+        onComplete={handleExecuteComplete}
+      />
 
       {/* Collapsible history strip */}
       <HistoryStrip
@@ -512,12 +540,14 @@ function ErrorBanner({ message }: { message: string }) {
 function FindingsSection({
   findings,
   selectedIds,
+  executedPaths,
   onSelectChange,
   onSelectAll,
   deleteableCount,
 }: {
   findings: Finding[];
   selectedIds: Set<string>;
+  executedPaths: Set<string>;
   onSelectChange: (id: string, checked: boolean) => void;
   onSelectAll: () => void;
   deleteableCount: number;
@@ -570,6 +600,7 @@ function FindingsSection({
               key={f.id}
               finding={f}
               selected={selectedIds.has(f.id)}
+              executed={(f.paths_to_remove ?? []).length > 0 && (f.paths_to_remove ?? []).every((p) => executedPaths.has(p))}
               onSelectChange={(checked) => onSelectChange(f.id, checked)}
             />
           ))}

@@ -17,11 +17,12 @@ interface Props {
   finding: Finding;
   selected: boolean;
   onSelectChange: (selected: boolean) => void;
+  executed?: boolean;
 }
 
-export default function FindingCard({ finding: f, selected, onSelectChange }: Props) {
+export default function FindingCard({ finding: f, selected, onSelectChange, executed = false }: Props) {
   const { fg, bg } = severityColors(f.severity);
-  const isSelectable = f.suggested_action === "delete_paths";
+  const isSelectable = f.suggested_action === "delete_paths" && !executed;
 
   return (
     <div
@@ -85,15 +86,27 @@ export default function FindingCard({ finding: f, selected, onSelectChange }: Pr
             style={{
               fontWeight: 500,
               fontSize: "var(--text-sm)",
-              color: "var(--color-text-primary)",
+              color: executed ? "var(--color-text-disabled)" : "var(--color-text-primary)",
               overflow: "hidden",
               textOverflow: "ellipsis",
               whiteSpace: "nowrap",
+              textDecoration: executed ? "line-through" : "none",
             }}
           >
             {f.title}
           </span>
-          {f.suggested_action !== "delete_paths" && (
+          {executed && (
+            <span
+              style={{
+                color: "var(--color-status-ok)",
+                fontSize: "var(--text-xs)",
+                flexShrink: 0,
+              }}
+            >
+              ✓ Trash
+            </span>
+          )}
+          {!executed && f.suggested_action !== "delete_paths" && (
             <span
               style={{
                 color: "var(--color-text-disabled)",
