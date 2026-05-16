@@ -217,6 +217,26 @@ impl Db {
         Ok(all)
     }
 
+    pub fn count_snapshots(&self) -> Result<usize, AppError> {
+        let conn = self.conn.lock().unwrap();
+        let n: i64 = conn.query_row("SELECT COUNT(*) FROM snapshots", [], |r| r.get(0))?;
+        Ok(n as usize)
+    }
+
+    pub fn count_all_findings(&self) -> Result<usize, AppError> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare("SELECT payload FROM analysis_results")?;
+        let mut total = 0usize;
+        let rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
+        for row in rows {
+            let payload = row?;
+            if let Ok(findings) = serde_json::from_str::<Vec<serde_json::Value>>(&payload) {
+                total += findings.len();
+            }
+        }
+        Ok(total)
+    }
+
     // ── Settings methods ─────────────────────────────────────────────────────
 
     pub fn get_setting(&self, key: &str) -> Result<Option<String>, AppError> {

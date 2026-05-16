@@ -152,6 +152,61 @@ async fn analyze_snapshot(
     .map_err(Into::into)
 }
 
+// ── Lifetime stats ────────────────────────────────────────────────────────────
+
+#[derive(serde::Serialize)]
+struct LifetimeStats {
+    snapshots: usize,
+    findings: usize,
+    bytes_freed: u64,
+}
+
+#[tauri::command]
+async fn get_lifetime_stats(db: State<'_, Db>) -> Result<LifetimeStats, String> {
+    let db = db.inner().clone();
+    let (snapshots, findings) = tokio::task::spawn_blocking(move || {
+        let s = db.count_snapshots().unwrap_or(0);
+        let f = db.count_all_findings().unwrap_or(0);
+        (s, f)
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+
+    // Parse audit.log to sum bytes where status is "moved" or "partial"
+    let bytes_freed = read_bytes_freed_from_audit_log();
+
+    Ok(LifetimeStats { snapshots, findings, bytes_freed })
+}
+
+fn read_bytes_freed_from_audit_log() -> u64 {
+    let home = match dirs::home_dir() {
+        Some(h) => h,
+        None => return 0,
+    };
+    let log_path = home
+        .join("Library")
+        .join("Application Support")
+        .join("Macroscope")
+        .join("audit.log");
+
+    let content = match std::fs::read_to_string(&log_path) {
+        Ok(c) => c,
+        Err(_) => return 0,
+    };
+
+    let mut total: u64 = 0;
+    for line in content.lines() {
+        if let Ok(entry) = serde_json::from_str::<serde_json::Value>(line) {
+            let status = entry.get("status").and_then(|v| v.as_str()).unwrap_or("");
+            if status == "moved" || status == "partial" {
+                let bytes = entry.get("bytes").and_then(|v| v.as_u64()).unwrap_or(0);
+                total += bytes;
+            }
+        }
+    }
+    total
+}
+
 // ── System utility commands ───────────────────────────────────────────────────
 
 #[tauri::command]
@@ -220,6 +275,7 @@ pub fn run() {
             get_denied_exact,
             reveal_in_finder,
             get_app_version,
+            get_lifetime_stats,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

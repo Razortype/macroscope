@@ -384,8 +384,88 @@ function SectionSafety() {
   );
 }
 
+// ── Section: About ────────────────────────────────────────────────────────────
+
+interface LifetimeStats {
+  snapshots: number;
+  findings: number;
+  bytes_freed: number;
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes >= 1e9) return `${(bytes / 1e9).toFixed(1)} GB`;
+  if (bytes >= 1e6) return `${(bytes / 1e6).toFixed(0)} MB`;
+  if (bytes >= 1e3) return `${(bytes / 1e3).toFixed(0)} KB`;
+  return `${bytes} B`;
+}
+
 function SectionAbout() {
-  return <Section title="About" />;
+  const [appVersion, setAppVersion] = useState<string>("…");
+  const [stats, setStats] = useState<LifetimeStats | null>(null);
+  const [claudeStatus, setClaudeStatus] = useState<ClaudeStatus | null>(null);
+
+  useEffect(() => {
+    invoke<string>("get_app_version").then(setAppVersion).catch(() => {});
+    invoke<LifetimeStats>("get_lifetime_stats").then(setStats).catch(() => {});
+    invoke<ClaudeStatus>("get_claude_status").then(setClaudeStatus).catch(() => {});
+  }, []);
+
+  const statCards = [
+    { label: "Snapshots taken", value: stats ? String(stats.snapshots) : "—" },
+    { label: "Findings discovered", value: stats ? String(stats.findings) : "—" },
+    { label: "Space freed", value: stats ? formatBytes(stats.bytes_freed) : "—" },
+  ];
+
+  return (
+    <Section title="About">
+      <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+        {/* Stat cards */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "12px" }}>
+          {statCards.map(({ label, value }) => (
+            <div
+              key={label}
+              style={{
+                background: "var(--color-bg-elev-2)",
+                borderRadius: "var(--radius-sm)",
+                padding: "12px",
+                display: "flex",
+                flexDirection: "column",
+                gap: "4px",
+              }}
+            >
+              <span
+                style={{
+                  fontFamily: "var(--font-mono)",
+                  fontSize: "var(--text-xl)",
+                  fontWeight: 500,
+                  color: "var(--color-text-primary)",
+                }}
+              >
+                {value}
+              </span>
+              <span style={{ fontSize: "var(--text-xs)", color: "var(--color-text-muted)" }}>
+                {label}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        {/* Build info */}
+        <p
+          style={{
+            margin: 0,
+            fontSize: "var(--text-xs)",
+            color: "var(--color-text-disabled)",
+            fontFamily: "var(--font-mono)",
+          }}
+        >
+          Macroscope v{appVersion}
+          {claudeStatus?.version ? ` · Claude CLI v${claudeStatus.version}` : ""}
+          {" · Built for macOS (Apple Silicon)"}
+        </p>
+      </div>
+    </Section>
+  );
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
