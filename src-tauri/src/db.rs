@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use crate::error::AppError;
+use crate::finding::Finding;
 
 // Known settings keys — use these constants everywhere in Rust code
 // rather than bare string literals to prevent typos.
@@ -27,6 +28,16 @@ const MIGRATIONS: &[&str] = &[
        key   TEXT PRIMARY KEY,
        value TEXT NOT NULL
      );",
+    // v2: analysis results keyed to snapshots; CASCADE removes results when snapshot is deleted
+    "CREATE TABLE analysis_results (
+       id          INTEGER PRIMARY KEY AUTOINCREMENT,
+       snapshot_id INTEGER NOT NULL REFERENCES snapshots(id) ON DELETE CASCADE,
+       preset      TEXT    NOT NULL,
+       created_at  TEXT    NOT NULL,
+       payload     TEXT    NOT NULL,
+       UNIQUE(snapshot_id, preset)
+     );
+     CREATE INDEX idx_analysis_results_snapshot ON analysis_results(snapshot_id);",
 ];
 
 #[derive(Clone)]
@@ -149,6 +160,61 @@ impl Db {
         let conn = self.conn.lock().unwrap();
         conn.execute("DELETE FROM snapshots WHERE id = ?1", params![id])?;
         Ok(())
+    }
+
+    pub fn latest_snapshot_id(&self) -> Result<Option<i64>, AppError> {
+        let conn = self.conn.lock().unwrap();
+        match conn.query_row(
+            "SELECT id FROM snapshots ORDER BY id DESC LIMIT 1",
+            [],
+            |row| row.get(0),
+        ) {
+            Ok(id) => Ok(Some(id)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(AppError::Db(e)),
+        }
+    }
+
+    // ── Analysis result methods ──────────────────────────────────────────────
+
+    /// Persist a preset's findings for a snapshot. INSERT OR REPLACE so
+    /// re-running the same preset overwrites the previous result.
+    pub fn save_analysis_result(
+        &self,
+        snapshot_id: i64,
+        preset: &str,
+        findings: &[Finding],
+    ) -> Result<(), AppError> {
+        let payload = serde_json::to_string(findings)?;
+        let created_at = chrono::Utc::now().to_rfc3339();
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "INSERT OR REPLACE INTO analysis_results
+               (snapshot_id, preset, created_at, payload)
+             VALUES (?1, ?2, ?3, ?4)",
+            params![snapshot_id, preset, created_at, payload],
+        )?;
+        Ok(())
+    }
+
+    /// Return all findings for a snapshot, merged across all presets.
+    pub fn get_analysis_results_for_snapshot(
+        &self,
+        snapshot_id: i64,
+    ) -> Result<Vec<Finding>, AppError> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT payload FROM analysis_results WHERE snapshot_id = ?1 ORDER BY preset",
+        )?;
+        let mut all: Vec<Finding> = Vec::new();
+        let rows = stmt.query_map(params![snapshot_id], |row| row.get::<_, String>(0))?;
+        for row in rows {
+            let payload = row?;
+            let findings: Vec<Finding> =
+                serde_json::from_str(&payload).map_err(AppError::Json)?;
+            all.extend(findings);
+        }
+        Ok(all)
     }
 
     // ── Settings methods ─────────────────────────────────────────────────────

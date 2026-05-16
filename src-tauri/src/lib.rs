@@ -94,6 +94,26 @@ async fn list_settings(db: State<'_, Db>) -> Result<Vec<(String, String)>, Strin
         .map_err(Into::into)
 }
 
+// ── Analysis result commands ─────────────────────────────────────────────────
+
+#[tauri::command]
+async fn latest_snapshot_id(db: State<'_, Db>) -> Result<Option<i64>, String> {
+    let db = db.inner().clone();
+    tokio::task::spawn_blocking(move || db.latest_snapshot_id())
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(Into::into)
+}
+
+#[tauri::command]
+async fn get_findings_for_snapshot(snapshot_id: i64, db: State<'_, Db>) -> Result<Vec<Finding>, String> {
+    let db = db.inner().clone();
+    tokio::task::spawn_blocking(move || db.get_analysis_results_for_snapshot(snapshot_id))
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(Into::into)
+}
+
 // ── Analyzer commands ────────────────────────────────────────────────────────
 
 #[tauri::command]
@@ -159,6 +179,8 @@ pub fn run() {
             list_settings,
             get_claude_status,
             analyze_snapshot,
+            latest_snapshot_id,
+            get_findings_for_snapshot,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
