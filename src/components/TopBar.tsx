@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { Settings } from "lucide-react";
+import MacroscopeLogo from "./MacroscopeLogo";
 
 export default function TopBar() {
   return (
@@ -17,16 +18,7 @@ export default function TopBar() {
     >
       {/* Wordmark */}
       <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-        {/* Subtle orbit dot */}
-        <span
-          style={{
-            width: "8px",
-            height: "8px",
-            borderRadius: "50%",
-            border: "2px solid var(--color-accent)",
-            display: "inline-block",
-          }}
-        />
+        <MacroscopeLogo size={22} />
         <span
           style={{
             fontFamily: "var(--font-sans)",
