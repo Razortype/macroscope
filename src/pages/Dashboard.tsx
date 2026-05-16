@@ -21,7 +21,7 @@ function formatBytes(bytes: number): string {
   return `${(bytes / 1e3).toFixed(0)} KB`;
 }
 
-const ALL_PRESETS = ["disk-audit", "security-audit"];
+const ALL_PRESETS = ["disk-audit", "security-audit", "app-lifecycle-audit"];
 
 const SEVERITY_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2, info: 3 };
 function sortFindings(fs: Finding[]): Finding[] {

@@ -195,7 +195,12 @@ function AuditRow({ preset, audit }: { preset: string; audit: AuditState }) {
     ? "#5da3f5"
     : "rgba(255,255,255,0.25)";
 
-  const label = preset === "disk-audit" ? "disk audit" : "security audit";
+  const labelMap: Record<string, string> = {
+    "disk-audit": "disk audit",
+    "security-audit": "security audit",
+    "app-lifecycle-audit": "app lifecycle audit",
+  };
+  const label = labelMap[preset] ?? preset;
 
   return (
     <div
@@ -316,13 +321,12 @@ function AuditRow({ preset, audit }: { preset: string; audit: AuditState }) {
 
 function ClaudeSection({
   enabled,
-  auditDisk,
-  auditSecurity,
+  audits,
 }: {
   enabled: boolean;
-  auditDisk: AuditState;
-  auditSecurity: AuditState;
+  audits: Record<string, AuditState>;
 }) {
+  const presetOrder = ["disk-audit", "security-audit", "app-lifecycle-audit"];
   return (
     <div
       style={{
@@ -352,8 +356,11 @@ function ClaudeSection({
         </span>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-        <AuditRow preset="disk-audit" audit={auditDisk} />
-        <AuditRow preset="security-audit" audit={auditSecurity} />
+        {presetOrder.map((preset) =>
+          audits[preset] ? (
+            <AuditRow key={preset} preset={preset} audit={audits[preset]} />
+          ) : null
+        )}
       </div>
     </div>
   );
@@ -371,6 +378,7 @@ export default function AnalysisProgress({ isActive, onComplete }: Props) {
   const [audits, setAudits] = useState<Record<string, AuditState>>({
     "disk-audit": makeAudit(),
     "security-audit": makeAudit(),
+    "app-lifecycle-audit": makeAudit(),
   });
   const [elapsedMs, setElapsedMs] = useState(0);
   const startTimeRef = useRef(0);
@@ -387,7 +395,7 @@ export default function AnalysisProgress({ isActive, onComplete }: Props) {
   useEffect(() => {
     if (!isActive) return;
     setProbes(makeProbes());
-    setAudits({ "disk-audit": makeAudit(), "security-audit": makeAudit() });
+    setAudits({ "disk-audit": makeAudit(), "security-audit": makeAudit(), "app-lifecycle-audit": makeAudit() });
     setElapsedMs(0);
     startTimeRef.current = performance.now();
   }, [isActive]);
@@ -563,7 +571,7 @@ export default function AnalysisProgress({ isActive, onComplete }: Props) {
 
       {/* Subtitle */}
       <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.4)", marginTop: "-6px" }}>
-        running two AI audits in parallel · disk + security
+        running three AI audits in parallel · disk + security + apps
       </div>
 
       {/* Step 1 */}
@@ -575,8 +583,7 @@ export default function AnalysisProgress({ isActive, onComplete }: Props) {
       {/* Step 2 */}
       <ClaudeSection
         enabled={allProbesComplete}
-        auditDisk={audits["disk-audit"]}
-        auditSecurity={audits["security-audit"]}
+        audits={audits}
       />
     </div>
   );
