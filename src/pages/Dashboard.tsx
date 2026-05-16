@@ -1,24 +1,211 @@
-import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { invoke } from "@tauri-apps/api/core";
+import { useState, useEffect, useCallback } from "react";
+import type { Finding } from "../types/finding";
+import type { Snapshot } from "../types/snapshot";
+import TopBar from "../components/TopBar";
 import TabBar, { type TabId } from "../components/TabBar";
+import ExecuteDialog, { type ExecuteResult } from "../components/ExecuteDialog";
 import OverviewTab from "./tabs/OverviewTab";
 import FindingsTab from "./tabs/FindingsTab";
 import AppsTab from "./tabs/AppsTab";
 import FilesTab from "./tabs/FilesTab";
 import SecurityTab from "./tabs/SecurityTab";
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function formatBytes(bytes: number): string {
+  if (bytes >= 1e9) return `${(bytes / 1e9).toFixed(1)} GB`;
+  if (bytes >= 1e6) return `${(bytes / 1e6).toFixed(0)} MB`;
+  return `${(bytes / 1e3).toFixed(0)} KB`;
+}
+
+const ALL_PRESETS = ["disk-audit", "security-audit"];
+
+const SEVERITY_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2, info: 3 };
+function sortFindings(fs: Finding[]): Finding[] {
+  return [...fs].sort((a, b) => {
+    const sv = (SEVERITY_ORDER[a.severity] ?? 9) - (SEVERITY_ORDER[b.severity] ?? 9);
+    if (sv !== 0) return sv;
+    return a.category.localeCompare(b.category);
+  });
+}
+
+// ── Main component ────────────────────────────────────────────────────────────
+
 export default function Dashboard() {
+  const qc = useQueryClient();
+
   const [active, setActive] = useState<TabId>("overview");
+  const [activeSnapshot, setActiveSnapshot] = useState<Snapshot | null>(null);
+  const [activeSnapshotId, setActiveSnapshotId] = useState<number | null>(null);
+  const [findings, setFindings] = useState<Finding[] | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [analyzeError, setAnalyzeError] = useState<string | null>(null);
+
+  const latestIdQuery = useQuery<number | null>({
+    queryKey: ["latest_snapshot_id"],
+    queryFn: () => invoke<number | null>("latest_snapshot_id"),
+    staleTime: Infinity,
+  });
+
+  useEffect(() => {
+    if (latestIdQuery.data == null || activeSnapshotId != null) return;
+    const id = latestIdQuery.data;
+    Promise.all([
+      invoke<Snapshot>("get_snapshot", { id }),
+      invoke<Finding[]>("get_findings_for_snapshot", { snapshotId: id }),
+    ]).then(([snap, found]) => {
+      setActiveSnapshot(snap);
+      setActiveSnapshotId(id);
+      setFindings(sortFindings(found));
+    }).catch(() => {});
+  }, [latestIdQuery.data, activeSnapshotId]);
+
+  const runFullScan = useMutation<Finding[], string>({
+    onMutate: () => {
+      setFindings(null);
+      setSelectedIds(new Set());
+      setAnalyzeError(null);
+    },
+    mutationFn: async () => {
+      const snap = await invoke<Snapshot>("take_snapshot");
+      const id = await invoke<number>("save_snapshot", { snapshot: snap });
+      setActiveSnapshot(snap);
+      setActiveSnapshotId(id);
+      qc.invalidateQueries({ queryKey: ["latest_snapshot_id"] });
+      return invoke<Finding[]>("analyze_snapshot", { snapshotId: id, presets: ALL_PRESETS });
+    },
+    onSuccess: (data) => { setFindings(sortFindings(data)); },
+    onError: (err) => { setAnalyzeError(err); },
+  });
+
+  const reAnalyze = useMutation<Finding[], string>({
+    onMutate: () => {
+      setFindings(null);
+      setSelectedIds(new Set());
+      setAnalyzeError(null);
+    },
+    mutationFn: async () => {
+      if (activeSnapshotId == null) throw new Error("No snapshot loaded");
+      return invoke<Finding[]>("analyze_snapshot", { snapshotId: activeSnapshotId, presets: ALL_PRESETS });
+    },
+    onSuccess: (data) => { setFindings(sortFindings(data)); },
+    onError: (err) => { setAnalyzeError(err); },
+  });
+
+  const isAnalyzing = runFullScan.isPending || reAnalyze.isPending;
+  const deleteableFindings = findings?.filter((f) => f.suggested_action === "delete_paths") ?? [];
+  const selectedFindings = deleteableFindings.filter((f) => selectedIds.has(f.id));
+  const totalBytesToFree = selectedFindings.reduce((sum, f) => sum + (f.estimated_bytes_freed ?? 0), 0);
+
+  const handleExecuteComplete = useCallback(({ moved, partial }: ExecuteResult) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      for (const f of deleteableFindings) {
+        const allResolved = (f.paths_to_remove ?? []).every((p) => moved.has(p) || partial.has(p));
+        if (allResolved) next.delete(f.id);
+      }
+      return next;
+    });
+  }, [deleteableFindings]);
+
+  if (latestIdQuery.isLoading) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+        <TopBar />
+        <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <span style={{ color: "var(--color-text-muted)", fontSize: "var(--text-sm)" }}>Loading…</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-      <TabBar active={active} onChange={setActive} counts={{ findings: 0 }} />
+      <TopBar
+        activeSnapshot={activeSnapshot}
+        activeSnapshotId={activeSnapshotId}
+        findingCount={findings?.length ?? null}
+        isAnalyzing={isAnalyzing}
+        onTakeSnapshot={() => runFullScan.mutate()}
+        onReAnalyze={() => reAnalyze.mutate()}
+      />
+      <TabBar
+        active={active}
+        onChange={setActive}
+        counts={{ findings: findings?.length }}
+      />
+
       <div style={{ flex: 1, overflow: "auto" }}>
+        {analyzeError && (
+          <div
+            style={{
+              margin: "12px 20px 0",
+              padding: "8px 12px",
+              background: "var(--color-severity-high-bg)",
+              color: "var(--color-severity-high-fg)",
+              borderRadius: "var(--radius-sm)",
+              fontSize: "var(--text-xs)",
+              fontFamily: "var(--font-mono)",
+            }}
+          >
+            {analyzeError}
+          </div>
+        )}
         {active === "overview" && <OverviewTab />}
         {active === "findings" && <FindingsTab />}
         {active === "apps" && <AppsTab />}
         {active === "files" && <FilesTab />}
         {active === "security" && <SecurityTab />}
       </div>
+
+      {selectedIds.size > 0 && (
+        <div
+          style={{
+            flexShrink: 0,
+            padding: "12px 20px",
+            borderTop: "1px solid var(--color-border-divider)",
+            background: "var(--color-bg-elev-1)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+          }}
+        >
+          <span style={{ fontSize: "var(--text-sm)", color: "var(--color-text-secondary)" }}>
+            {selectedIds.size} selected
+            {totalBytesToFree > 0 && (
+              <span style={{ fontFamily: "var(--font-mono)", marginLeft: "8px", color: "var(--color-text-muted)" }}>
+                · {formatBytes(totalBytesToFree)} to free
+              </span>
+            )}
+          </span>
+          <button
+            onClick={() => setDialogOpen(true)}
+            style={{
+              background: "var(--color-accent)",
+              color: "var(--color-accent-on)",
+              border: "none",
+              borderRadius: "var(--radius-md)",
+              padding: "7px 16px",
+              fontFamily: "var(--font-sans)",
+              fontSize: "var(--text-sm)",
+              fontWeight: 500,
+              cursor: "pointer",
+            }}
+          >
+            Execute selected ({selectedIds.size})
+          </button>
+        </div>
+      )}
+
+      <ExecuteDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        findings={selectedFindings}
+        onComplete={handleExecuteComplete}
+      />
     </div>
   );
 }
