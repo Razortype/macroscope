@@ -62,6 +62,33 @@ async fn delete_snapshot(id: i64, db: State<'_, Db>) -> Result<(), String> {
         .map_err(Into::into)
 }
 
+#[tauri::command]
+async fn get_setting(key: String, db: State<'_, Db>) -> Result<Option<String>, String> {
+    let db = db.inner().clone();
+    tokio::task::spawn_blocking(move || db.get_setting(&key))
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(Into::into)
+}
+
+#[tauri::command]
+async fn set_setting(key: String, value: String, db: State<'_, Db>) -> Result<(), String> {
+    let db = db.inner().clone();
+    tokio::task::spawn_blocking(move || db.set_setting(&key, &value))
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(Into::into)
+}
+
+#[tauri::command]
+async fn list_settings(db: State<'_, Db>) -> Result<Vec<(String, String)>, String> {
+    let db = db.inner().clone();
+    tokio::task::spawn_blocking(move || db.list_settings())
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(Into::into)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let db = Db::new().expect("failed to open database");
@@ -75,6 +102,9 @@ pub fn run() {
             list_snapshots,
             get_snapshot,
             delete_snapshot,
+            get_setting,
+            set_setting,
+            list_settings,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
