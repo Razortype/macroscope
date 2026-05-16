@@ -15,8 +15,8 @@ use tauri::State;
 // ── Snapshot commands ────────────────────────────────────────────────────────
 
 #[tauri::command]
-async fn take_snapshot() -> Result<Snapshot, String> {
-    Ok(snapshot::take_snapshot().await)
+async fn take_snapshot(app: tauri::AppHandle) -> Result<Snapshot, String> {
+    Ok(snapshot::take_snapshot(&app).await)
 }
 
 #[tauri::command]

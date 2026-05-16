@@ -5,8 +5,11 @@ pub mod persistence;
 pub mod processes;
 pub mod users;
 
+use std::time::Instant;
+
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use tauri::{AppHandle, Emitter};
 
 use self::disk::DiskReport;
 use self::kernel::KernelReport;
@@ -39,17 +42,40 @@ pub struct Snapshot {
     pub partial_failures: Vec<ProbeFailure>,
 }
 
-pub async fn take_snapshot() -> Snapshot {
-    let (disk_res, procs_res, net_res, persist_res, users_res, kernel_res) = tokio::join!(
-        disk::probe(),
-        processes::probe(),
-        network::probe(),
-        persistence::probe(),
-        users::probe(),
-        kernel::probe(),
+async fn probe_timed<T>(
+    app: &AppHandle,
+    name: &str,
+    fut: impl std::future::Future<Output = Result<T, String>>,
+) -> Result<T, String> {
+    let _ = app.emit(
+        "snapshot:probe",
+        serde_json::json!({ "probe": name, "status": "starting", "duration_ms": 0u64 }),
     );
+    let start = Instant::now();
+    let res = fut.await;
+    let duration_ms = start.elapsed().as_millis() as u64;
+    let _ = match &res {
+        Ok(_) => app.emit(
+            "snapshot:probe",
+            serde_json::json!({ "probe": name, "status": "complete", "duration_ms": duration_ms }),
+        ),
+        Err(e) => app.emit(
+            "snapshot:probe",
+            serde_json::json!({ "probe": name, "status": "failed", "duration_ms": duration_ms, "error": e }),
+        ),
+    };
+    res
+}
 
+pub async fn take_snapshot(app: &AppHandle) -> Snapshot {
     let mut partial_failures = Vec::new();
+
+    let disk_res = probe_timed(app, "disk", disk::probe()).await;
+    let procs_res = probe_timed(app, "processes", processes::probe()).await;
+    let net_res = probe_timed(app, "network", network::probe()).await;
+    let persist_res = probe_timed(app, "persistence", persistence::probe()).await;
+    let users_res = probe_timed(app, "users", users::probe()).await;
+    let kernel_res = probe_timed(app, "kernel", kernel::probe()).await;
 
     macro_rules! unwrap_probe {
         ($result:expr, $name:literal) => {
