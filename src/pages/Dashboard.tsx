@@ -6,6 +6,7 @@ import type { Snapshot } from "../types/snapshot";
 import TopBar from "../components/TopBar";
 import TabBar, { type TabId } from "../components/TabBar";
 import ExecuteDialog, { type ExecuteResult } from "../components/ExecuteDialog";
+import AnalysisProgress from "../components/AnalysisProgress";
 import OverviewTab from "./tabs/OverviewTab";
 import FindingsTab from "./tabs/FindingsTab";
 import AppsTab from "./tabs/AppsTab";
@@ -45,6 +46,7 @@ export default function Dashboard() {
   const [partialPaths, setPartialPaths] = useState<Set<string>>(new Set());
   const [dialogOpen, setDialogOpen] = useState(false);
   const [analyzeError, setAnalyzeError] = useState<string | null>(null);
+  const [showProgress, setShowProgress] = useState(false);
 
   const latestIdQuery = useQuery<number | null>({
     queryKey: ["latest_snapshot_id"],
@@ -67,6 +69,7 @@ export default function Dashboard() {
 
   const runFullScan = useMutation<Finding[], string>({
     onMutate: () => {
+      setShowProgress(true);
       setFindings(null);
       setSelectedIds(new Set());
       setExecutedPaths(new Set());
@@ -82,11 +85,12 @@ export default function Dashboard() {
       return invoke<Finding[]>("analyze_snapshot", { snapshotId: id, presets: ALL_PRESETS });
     },
     onSuccess: (data) => { setFindings(sortFindings(data)); },
-    onError: (err) => { setAnalyzeError(err); },
+    onError: (err) => { setShowProgress(false); setAnalyzeError(err); },
   });
 
   const reAnalyze = useMutation<Finding[], string>({
     onMutate: () => {
+      setShowProgress(true);
       setFindings(null);
       setSelectedIds(new Set());
       setExecutedPaths(new Set());
@@ -98,10 +102,11 @@ export default function Dashboard() {
       return invoke<Finding[]>("analyze_snapshot", { snapshotId: activeSnapshotId, presets: ALL_PRESETS });
     },
     onSuccess: (data) => { setFindings(sortFindings(data)); },
-    onError: (err) => { setAnalyzeError(err); },
+    onError: (err) => { setShowProgress(false); setAnalyzeError(err); },
   });
 
   const isAnalyzing = runFullScan.isPending || reAnalyze.isPending;
+  const showingProgress = showProgress || isAnalyzing;
   const deleteableFindings = findings?.filter((f) => f.suggested_action === "delete_paths") ?? [];
   const selectedFindings = deleteableFindings.filter((f) => selectedIds.has(f.id));
   const totalBytesToFree = selectedFindings.reduce((sum, f) => sum + (f.estimated_bytes_freed ?? 0), 0);
@@ -161,6 +166,14 @@ export default function Dashboard() {
       />
 
       <div style={{ flex: 1, overflow: "auto" }}>
+        {showingProgress && (
+          <div style={{ padding: "20px 20px 0" }}>
+            <AnalysisProgress
+              isActive={showingProgress}
+              onComplete={() => setShowProgress(false)}
+            />
+          </div>
+        )}
         {analyzeError && (
           <div
             style={{
