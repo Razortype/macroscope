@@ -157,6 +157,13 @@ export default function Dashboard() {
 
   // ── Chained take+analyze mutation ─────────────────────────────────────────
   const runFullScan = useMutation<Finding[], string>({
+    // onMutate fires synchronously before the async work — clears stale data immediately
+    // so the old findings panel unmounts right when the button is clicked.
+    onMutate: () => {
+      setFindings(null);
+      setSelectedIds(new Set());
+      setAnalyzeError(null);
+    },
     mutationFn: async () => {
       const snap = await invoke<Snapshot>("take_snapshot");
       const id = await invoke<number>("save_snapshot", { snapshot: snap });
@@ -172,14 +179,17 @@ export default function Dashboard() {
     },
     onSuccess: (data) => {
       setFindings(sortFindings(data));
-      setSelectedIds(new Set());
-      setAnalyzeError(null);
     },
     onError: (err) => setAnalyzeError(err),
   });
 
   // Re-analyze without taking a new snapshot
   const reAnalyze = useMutation<Finding[], string>({
+    onMutate: () => {
+      setFindings(null);
+      setSelectedIds(new Set());
+      setAnalyzeError(null);
+    },
     mutationFn: async () => {
       if (activeSnapshotId == null) throw new Error("No snapshot loaded");
       return invoke<Finding[]>("analyze_snapshot", {
@@ -189,8 +199,6 @@ export default function Dashboard() {
     },
     onSuccess: (data) => {
       setFindings(sortFindings(data));
-      setSelectedIds(new Set());
-      setAnalyzeError(null);
     },
     onError: (err) => setAnalyzeError(err),
   });
@@ -359,8 +367,11 @@ export default function Dashboard() {
         {/* Error banners */}
         {analyzeError && <ErrorBanner message={analyzeError} />}
 
+        {/* Analysis in-progress placeholder */}
+        {isAnalyzing && <AnalyzingPlaceholder />}
+
         {/* Findings */}
-        {findings !== null && (
+        {!isAnalyzing && findings !== null && (
           <FindingsSection
             findings={findings}
             selectedIds={selectedIds}
@@ -416,12 +427,69 @@ export default function Dashboard() {
         activeId={activeSnapshotId}
         onLoad={loadSnapshot}
         onDelete={deleteSnapshot}
+        disabled={isAnalyzing}
       />
     </div>
   );
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
+
+function AnalyzingPlaceholder() {
+  return (
+    <div
+      style={{
+        margin: "0 -20px",
+        padding: "28px 20px",
+        background: "var(--color-bg-elev-1)",
+        borderTop: "1px solid var(--color-border-divider)",
+        borderBottom: "1px solid var(--color-border-divider)",
+        display: "flex",
+        flexDirection: "column",
+        gap: "8px",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "10px",
+          fontSize: "var(--text-sm)",
+          fontWeight: 500,
+          color: "var(--color-text-primary)",
+        }}
+      >
+        {/* Pulsing dot */}
+        <span
+          style={{
+            width: "8px",
+            height: "8px",
+            borderRadius: "50%",
+            background: "var(--color-accent)",
+            display: "inline-block",
+            animation: "pulse 1.4s ease-in-out infinite",
+            flexShrink: 0,
+          }}
+        />
+        Analyzing your system...
+      </div>
+      <p
+        style={{
+          margin: 0,
+          paddingLeft: "18px",
+          fontSize: "var(--text-xs)",
+          color: "var(--color-text-muted)",
+        }}
+      >
+        Running disk and security audits in parallel · typical duration: 30–90 seconds
+      </p>
+      <style>{`@keyframes pulse {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50% { opacity: 0.4; transform: scale(0.85); }
+      }`}</style>
+    </div>
+  );
+}
 
 function ErrorBanner({ message }: { message: string }) {
   return (
@@ -516,11 +584,13 @@ function HistoryStrip({
   activeId,
   onLoad,
   onDelete,
+  disabled,
 }: {
   metas: SnapshotMeta[];
   activeId: number | null;
   onLoad: (id: number) => void;
   onDelete: (id: number) => void;
+  disabled: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -568,21 +638,24 @@ function HistoryStrip({
               }}
             >
               <button
-                onClick={() => onLoad(m.id)}
+                onClick={() => !disabled && onLoad(m.id)}
                 style={{
                   flex: 1, background: "none", border: "none", padding: 0,
-                  cursor: "pointer", textAlign: "left",
+                  cursor: disabled ? "not-allowed" : "pointer", textAlign: "left",
                   fontFamily: "var(--font-mono)", fontSize: "var(--text-xs)",
-                  color: m.id === activeId ? "var(--color-text-primary)" : "var(--color-text-muted)",
+                  color: disabled
+                    ? "var(--color-text-disabled)"
+                    : m.id === activeId ? "var(--color-text-primary)" : "var(--color-text-muted)",
                 }}
               >
                 #{m.id} · {m.created_at}
               </button>
               <button
-                onClick={() => onDelete(m.id)}
+                onClick={() => !disabled && onDelete(m.id)}
                 style={{
                   background: "none", border: "none", padding: "0 2px",
-                  cursor: "pointer", color: "var(--color-text-disabled)",
+                  cursor: disabled ? "not-allowed" : "pointer",
+                  color: "var(--color-text-disabled)",
                   fontSize: "var(--text-xs)",
                 }}
               >
