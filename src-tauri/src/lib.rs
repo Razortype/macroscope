@@ -146,6 +146,7 @@ pub fn run() {
     tauri::Builder::default()
         .manage(db)
         .manage(claude_status)
+        .plugin(tauri_plugin_window_state::Builder::default().build())
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             take_snapshot,

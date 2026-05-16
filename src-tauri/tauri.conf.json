@@ -14,9 +14,9 @@
       {
         "label": "main",
         "title": "Macroscope",
-        "width": 1100,
-        "height": 720,
-        "minWidth": 900,
+        "width": 1280,
+        "height": 832,
+        "minWidth": 960,
         "minHeight": 600,
         "center": true,
         "decorations": true,
