@@ -1,12 +1,15 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { useForm } from "react-hook-form";
+import { useForm, useFormContext } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-import { ArrowLeft } from "lucide-react";
-import { Form } from "../components/ui/form";
+import { ArrowLeft, Activity } from "lucide-react";
+import { invoke } from "@tauri-apps/api/core";
+import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage, FormDescription } from "../components/ui/form";
+import { Input } from "../components/ui/input";
 import { settingsSchema, type SettingsValues } from "../types/settings";
 import { loadSettings, saveSettings } from "../lib/settings";
+import type { ClaudeStatus } from "../types/snapshot";
 
 // ── Section wrapper ────────────────────────────────────────────────────────────
 
@@ -67,14 +70,132 @@ function FieldRow({ children }: { children: React.ReactNode }) {
   );
 }
 
-// ── Stub sections (filled in later commits) ───────────────────────────────────
+// ── Section: General ──────────────────────────────────────────────────────────
 
 function SectionGeneral() {
-  return <Section title="General" />;
+  const form = useFormContext<SettingsValues>();
+  return (
+    <Section title="General">
+      <FormField
+        control={form.control}
+        name="snapshot_retention"
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel>Snapshot retention</FormLabel>
+            <FormControl>
+              <Input
+                type="number"
+                min={1}
+                max={100}
+                step={1}
+                style={{ width: "88px" }}
+                {...field}
+                onChange={(e) => field.onChange(Number(e.target.value))}
+              />
+            </FormControl>
+            <FormDescription>
+              Older snapshots are pruned automatically when this limit is reached.
+            </FormDescription>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+    </Section>
+  );
 }
 
+// ── Section: Claude CLI ────────────────────────────────────────────────────────
+
 function SectionClaudeCLI() {
-  return <Section title="Claude CLI" />;
+  const form = useFormContext<SettingsValues>();
+  const [claudeStatus, setClaudeStatus] = useState<ClaudeStatus | null>(null);
+  const [testing, setTesting] = useState(false);
+
+  useEffect(() => {
+    invoke<ClaudeStatus>("get_claude_status").then(setClaudeStatus).catch(() => {});
+  }, []);
+
+  async function testConnection() {
+    setTesting(true);
+    try {
+      const status = await invoke<ClaudeStatus>("get_claude_status");
+      setClaudeStatus(status);
+      if (status.available) {
+        toast.success(`Claude CLI is reachable · ${status.version ?? "?"}`);
+      } else {
+        toast.error(`Claude CLI not found: ${status.error ?? "unknown error"}`);
+      }
+    } catch (e) {
+      toast.error(`Test failed: ${String(e)}`);
+    } finally {
+      setTesting(false);
+    }
+  }
+
+  return (
+    <Section
+      title="Claude CLI"
+      description="Macroscope uses your local Claude CLI for analysis. Leave the path empty to use auto-detection."
+    >
+      <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+        <FormField
+          control={form.control}
+          name="claude_cli_path"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>CLI path override</FormLabel>
+              <FormControl>
+                <Input
+                  placeholder={claudeStatus?.path ?? "Auto-detected"}
+                  {...field}
+                />
+              </FormControl>
+              <FormDescription>
+                Auto-detection order: /opt/homebrew/bin/claude, ~/.local/bin/claude,
+                /usr/local/bin/claude, ~/.claude/local/claude
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+          {claudeStatus?.path && (
+            <span style={{ fontFamily: "var(--font-mono)", fontSize: "var(--text-xs)", color: "var(--color-text-muted)" }}>
+              {claudeStatus.path}
+            </span>
+          )}
+          {claudeStatus?.version && (
+            <span style={{ fontFamily: "var(--font-mono)", fontSize: "var(--text-xs)", color: "var(--color-text-muted)" }}>
+              v{claudeStatus.version}
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={testConnection}
+            disabled={testing}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "4px",
+              background: "none",
+              border: "1px solid var(--color-border-subtle)",
+              borderRadius: "var(--radius-sm)",
+              padding: "3px 8px",
+              color: "var(--color-text-secondary)",
+              fontSize: "var(--text-xs)",
+              fontFamily: "var(--font-sans)",
+              cursor: testing ? "not-allowed" : "pointer",
+              opacity: testing ? 0.6 : 1,
+            }}
+          >
+            <Activity size={12} />
+            {testing ? "Testing…" : "Test connection"}
+          </button>
+        </div>
+      </div>
+    </Section>
+  );
 }
 
 function SectionHotkey() {
