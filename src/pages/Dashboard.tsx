@@ -21,7 +21,7 @@ function formatBytes(bytes: number): string {
   return `${(bytes / 1e3).toFixed(0)} KB`;
 }
 
-const ALL_PRESETS = ["disk-audit", "security-audit", "app-lifecycle-audit"];
+const ALL_PRESETS = ["disk-audit", "security-audit", "app-lifecycle-audit", "file-inventory-audit"];
 
 function buildLastAnalysis(
   data: Finding[],
@@ -35,6 +35,7 @@ function buildLastAnalysis(
       { preset: "disk-audit", label: "disk", findingCount: data.filter((f) => f.category === "disk").length },
       { preset: "security-audit", label: "security", findingCount: data.filter((f) => ["security", "persistence", "network"].includes(f.category)).length },
       { preset: "app-lifecycle-audit", label: "apps", findingCount: data.filter((f) => f.category === "apps").length },
+      { preset: "file-inventory-audit", label: "files", findingCount: data.filter((f) => f.category === "files").length },
     ],
   };
 }
@@ -168,6 +169,25 @@ export default function Dashboard() {
     setDialogOpen(true);
   }, []);
 
+  const handleFilesExecute = useCallback((paths: string[]) => {
+    const totalBytes = (activeSnapshot?.large_files?.files ?? [])
+      .filter((f) => paths.includes(f.path))
+      .reduce((sum, f) => sum + f.size_bytes, 0);
+    const stubFinding: Finding = {
+      id: `files_trash_${Date.now()}`,
+      severity: totalBytes >= 5_000_000_000 ? "high" : totalBytes >= 1_000_000_000 ? "medium" : "low",
+      category: "files",
+      title: `Move ${paths.length} file${paths.length !== 1 ? "s" : ""} to trash (${formatBytes(totalBytes)})`,
+      description: `Move ${paths.length} selected large file${paths.length !== 1 ? "s" : ""} to the Trash.`,
+      rationale: "User-selected files to remove.",
+      suggested_action: "delete_paths",
+      paths_to_remove: paths,
+      estimated_bytes_freed: totalBytes,
+    };
+    setDialogFindings([stubFinding]);
+    setDialogOpen(true);
+  }, [activeSnapshot]);
+
   const handleExecuteComplete = useCallback(({ moved, partial }: ExecuteResult) => {
     setExecutedPaths((prev) => new Set([...prev, ...moved]));
     setPartialPaths((prev) => new Set([...prev, ...partial]));
@@ -264,7 +284,12 @@ export default function Dashboard() {
             onCleanLeftover={handleCleanLeftover}
           />
         )}
-        {active === "files" && <FilesTab />}
+        {active === "files" && (
+          <FilesTab
+            files={activeSnapshot?.large_files?.files ?? []}
+            onExecute={handleFilesExecute}
+          />
+        )}
         {active === "security" && <SecurityTab />}
       </div>
 

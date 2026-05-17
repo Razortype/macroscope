@@ -39,6 +39,11 @@ const ALLOWED_PREFIXES: &[&str] = &[
     "~/Library/Developer/Xcode/DerivedData/",
     "~/Library/Developer/CoreSimulator/Caches/",
     "~/Library/Logs/",
+    "~/Desktop/",
+    "~/Downloads/",
+    "~/Movies/",
+    "~/Music/",
+    "~/Pictures/",
 ];
 
 // Glob patterns: matched with globset after tilde expansion of both pattern and path.
@@ -419,7 +424,7 @@ mod tests {
     #[test]
     fn denied_non_allowlisted_path() {
         // A random path that is not in any allowlist entry
-        let result = check_path("~/Desktop/Orkun/random.txt");
+        let result = check_path("~/SomeOtherFolder/random.txt");
         assert!(result.is_err(), "expected Err for non-allowlisted path");
     }
 

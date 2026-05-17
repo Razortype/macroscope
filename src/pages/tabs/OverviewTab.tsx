@@ -340,7 +340,7 @@ function LastAnalysisSection({ lastAnalysis }: { lastAnalysis: LastAnalysisSumma
           </span>
         </div>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
         {lastAnalysis.audits.map((a) => (
           <AuditSummaryCard key={a.preset} label={a.label} findingCount={a.findingCount} />
         ))}
@@ -601,7 +601,12 @@ export default function OverviewTab({
             <span style={{ fontSize: "12px", color: "var(--color-text-muted)" }}>→</span>
           </div>
           <span style={{ fontSize: "var(--text-sm)", color: "var(--color-text-secondary)" }}>
-            25 over 50 MB · 12.4 GB total
+            {(() => {
+              const lf = latestSnapshot.large_files;
+              if (!lf) return "Take a snapshot to scan large files";
+              const totalBytes = lf.files.reduce((s, f) => s + f.size_bytes, 0);
+              return `${lf.files.length} over 50 MB · ${formatBytes(totalBytes)} total`;
+            })()}
           </span>
         </button>
       </div>
