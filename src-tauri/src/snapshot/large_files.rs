@@ -40,6 +40,12 @@ const SKIP_DIRS: &[&str] = &[
     ".venv",
     "venv",
     "__pycache__",
+    "target",      // Rust/Cargo build output — regenerates on every build
+    "dist",        // Common JS/Python/Rust build output
+    "build",       // Common C/C++/CMake/Xcode build output
+    ".next",       // Next.js build cache
+    ".turbo",      // Turborepo build cache
+    "DerivedData", // Xcode build cache
 ];
 
 fn is_skipped(entry: &DirEntry) -> bool {
@@ -332,6 +338,14 @@ mod tests {
     fn modified_clamps_negative_to_zero() {
         let future = std::time::SystemTime::now() + std::time::Duration::from_secs(3600);
         assert_eq!(modified_days_ago(future), 0);
+    }
+
+    #[test]
+    fn skip_list_covers_build_artifact_dirs() {
+        let dirs_to_skip = ["target", "dist", "build", ".next", ".turbo", "DerivedData", "node_modules", ".git"];
+        for d in dirs_to_skip {
+            assert!(SKIP_DIRS.contains(&d), "SKIP_DIRS missing {}", d);
+        }
     }
 }
 
