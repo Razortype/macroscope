@@ -281,12 +281,16 @@ export default function Dashboard() {
         {active === "apps" && (
           <AppsTab
             apps={activeSnapshot?.apps ?? null}
+            executedPaths={executedPaths}
+            partialPaths={partialPaths}
             onCleanLeftover={handleCleanLeftover}
           />
         )}
         {active === "files" && (
           <FilesTab
             files={activeSnapshot?.large_files?.files ?? []}
+            executedPaths={executedPaths}
+            partialPaths={partialPaths}
             onExecute={handleFilesExecute}
           />
         )}

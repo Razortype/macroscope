@@ -1,4 +1,5 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
+import { Check } from "lucide-react";
 import type { LargeFile } from "../../types/snapshot";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -36,9 +37,9 @@ function badgeText(file: LargeFile): string {
   return "OTHER";
 }
 
-function badgeStyle(file: LargeFile): React.CSSProperties {
+function badgeStyle(file: LargeFile, dimmed: boolean): React.CSSProperties {
   const text = badgeText(file);
-  const isVideo = ["VIDEO"].includes(text);
+  const isVideo = text === "VIDEO";
   return {
     display: "inline-block",
     padding: "1px 5px",
@@ -47,12 +48,9 @@ function badgeStyle(file: LargeFile): React.CSSProperties {
     fontWeight: 600,
     letterSpacing: "0.06em",
     fontFamily: "var(--font-mono)",
-    background: isVideo
-      ? "rgba(59, 130, 246, 0.15)"
-      : "var(--color-bg-elev-3)",
-    color: isVideo
-      ? "rgb(147, 197, 253)"
-      : "var(--color-text-muted)",
+    background: isVideo ? "rgba(59, 130, 246, 0.15)" : "var(--color-bg-elev-3)",
+    color: isVideo ? "rgb(147, 197, 253)" : "var(--color-text-muted)",
+    opacity: dimmed ? 0.5 : 1,
   };
 }
 
@@ -64,16 +62,31 @@ type SortDir = "asc" | "desc";
 
 interface FilesTabProps {
   files: LargeFile[];
+  executedPaths: Set<string>;
+  partialPaths: Set<string>;
   onExecute: (paths: string[]) => void;
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export default function FilesTab({ files, onExecute }: FilesTabProps) {
+export default function FilesTab({ files, executedPaths, partialPaths, onExecute }: FilesTabProps) {
   const [filter, setFilter] = useState<FilterCategory>("all");
   const [sortBy, setSortBy] = useState<SortBy>("size");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  // Auto-clear executed paths from selection
+  useEffect(() => {
+    if (executedPaths.size === 0) return;
+    setSelected((prev) => {
+      const next = new Set(prev);
+      let changed = false;
+      for (const p of executedPaths) {
+        if (next.has(p)) { next.delete(p); changed = true; }
+      }
+      return changed ? next : prev;
+    });
+  }, [executedPaths]);
 
   const categoryStats = useMemo(() => {
     const stats: Record<string, { count: number; bytes: number }> = {
@@ -319,13 +332,16 @@ export default function FilesTab({ files, onExecute }: FilesTabProps) {
       >
         {visibleFiles.map((file, i) => {
           const isSelected = selected.has(file.path);
+          const isExecuted = executedPaths.has(file.path);
+          const isPartial = partialPaths.has(file.path);
+          const isDimmed = isExecuted || isPartial;
           const isLast = i === visibleFiles.length - 1;
           const isBigFile = file.size_bytes >= 1_000_000_000;
 
           return (
             <div
               key={file.path}
-              onClick={() => handleToggle(file.path)}
+              onClick={() => { if (!isExecuted) handleToggle(file.path); }}
               style={{
                 display: "grid",
                 gridTemplateColumns: GRID,
@@ -333,11 +349,11 @@ export default function FilesTab({ files, onExecute }: FilesTabProps) {
                 padding: "8px 12px",
                 alignItems: "center",
                 borderBottom: isLast ? "none" : "1px solid var(--color-border-divider)",
-                background: isSelected ? "rgba(var(--color-accent-rgb, 245,158,11), 0.08)" : "transparent",
-                cursor: "pointer",
+                background: isSelected ? "rgba(245,158,11, 0.08)" : "transparent",
+                cursor: isExecuted ? "default" : "pointer",
               }}
               onMouseEnter={(e) => {
-                if (!isSelected) (e.currentTarget as HTMLElement).style.background = "var(--color-bg-elev-2)";
+                if (!isSelected && !isExecuted) (e.currentTarget as HTMLElement).style.background = "var(--color-bg-elev-2)";
               }}
               onMouseLeave={(e) => {
                 (e.currentTarget as HTMLElement).style.background = isSelected
@@ -345,14 +361,20 @@ export default function FilesTab({ files, onExecute }: FilesTabProps) {
                   : "transparent";
               }}
             >
-              {/* Checkbox */}
-              <input
-                type="checkbox"
-                checked={isSelected}
-                onChange={() => handleToggle(file.path)}
-                onClick={(e) => e.stopPropagation()}
-                style={{ cursor: "pointer", accentColor: "var(--color-accent)", width: "14px", height: "14px" }}
-              />
+              {/* Checkbox / Check icon */}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+                {isExecuted ? (
+                  <Check size={14} color="var(--color-severity-low-fg)" />
+                ) : (
+                  <input
+                    type="checkbox"
+                    checked={isSelected}
+                    onChange={() => handleToggle(file.path)}
+                    onClick={(e) => e.stopPropagation()}
+                    style={{ cursor: "pointer", accentColor: "var(--color-accent)", width: "14px", height: "14px" }}
+                  />
+                )}
+              </div>
 
               {/* Path block */}
               <div style={{ minWidth: 0 }}>
@@ -364,6 +386,8 @@ export default function FilesTab({ files, onExecute }: FilesTabProps) {
                     overflow: "hidden",
                     textOverflow: "ellipsis",
                     whiteSpace: "nowrap",
+                    textDecoration: isDimmed ? "line-through" : "none",
+                    opacity: isDimmed ? 0.4 : 1,
                   }}
                 >
                   {pathBasename(file.path)}
@@ -376,6 +400,8 @@ export default function FilesTab({ files, onExecute }: FilesTabProps) {
                     overflow: "hidden",
                     textOverflow: "ellipsis",
                     whiteSpace: "nowrap",
+                    textDecoration: isDimmed ? "line-through" : "none",
+                    opacity: isDimmed ? 0.4 : 1,
                   }}
                 >
                   {file.path}
@@ -388,6 +414,7 @@ export default function FilesTab({ files, onExecute }: FilesTabProps) {
                   fontSize: "11px",
                   fontFamily: "var(--font-mono)",
                   color: "var(--color-text-muted)",
+                  opacity: isDimmed ? 0.4 : 1,
                 }}
               >
                 {formatRelativeDays(file.modified_days_ago)}
@@ -400,14 +427,49 @@ export default function FilesTab({ files, onExecute }: FilesTabProps) {
                   fontFamily: "var(--font-mono)",
                   color: isBigFile ? "var(--color-severity-medium-fg)" : "var(--color-text-primary)",
                   textAlign: "right",
+                  opacity: isDimmed ? 0.4 : 1,
                 }}
               >
                 {formatBytes(file.size_bytes)}
               </div>
 
-              {/* Category badge */}
-              <div>
-                <span style={badgeStyle(file)}>{badgeText(file)}</span>
+              {/* Category badge / executed badge */}
+              <div style={{ display: "flex", flexDirection: "column", gap: "3px" }}>
+                {!isDimmed && (
+                  <span style={badgeStyle(file, false)}>{badgeText(file)}</span>
+                )}
+                {isExecuted && !isPartial && (
+                  <span
+                    style={{
+                      background: "rgba(105,211,176,0.15)",
+                      color: "var(--color-severity-low-fg)",
+                      fontSize: "9px",
+                      padding: "2px 6px",
+                      borderRadius: "3px",
+                      letterSpacing: "0.06em",
+                      fontWeight: 500,
+                      fontFamily: "var(--font-mono)",
+                    }}
+                  >
+                    MOVED
+                  </span>
+                )}
+                {isPartial && (
+                  <span
+                    style={{
+                      background: "rgba(245,166,35,0.15)",
+                      color: "var(--color-severity-medium-fg)",
+                      fontSize: "9px",
+                      padding: "2px 6px",
+                      borderRadius: "3px",
+                      letterSpacing: "0.06em",
+                      fontWeight: 500,
+                      fontFamily: "var(--font-mono)",
+                    }}
+                  >
+                    PARTIAL
+                  </span>
+                )}
               </div>
             </div>
           );

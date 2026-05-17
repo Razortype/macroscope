@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Package, FolderX } from "lucide-react";
+import { Check, Package, FolderX } from "lucide-react";
 import type { AppsSnapshot, InstalledApp, LeftoverDir } from "../../types/snapshot";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -28,6 +28,8 @@ function getStatus(app: InstalledApp): "active" | "stale" {
 
 export interface AppsTabProps {
   apps: AppsSnapshot | null;
+  executedPaths: Set<string>;
+  partialPaths: Set<string>;
   onCleanLeftover: (paths: string[], name: string, bytes: number) => void;
 }
 
@@ -161,45 +163,68 @@ function InstalledRow({ row }: { row: AppRow & { type: "installed" } }) {
 
 function LeftoverRow({
   row,
+  isExecuted,
+  isPartial,
   onClean,
 }: {
   row: AppRow & { type: "leftover" };
+  isExecuted: boolean;
+  isPartial: boolean;
   onClean: () => void;
 }) {
   const { leftover } = row;
+  const isDimmed = isExecuted || isPartial;
   const displayName = leftover.matched_app_name ?? leftover.path.split("/").pop() ?? leftover.path;
   return (
     <div style={{ ...ROW_STYLE, background: "rgba(245,166,35,0.025)" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <FolderX size={14} color="var(--color-severity-medium-fg)" />
+        {isExecuted ? (
+          <Check size={14} color="var(--color-severity-low-fg)" />
+        ) : (
+          <FolderX size={14} color={isDimmed ? "var(--color-text-muted)" : "var(--color-severity-medium-fg)"} />
+        )}
       </div>
-      <div style={{ minWidth: 0 }}>
-        <div style={{ fontSize: "13px", color: "var(--color-text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{displayName}</div>
-        <div style={{ fontSize: "10px", color: "var(--color-text-muted)", fontFamily: "var(--font-mono)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+      <div style={{ minWidth: 0, opacity: isDimmed ? 0.4 : 1 }}>
+        <div style={{ fontSize: "13px", color: "var(--color-text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textDecoration: isDimmed ? "line-through" : "none" }}>{displayName}</div>
+        <div style={{ fontSize: "10px", color: "var(--color-text-muted)", fontFamily: "var(--font-mono)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textDecoration: isDimmed ? "line-through" : "none" }}>
           {leftover.path}
         </div>
       </div>
-      <div style={{ fontSize: "12px", color: "var(--color-text-muted)" }}>— uninstalled</div>
-      <div style={{ fontSize: "12px", color: "var(--color-severity-medium-fg)", fontFamily: "var(--font-mono)" }}>
+      <div style={{ fontSize: "12px", color: "var(--color-text-muted)", opacity: isDimmed ? 0.4 : 1 }}>— uninstalled</div>
+      <div style={{ fontSize: "12px", color: "var(--color-severity-medium-fg)", fontFamily: "var(--font-mono)", opacity: isDimmed ? 0.4 : 1 }}>
         {formatBytes(leftover.size_bytes)}
       </div>
-      <div><StatusBadge status="leftover" /></div>
       <div>
-        <button
-          onClick={onClean}
-          style={{
-            background: "var(--color-severity-medium-bg)",
-            color: "var(--color-severity-medium-fg)",
-            border: "none",
-            padding: "4px 8px",
-            borderRadius: "4px",
-            fontSize: "10px",
-            cursor: "pointer",
-            fontFamily: "var(--font-sans)",
-          }}
-        >
-          clean →
-        </button>
+        {isExecuted && !isPartial ? (
+          <span style={{ background: "rgba(105,211,176,0.15)", color: "var(--color-severity-low-fg)", fontSize: "9px", padding: "2px 6px", borderRadius: "3px", letterSpacing: "0.06em", fontWeight: 500, fontFamily: "var(--font-mono)" }}>
+            MOVED
+          </span>
+        ) : isPartial ? (
+          <span style={{ background: "rgba(245,166,35,0.15)", color: "var(--color-severity-medium-fg)", fontSize: "9px", padding: "2px 6px", borderRadius: "3px", letterSpacing: "0.06em", fontWeight: 500, fontFamily: "var(--font-mono)" }}>
+            PARTIAL
+          </span>
+        ) : (
+          <StatusBadge status="leftover" />
+        )}
+      </div>
+      <div>
+        {!isExecuted && (
+          <button
+            onClick={onClean}
+            style={{
+              background: "var(--color-severity-medium-bg)",
+              color: "var(--color-severity-medium-fg)",
+              border: "none",
+              padding: "4px 8px",
+              borderRadius: "4px",
+              fontSize: "10px",
+              cursor: "pointer",
+              fontFamily: "var(--font-sans)",
+            }}
+          >
+            clean →
+          </button>
+        )}
       </div>
     </div>
   );
@@ -207,7 +232,7 @@ function LeftoverRow({
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function AppsTab({ apps, onCleanLeftover }: AppsTabProps) {
+export default function AppsTab({ apps, executedPaths, partialPaths, onCleanLeftover }: AppsTabProps) {
   const [filter, setFilter] = useState<FilterKey>("all");
   const [sort, setSort] = useState<SortKey>("size");
 
@@ -330,6 +355,8 @@ export default function AppsTab({ apps, onCleanLeftover }: AppsTabProps) {
             <LeftoverRow
               key={`${row.type}-${row.leftover.path}-${i}`}
               row={row}
+              isExecuted={executedPaths.has(row.leftover.path)}
+              isPartial={partialPaths.has(row.leftover.path)}
               onClean={() =>
                 onCleanLeftover(
                   [row.leftover.path],
