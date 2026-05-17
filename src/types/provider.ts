@@ -46,13 +46,13 @@ export const PROVIDER_LABELS: Record<ProviderId, string> = {
 };
 
 export const ANTHROPIC_MODELS = [
-  "claude-sonnet-4-7",
   "claude-opus-4-7",
+  "claude-sonnet-4-6",
   "claude-haiku-4-5",
-  "claude-sonnet-4-5",
+  "claude-opus-4-6",
   "claude-opus-4-5",
   "claude-haiku-4-1",
-];
+] as const;
 
 export const OPENAI_MODELS = [
   "gpt-5",

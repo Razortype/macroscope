@@ -65,7 +65,7 @@ pub struct AnthropicApiConfig {
 
 impl Default for AnthropicApiConfig {
     fn default() -> Self {
-        Self { model: "claude-sonnet-4-7".into() }
+        Self { model: "claude-sonnet-4-6".into() }
     }
 }
 
@@ -138,6 +138,10 @@ impl ProviderConfig {
         match db.get_setting(CONFIG_KEY)? {
             Some(json) => {
                 let mut cfg: Self = serde_json::from_str(&json).unwrap_or_default();
+                // claude-sonnet-4-7 never existed; Sonnet stopped at 4.6.
+                if cfg.anthropic_api.model == "claude-sonnet-4-7" {
+                    cfg.anthropic_api.model = "claude-sonnet-4-6".into();
+                }
                 // Migration: if claude_cli path_override is empty but legacy
                 // claude_cli_path setting exists, copy it over.
                 if cfg.claude_cli.path_override.is_empty() {
