@@ -100,7 +100,7 @@ function TargetRow({
       <div style={{ display: "flex", alignItems: "center" }}>
         {rowIcon(target.action_class)}
       </div>
-      {/* Label */}
+      {/* Label + path */}
       <div style={{ minWidth: 0 }}>
         <div
           style={{
@@ -109,6 +109,14 @@ function TargetRow({
           }}
         >
           {target.display_label}
+        </div>
+        <div
+          style={{
+            fontSize: "10px", fontFamily: "var(--font-mono)", color: "var(--color-text-muted)",
+            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+          }}
+        >
+          {target.path}
         </div>
         {isCompanionNotRunning && (
           <div style={{ fontSize: "10px", color: "var(--color-text-muted)", marginTop: "1px" }}>
@@ -132,7 +140,7 @@ function TargetRow({
 
 // ── Section header ────────────────────────────────────────────────────────────
 
-function SectionHeader({ label, count }: { label: string; count: number }) {
+function SectionHeader({ label, count, subtotalBytes }: { label: string; count: number; subtotalBytes: number }) {
   return (
     <div
       style={{
@@ -145,7 +153,7 @@ function SectionHeader({ label, count }: { label: string; count: number }) {
         display: "flex", alignItems: "center", justifyContent: "space-between",
       }}
     >
-      <span>{label}</span>
+      <span>{label}{subtotalBytes > 0 ? ` · ${formatBytes(subtotalBytes)}` : ""}</span>
       <span style={{ fontWeight: 400 }}>{count}</span>
     </div>
   );
@@ -267,7 +275,10 @@ export default function PreviewDialog({ open, onOpenChange, findings, snapshotId
   const checkedTargets = targets.filter((t) => checked.has(t.path));
   const checkedSize = checkedTargets.reduce((s, t) => s + t.size_bytes, 0);
   const checkedCount = checkedTargets.length;
+  // Section subtotals: Safe + Companion use checked-only; Skipped uses total (none actionable)
   const safeSize = safeTargets.filter((t) => checked.has(t.path)).reduce((s, t) => s + t.size_bytes, 0);
+  const companionCheckedSize = companionNotRunning.filter((t) => checked.has(t.path)).reduce((s, t) => s + t.size_bytes, 0);
+  const skippedSize = skipped.reduce((s, t) => s + t.size_bytes, 0);
 
   const canExecute = checkedCount > 0 && phase === "review";
 
@@ -362,7 +373,7 @@ export default function PreviewDialog({ open, onOpenChange, findings, snapshotId
                 {/* Safe section */}
                 {safeTargets.length > 0 && (
                   <>
-                    <SectionHeader label="Safe to delete" count={safeTargets.length} />
+                    <SectionHeader label="Safe to delete" count={safeTargets.length} subtotalBytes={safeSize} />
                     {safeTargets.map((t) => (
                       <TargetRow
                         key={t.path}
@@ -377,7 +388,7 @@ export default function PreviewDialog({ open, onOpenChange, findings, snapshotId
                 {/* Companion (not running) section */}
                 {companionNotRunning.length > 0 && (
                   <>
-                    <SectionHeader label="Companion data (app not running)" count={companionNotRunning.length} />
+                    <SectionHeader label="Companion data (app not running)" count={companionNotRunning.length} subtotalBytes={companionCheckedSize} />
                     {companionNotRunning.map((t) => (
                       <TargetRow
                         key={t.path}
@@ -392,7 +403,7 @@ export default function PreviewDialog({ open, onOpenChange, findings, snapshotId
                 {/* Skipped section */}
                 {skipped.length > 0 && (
                   <>
-                    <SectionHeader label="Will be skipped" count={skipped.length} />
+                    <SectionHeader label="Will be skipped" count={skipped.length} subtotalBytes={skippedSize} />
                     {skipped.map((t) => (
                       <TargetRow key={t.path} target={t} checked={false} />
                     ))}
