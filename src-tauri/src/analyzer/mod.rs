@@ -336,7 +336,7 @@ async fn run_single_preset(
 
     let json_text = strip_code_fences(&text);
     let mut findings: Vec<Finding> =
-        serde_json::from_str(json_text.trim()).map_err(|e| {
+        extract_json_array(json_text.trim()).map_err(|e| {
             AppError::ClaudeCli(format!(
                 "Failed to parse findings array: {e}\nContent: {json_text}"
             ))
@@ -380,4 +380,22 @@ fn strip_code_fences(s: &str) -> String {
         return stripped.trim_end().to_string();
     }
     after_open.to_string()
+}
+
+/// Parse a findings array from provider output that may contain leading prose
+/// or trailing text. Fast path: text already starts with `[`. Slow path: scan
+/// for the first `[` and last `]` and attempt to parse the bracketed span.
+/// Falls back to a direct parse of the original text to surface the real error.
+fn extract_json_array(s: &str) -> Result<Vec<Finding>, serde_json::Error> {
+    if s.starts_with('[') {
+        return serde_json::from_str(s);
+    }
+    if let (Some(start), Some(end)) = (s.find('['), s.rfind(']')) {
+        if start < end {
+            if let Ok(findings) = serde_json::from_str::<Vec<Finding>>(&s[start..=end]) {
+                return Ok(findings);
+            }
+        }
+    }
+    serde_json::from_str(s)
 }
