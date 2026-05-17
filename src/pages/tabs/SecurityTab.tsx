@@ -270,21 +270,19 @@ function PersistenceRow({
         >
           {entry.label}
         </div>
-        {entry.path && (
-          <div
-            style={{
-              fontSize: "10px",
-              fontFamily: "var(--font-mono)",
-              color: "var(--color-text-muted)",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-              textDecoration: isDimmed ? "line-through" : "none",
-            }}
-          >
-            {entry.path}
-          </div>
-        )}
+        <div
+          style={{
+            fontSize: "10px",
+            fontFamily: "var(--font-mono)",
+            color: "var(--color-text-muted)",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+            textDecoration: isDimmed ? "line-through" : "none",
+          }}
+        >
+          {entry.path || "registered via System Settings"}
+        </div>
       </div>
 
       {/* Kind */}
