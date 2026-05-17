@@ -3,6 +3,7 @@ pub mod db;
 pub mod error;
 pub mod executor;
 pub mod finding;
+pub mod identity;
 pub mod snapshot;
 
 use analyzer::ClaudeStatus;
