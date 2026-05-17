@@ -2,6 +2,17 @@
 
 > Local-first macOS system audit, powered by Claude.
 
+## Origin
+
+I kept seeing the same junk on my Mac for months. Cleaner apps either showed
+me everything as "removable" without context, or buried real problems under
+upsells. I trusted one of them once, clicked "clean," and lost a browser
+profile I actually used. After that I stopped trusting them and started
+reading `~/Library` by hand, which is fine for a weekend but not a habit.
+So I built Macroscope. It runs locally, never deletes anything without
+itemizing what it would touch first, and refuses to recommend cleaning data
+that belongs to an app I still use.
+
 Macroscope is a self-hosted desktop application that scans your Mac, runs a
 deterministic identity graph over installed apps and their leftover data,
 then uses local Claude Code CLI to surface findings. Everything stays on
@@ -111,7 +122,7 @@ Macroscope is currently distributed as source. Auto-update and signed
 releases are not provided.
 
 ```bash
-git clone https://github.com/orkunkurul/macroscope.git
+git clone https://github.com/Razortype/macroscope.git
 cd macroscope
 npm install
 cd src-tauri && cargo build --release && cd ..
