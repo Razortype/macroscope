@@ -8,6 +8,10 @@ import {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+function fmtTokens(n: number): string {
+  return n.toLocaleString("en-US");
+}
+
 function formatElapsed(ms: number): string {
   const total = ms / 1000;
   const m = String(Math.floor(total / 60)).padStart(2, "0");
@@ -226,6 +230,22 @@ function AuditRow({ preset, audit }: { preset: string; audit: AuditState }) {
               </span>
             </div>
           ))}
+        </div>
+      )}
+
+      {audit.token_usage && isComplete && (
+        <div
+          style={{
+            paddingLeft: "15px",
+            fontFamily: "var(--font-mono)",
+            fontSize: "10px",
+            color: "rgba(255,255,255,0.35)",
+          }}
+        >
+          {fmtTokens(audit.token_usage.input_tokens)} in · {fmtTokens(audit.token_usage.output_tokens)} out
+          {audit.token_usage.cache_read_input_tokens > 0
+            ? ` · ${fmtTokens(audit.token_usage.cache_read_input_tokens)} cached`
+            : ""}
         </div>
       )}
 

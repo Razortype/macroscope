@@ -34,10 +34,17 @@ export interface LastAnalysisAudit {
   findingCount: number;
 }
 
+export interface LastAnalysisTokenTotals {
+  input: number;
+  output: number;
+  cacheRead: number;
+}
+
 export interface LastAnalysisSummary {
   completedAt: number;
   totalDurationMs: number;
   audits: LastAnalysisAudit[];
+  tokenTotals?: LastAnalysisTokenTotals;
 }
 
 export interface OverviewTabProps {
@@ -328,6 +335,16 @@ function LastAnalysisSection({ lastAnalysis }: { lastAnalysis: LastAnalysisSumma
           last analysis
         </span>
         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+          {lastAnalysis.tokenTotals && (
+            <span
+              style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--color-text-muted)" }}
+            >
+              {lastAnalysis.tokenTotals.input.toLocaleString("en-US")} in · {lastAnalysis.tokenTotals.output.toLocaleString("en-US")} out tokens
+              {lastAnalysis.tokenTotals.cacheRead > 0
+                ? ` · ${lastAnalysis.tokenTotals.cacheRead.toLocaleString("en-US")} cached`
+                : ""}
+            </span>
+          )}
           <span
             style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--color-text-muted)" }}
           >

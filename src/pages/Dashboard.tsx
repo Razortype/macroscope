@@ -3,14 +3,14 @@ import { invoke } from "@tauri-apps/api/core";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { toast } from "sonner";
 import type { Finding } from "../types/finding";
-import type { PersistenceEntry, Snapshot } from "../types/snapshot";
+import type { AuditTokenUsage, PersistenceEntry, Snapshot } from "../types/snapshot";
 import { computeServiceTarget } from "../lib/persistence";
 import { useAnalysisRun } from "../context/AnalysisRunContext";
 import TopBar from "../components/TopBar";
 import TabBar, { type TabId } from "../components/TabBar";
 import PreviewDialog, { type ExecuteResult } from "../components/PreviewDialog";
 import AnalysisProgress from "../components/AnalysisProgress";
-import OverviewTab, { type LastAnalysisSummary } from "./tabs/OverviewTab";
+import OverviewTab, { type LastAnalysisSummary, type LastAnalysisTokenTotals } from "./tabs/OverviewTab";
 import FindingsTab from "./tabs/FindingsTab";
 import AppsTab from "./tabs/AppsTab";
 import FilesTab from "./tabs/FilesTab";
@@ -26,9 +26,23 @@ function formatBytes(bytes: number): string {
 
 const ALL_PRESETS = ["disk-audit", "security-audit", "app-lifecycle-audit", "file-inventory-audit"];
 
+function sumTokenUsage(usage: Record<string, AuditTokenUsage>): LastAnalysisTokenTotals | undefined {
+  const entries = Object.values(usage);
+  if (entries.length === 0) return undefined;
+  return entries.reduce(
+    (acc, u) => ({
+      input: acc.input + u.input_tokens,
+      output: acc.output + u.output_tokens,
+      cacheRead: acc.cacheRead + u.cache_read_input_tokens,
+    }),
+    { input: 0, output: 0, cacheRead: 0 }
+  );
+}
+
 function buildLastAnalysis(
   data: Finding[],
-  startedAt: number | null
+  startedAt: number | null,
+  tokenTotals?: LastAnalysisTokenTotals
 ): LastAnalysisSummary {
   const now = Date.now();
   return {
@@ -40,6 +54,7 @@ function buildLastAnalysis(
       { preset: "app-lifecycle-audit", label: "apps", findingCount: data.filter((f) => f.category === "apps").length },
       { preset: "file-inventory-audit", label: "files", findingCount: data.filter((f) => f.category === "files").length },
     ],
+    tokenTotals,
   };
 }
 
@@ -71,6 +86,9 @@ export default function Dashboard() {
   const [lastAnalysis, setLastAnalysis] = useState<LastAnalysisSummary | null>(null);
   const analysisStartedAtRef = useRef<number | null>(null);
 
+  const runAuditsRef = useRef(run.audits);
+  useEffect(() => { runAuditsRef.current = run.audits; }, [run.audits]);
+
   const latestIdQuery = useQuery<number | null>({
     queryKey: ["latest_snapshot_id"],
     queryFn: () => invoke<number | null>("latest_snapshot_id"),
@@ -89,6 +107,11 @@ export default function Dashboard() {
       setFindings(sortFindings(found));
       setExecutedPaths(new Set(snap.executed_paths ?? []));
       setPartialPaths(new Set(snap.partial_paths ?? []));
+      if (snap.token_usage && Object.keys(snap.token_usage).length > 0) {
+        setLastAnalysis((prev) =>
+          prev ? { ...prev, tokenTotals: sumTokenUsage(snap.token_usage) } : prev
+        );
+      }
     }).catch(() => {});
   }, [latestIdQuery.data, activeSnapshotId]);
 
@@ -111,8 +134,13 @@ export default function Dashboard() {
       return invoke<Finding[]>("analyze_snapshot", { snapshotId: id, presets: ALL_PRESETS });
     },
     onSuccess: (data) => {
+      const tokenUsage = Object.fromEntries(
+        Object.entries(runAuditsRef.current)
+          .filter(([, a]) => a.token_usage != null)
+          .map(([preset, a]) => [preset, a.token_usage!])
+      );
       setFindings(sortFindings(data));
-      setLastAnalysis(buildLastAnalysis(data, analysisStartedAtRef.current));
+      setLastAnalysis(buildLastAnalysis(data, analysisStartedAtRef.current, sumTokenUsage(tokenUsage)));
     },
     onError: (err) => { deactivateRun(); setAnalyzeError(err); },
   });
@@ -132,8 +160,13 @@ export default function Dashboard() {
       return invoke<Finding[]>("analyze_snapshot", { snapshotId: activeSnapshotId, presets: ALL_PRESETS });
     },
     onSuccess: (data) => {
+      const tokenUsage = Object.fromEntries(
+        Object.entries(runAuditsRef.current)
+          .filter(([, a]) => a.token_usage != null)
+          .map(([preset, a]) => [preset, a.token_usage!])
+      );
       setFindings(sortFindings(data));
-      setLastAnalysis(buildLastAnalysis(data, analysisStartedAtRef.current));
+      setLastAnalysis(buildLastAnalysis(data, analysisStartedAtRef.current, sumTokenUsage(tokenUsage)));
     },
     onError: (err) => { deactivateRun(); setAnalyzeError(err); },
   });
