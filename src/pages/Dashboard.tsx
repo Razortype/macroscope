@@ -332,6 +332,7 @@ export default function Dashboard() {
             onToggleSelection={handleSelectChange}
             onSelectAll={handleSelectAll}
             deleteableCount={deleteableFindings.length}
+            classifiedLeftovers={activeSnapshot?.apps?.classified_leftovers ?? []}
           />
         )}
         {active === "apps" && (

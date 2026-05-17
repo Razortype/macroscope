@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import type { Finding, Severity } from "../../types/finding";
+import type { ClassifiedLeftover } from "../../types/snapshot";
 import FindingCard from "../../components/FindingCard";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -26,6 +27,7 @@ export interface FindingsTabProps {
   onToggleSelection: (id: string, checked: boolean) => void;
   onSelectAll: () => void;
   deleteableCount: number;
+  classifiedLeftovers: ClassifiedLeftover[];
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
@@ -38,8 +40,20 @@ export default function FindingsTab({
   onToggleSelection,
   onSelectAll,
   deleteableCount,
+  classifiedLeftovers,
 }: FindingsTabProps) {
   const [filterSeverity, setFilterSeverity] = useState<FilterSeverity>("all");
+
+  // Build a path → status-type map for quick companion/ambiguous lookup
+  const statusByPath = useMemo(() => {
+    const m = new Map<string, "companion" | "ambiguous">();
+    for (const cl of classifiedLeftovers) {
+      if (cl.status.type === "companion" || cl.status.type === "ambiguous") {
+        m.set(cl.path, cl.status.type);
+      }
+    }
+    return m;
+  }, [classifiedLeftovers]);
 
   if (!findings) {
     return (
@@ -129,6 +143,11 @@ export default function FindingsTab({
           const paths = f.paths_to_remove ?? [];
           const isExecuted = paths.length > 0 && paths.every((p) => executedPaths.has(p));
           const isPartial = !isExecuted && paths.some((p) => partialPaths.has(p));
+          const identityHint = paths.length > 0
+            ? (paths.some((p) => statusByPath.get(p) === "companion") ? "companion"
+               : paths.some((p) => statusByPath.get(p) === "ambiguous") ? "ambiguous"
+               : undefined)
+            : undefined;
           return (
             <FindingCard
               key={f.id}
@@ -136,6 +155,7 @@ export default function FindingsTab({
               selected={selectedIds.has(f.id)}
               executed={isExecuted}
               partial={isPartial}
+              identityHint={identityHint}
               onSelectChange={(checked) => onToggleSelection(f.id, checked)}
             />
           );

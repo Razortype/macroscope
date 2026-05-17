@@ -19,11 +19,18 @@ interface Props {
   onSelectChange: (selected: boolean) => void;
   executed?: boolean;
   partial?: boolean;
+  identityHint?: "companion" | "ambiguous";
 }
 
-export default function FindingCard({ finding: f, selected, onSelectChange, executed = false, partial = false }: Props) {
+export default function FindingCard({ finding: f, selected, onSelectChange, executed = false, partial = false, identityHint }: Props) {
   const { fg, bg } = severityColors(f.severity);
   const isSelectable = f.suggested_action === "delete_paths" && !executed && !partial;
+
+  const cardBg = selected
+    ? "var(--color-bg-elev-2)"
+    : identityHint === "companion"
+    ? "rgba(93,163,245,0.04)"
+    : "transparent";
 
   return (
     <div
@@ -33,7 +40,7 @@ export default function FindingCard({ finding: f, selected, onSelectChange, exec
         gap: "12px",
         padding: "12px 20px",
         borderBottom: "1px solid var(--color-border-divider)",
-        background: selected ? "var(--color-bg-elev-2)" : "transparent",
+        background: cardBg,
         transition: "background 100ms",
       }}
     >
@@ -83,6 +90,42 @@ export default function FindingCard({ finding: f, selected, onSelectChange, exec
           >
             {f.category}
           </span>
+          {identityHint === "companion" && (
+            <span
+              style={{
+                background: "var(--color-severity-info-bg)",
+                color: "var(--color-severity-info-fg)",
+                borderRadius: "var(--radius-xs)",
+                padding: "1px 5px",
+                fontSize: "var(--text-xs)",
+                fontWeight: 600,
+                textTransform: "uppercase",
+                letterSpacing: "0.06em",
+                fontFamily: "var(--font-mono)",
+                flexShrink: 0,
+              }}
+            >
+              companion
+            </span>
+          )}
+          {identityHint === "ambiguous" && (
+            <span
+              style={{
+                background: "var(--color-severity-medium-bg)",
+                color: "var(--color-severity-medium-fg)",
+                borderRadius: "var(--radius-xs)",
+                padding: "1px 5px",
+                fontSize: "var(--text-xs)",
+                fontWeight: 600,
+                textTransform: "uppercase",
+                letterSpacing: "0.06em",
+                fontFamily: "var(--font-mono)",
+                flexShrink: 0,
+              }}
+            >
+              unidentified
+            </span>
+          )}
           <span
             style={{
               fontWeight: 500,
