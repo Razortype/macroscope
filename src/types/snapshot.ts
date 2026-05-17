@@ -132,9 +132,26 @@ export interface LeftoverDir {
   matched_app_name: string | null;
 }
 
+// Mirrors identity::LeftoverStatus — internally-tagged serde enum.
+export type LeftoverStatus =
+  | { type: "orphaned" }
+  | { type: "companion"; belongs_to_bundle_id: string; belongs_to_display_name: string }
+  | { type: "system_managed" }
+  | { type: "ambiguous"; pattern_hint: string };
+
+export interface ClassifiedLeftover {
+  path: string;
+  dir_name: string;
+  size_bytes: number;
+  status: LeftoverStatus;
+}
+
 export interface AppsSnapshot {
   installed: InstalledApp[];
+  /** Legacy: orphaned-only leftovers. Present in all snapshots for backward compat. */
   leftovers: LeftoverDir[];
+  /** Identity-classified full leftover list. Empty array for snapshots pre-dating this field. */
+  classified_leftovers: ClassifiedLeftover[];
 }
 
 export interface LargeFile {

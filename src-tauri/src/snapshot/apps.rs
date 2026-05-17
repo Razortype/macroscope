@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use tokio::process::Command;
+use crate::identity::{ClassifiedLeftover, LeftoverStatus};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InstalledApp {
@@ -23,7 +24,12 @@ pub struct LeftoverDir {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppsSnapshot {
     pub installed: Vec<InstalledApp>,
+    /// Legacy field: only orphaned leftovers. Kept for backward compat with old snapshots.
     pub leftovers: Vec<LeftoverDir>,
+    /// Full identity-classified leftover list (includes companion, system_managed, ambiguous).
+    /// Missing in snapshots taken before this field was added; deserialises as empty Vec.
+    #[serde(default)]
+    pub classified_leftovers: Vec<ClassifiedLeftover>,
 }
 
 const SKIP_PREFIXES: &[&str] = &[
@@ -65,32 +71,39 @@ pub async fn probe() -> Result<AppsSnapshot, String> {
         });
     }
 
+    // Collect ALL lib entries (no pre-filter) and du them in parallel.
     let lib_entries = enumerate_user_library_entries(&home);
+    let handles: Vec<_> = lib_entries.iter().map(|p| {
+        let p = p.clone();
+        tokio::task::spawn_blocking(move || du_path_blocking(&p))
+    }).collect();
 
-    let mut leftovers: Vec<LeftoverDir> = Vec::new();
-    for entry_path in lib_entries {
-        let dir_name = entry_path
-            .file_name()
-            .map(|n| n.to_string_lossy().to_string())
-            .unwrap_or_default();
-
-        if installed.iter().any(|app| app_matches_dir(app, &dir_name)) {
-            continue;
-        }
-
-        let p = entry_path.clone();
-        let size_bytes = tokio::task::spawn_blocking(move || du_path_blocking(&p))
-            .await
-            .unwrap_or(0);
-
-        leftovers.push(LeftoverDir {
-            path: entry_path.display().to_string(),
+    let mut raw_leftovers: Vec<LeftoverDir> = Vec::new();
+    for (path, handle) in lib_entries.into_iter().zip(handles.into_iter()) {
+        let size_bytes = handle.await.unwrap_or(0);
+        raw_leftovers.push(LeftoverDir {
+            path: path.display().to_string(),
             size_bytes,
             matched_app_name: None,
         });
     }
 
-    Ok(AppsSnapshot { installed, leftovers })
+    // Classify every entry through the identity layer.
+    let graph = crate::identity::resolve(&installed, &raw_leftovers);
+    let classified_leftovers = graph.leftovers;
+
+    // Backward-compat: populate old `leftovers` with orphans only.
+    let leftovers: Vec<LeftoverDir> = classified_leftovers
+        .iter()
+        .filter(|cl| matches!(cl.status, LeftoverStatus::Orphaned))
+        .map(|cl| LeftoverDir {
+            path: cl.path.clone(),
+            size_bytes: cl.size_bytes,
+            matched_app_name: None,
+        })
+        .collect();
+
+    Ok(AppsSnapshot { installed, leftovers, classified_leftovers })
 }
 
 async fn enumerate_apps(home: &Path) -> Result<Vec<PathBuf>, String> {
@@ -486,6 +499,7 @@ mod tests {
                 make_leftover("/test/SmallApp", 10_000_000, Some("SmallApp")),
                 make_leftover("/test/SmallApp2", 30_000_000, Some("SmallApp2")),
             ],
+            classified_leftovers: vec![],
         };
         let summary = summarize_for_analyzer(&snap);
         assert_eq!(summary.misc_leftovers.count, 2);
@@ -500,6 +514,7 @@ mod tests {
                 make_leftover("/test/Adobe", 200_000_000, Some("Adobe")),
                 make_leftover("/test/com.adobe.Acrobat.plist", 60_000_000, None),
             ],
+            classified_leftovers: vec![],
         };
         let summary = summarize_for_analyzer(&snap);
         let adobe_group = summary.leftover_groups.iter().find(|g| g.vendor == "Adobe");
@@ -517,6 +532,7 @@ mod tests {
                 make_app("NeverOpened", None, 100_000_000),
             ],
             leftovers: vec![],
+            classified_leftovers: vec![],
         };
         let summary = summarize_for_analyzer(&snap);
         assert_eq!(summary.stale_apps.len(), 2);
@@ -531,6 +547,7 @@ mod tests {
                 make_app("StaleApp", Some(300), 200_000_000),
             ],
             leftovers: vec![make_leftover("/test/X", 50_000_000, None)],
+            classified_leftovers: vec![],
         };
         let summary = summarize_for_analyzer(&snap);
         assert_eq!(summary.stats.installed_total, 2);
