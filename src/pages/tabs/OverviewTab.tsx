@@ -393,8 +393,9 @@ export default function OverviewTab({
   const pathCount = new Set(
     actionableFindings.flatMap((f) => f.paths_to_remove ?? [])
   ).size;
+  const usedBytes = vol ? vol.size_bytes - vol.available_bytes : 0;
   const recoverablePct =
-    vol && vol.used_bytes > 0 ? Math.round((recoverableBytes / vol.used_bytes) * 100) : null;
+    vol && usedBytes > 0 ? Math.round((recoverableBytes / usedBytes) * 100) : null;
 
   // Top priority
   const topFindings = [...allFindings]
