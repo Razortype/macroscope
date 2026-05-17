@@ -26,3 +26,11 @@ dist-ssr
 # Rust / Tauri
 src-tauri/target/
 src-tauri/gen/schemas/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Claude Code CLI local session data
+.claude/

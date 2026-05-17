@@ -1,6 +1,8 @@
-# Macroscope — Pre-Implementation Discovery Report
+# Macroscope Architecture
 
-Completed before any code was written. Covers the 6 areas required by the spec.
+Design decisions and platform notes captured before implementation began.
+Most of these answer the question "why did we do it this way?" and are
+worth reading if you plan to contribute or extend Macroscope.
 
 ---
 
