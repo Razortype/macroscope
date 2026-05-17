@@ -101,14 +101,6 @@ async fn list_settings(db: State<'_, Db>) -> Result<Vec<(String, String)>, Strin
 
 // ── Executor commands ────────────────────────────────────────────────────────
 
-#[tauri::command]
-async fn execute_paths(paths: Vec<String>, db: State<'_, Db>) -> Result<ExecutionReport, String> {
-    let db = db.inner().clone();
-    executor::execute_actions(paths, &db)
-        .await
-        .map_err(Into::into)
-}
-
 /// Execute paths that have been identity-reviewed in the preview modal.
 /// `safe_paths` are SafeOrphan items; `companion_approved` are CompanionNotRunning
 /// items the user individually opted into. All other ActionClass values are never sent.
@@ -425,7 +417,6 @@ pub fn run() {
             analyze_snapshot,
             latest_snapshot_id,
             get_findings_for_snapshot,
-            execute_paths,
             get_allowed_prefixes,
             get_allowed_globs,
             get_denied_prefixes,

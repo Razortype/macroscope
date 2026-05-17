@@ -245,32 +245,6 @@ pub async fn execute_previewed_paths(
     Ok(ExecutionReport { items, total_bytes_freed: total_freed })
 }
 
-pub async fn execute_actions(paths: Vec<String>, db: &Db) -> Result<ExecutionReport, AppError> {
-    let project_roots = load_project_roots(db);
-    let audit_log = audit_log_path()?;
-
-    // Ensure the parent directory exists (it should from Db::new, but be safe)
-    if let Some(parent) = audit_log.parent() {
-        fs::create_dir_all(parent)?;
-    }
-
-    let mut items: Vec<ExecutionItem> = Vec::new();
-    let mut total_freed: u64 = 0;
-
-    for path in paths {
-        let item = execute_single(&path, &audit_log, &project_roots).await;
-        if item.status == "moved" || item.status == "partial" {
-            total_freed += item.bytes;
-        }
-        items.push(item);
-    }
-
-    Ok(ExecutionReport {
-        items,
-        total_bytes_freed: total_freed,
-    })
-}
-
 async fn execute_single(path: &str, audit_log: &Path, project_roots: &[PathBuf]) -> ExecutionItem {
     match check_path(path, project_roots) {
         Err(AppError::PathNotAllowed(msg)) => {
