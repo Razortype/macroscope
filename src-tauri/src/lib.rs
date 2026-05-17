@@ -6,7 +6,9 @@ pub mod finding;
 pub mod identity;
 pub mod snapshot;
 
-use analyzer::ClaudeStatus;
+use std::sync::Arc;
+
+use analyzer::{ClaudeStatus, ClaudeCliProvider, AnalyzerService};
 use db::Db;
 use executor::{ExecutionReport, get_allowed_prefixes, get_allowed_globs, get_denied_prefixes, get_denied_exact, ToggleAction};
 use finding::Finding;
@@ -274,15 +276,19 @@ async fn analyze_snapshot(
     claude_status: State<'_, ClaudeStatus>,
     app: tauri::AppHandle,
 ) -> Result<Vec<Finding>, String> {
-    analyzer::analyze_snapshot(
-        snapshot_id,
-        presets,
-        db.inner(),
-        claude_status.inner(),
-        &app,
-    )
-    .await
-    .map_err(Into::into)
+    if !claude_status.available {
+        return Err(claude_status
+            .error
+            .clone()
+            .unwrap_or_else(|| "Claude CLI not available".into()));
+    }
+    let path = claude_status.path.clone().ok_or_else(|| {
+        "claude path is None despite available=true".to_string()
+    })?;
+    let provider: Arc<dyn AnalyzerService> = Arc::new(ClaudeCliProvider { path });
+    analyzer::analyze_snapshot(snapshot_id, presets, db.inner(), provider, &app)
+        .await
+        .map_err(Into::into)
 }
 
 // ── Lifetime stats ────────────────────────────────────────────────────────────
