@@ -1,6 +1,5 @@
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use tokio::process::Command;
 use crate::identity::{ClassifiedLeftover, LeftoverStatus};
@@ -226,33 +225,6 @@ fn enumerate_user_library_entries(home: &Path) -> Vec<PathBuf> {
 
 fn should_skip_lib_entry(name: &str) -> bool {
     SKIP_PREFIXES.iter().any(|p| name.starts_with(p))
-}
-
-fn app_matches_dir(app: &InstalledApp, dir_name: &str) -> bool {
-    // 1. Bundle ID exact match or component match
-    if let Some(bid) = &app.bundle_id {
-        if bid == dir_name {
-            return true;
-        }
-        // e.g. "com.brave.Browser" → check if "BraveSoftware" matches segment "brave"
-        if bid.split('.').any(|part| part.to_lowercase() == dir_name.to_lowercase()) {
-            return true;
-        }
-    }
-
-    // 2. Normalized name match (strip .plist suffix for Preferences entries)
-    let dir_base = dir_name.trim_end_matches(".plist");
-    let app_name_norm = app.name.to_lowercase().replace(".app", "").replace(' ', "");
-    let dir_norm = dir_base.to_lowercase().replace(' ', "");
-
-    if !app_name_norm.is_empty()
-        && !dir_norm.is_empty()
-        && (app_name_norm.contains(&dir_norm) || dir_norm.contains(&app_name_norm))
-    {
-        return true;
-    }
-
-    false
 }
 
 fn du_path_blocking(path: &Path) -> u64 {
