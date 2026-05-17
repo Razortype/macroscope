@@ -1,0 +1,463 @@
+import { useState, useEffect, useCallback } from "react";
+import { invoke } from "@tauri-apps/api/core";
+import { toast } from "sonner";
+import { X, CircleCheck, CircleAlert, OctagonX, Loader2 } from "lucide-react";
+import type { Finding } from "../types/finding";
+import type { ResolvedTarget, ActionClass } from "../types/snapshot";
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function formatBytes(bytes: number): string {
+  if (bytes >= 1e9) return `${(bytes / 1e9).toFixed(1)} GB`;
+  if (bytes >= 1e6) return `${(bytes / 1e6).toFixed(0)} MB`;
+  return `${(bytes / 1e3).toFixed(0)} KB`;
+}
+
+interface ExecutionReport {
+  items: { path: string; status: string; bytes: number; error: string | null }[];
+  total_bytes_freed: number;
+}
+
+export interface ExecuteResult {
+  moved: Set<string>;
+  partial: Set<string>;
+}
+
+// ── Action class helpers ──────────────────────────────────────────────────────
+
+function isBlocked(ac: ActionClass): boolean {
+  return (
+    ac.type === "companion_running" ||
+    ac.type === "system_managed" ||
+    ac.type === "protected" ||
+    ac.type === "ambiguous"
+  );
+}
+
+function chipLabel(ac: ActionClass): string {
+  if (ac.type === "safe_orphan") return "ORPHAN";
+  if (ac.type === "companion_running") return `RUNNING · ${ac.app_display}`;
+  if (ac.type === "companion_not_running") return `COMPANION · ${ac.app_display}`;
+  if (ac.type === "system_managed") return "SYSTEM";
+  if (ac.type === "ambiguous") return "INVESTIGATE";
+  return "PROTECTED";
+}
+
+function chipStyle(ac: ActionClass): React.CSSProperties {
+  const base: React.CSSProperties = {
+    fontSize: "9px", fontWeight: 600, padding: "2px 6px",
+    borderRadius: "var(--radius-xs)", textTransform: "uppercase",
+    letterSpacing: "0.06em", fontFamily: "var(--font-mono)", whiteSpace: "nowrap",
+  };
+  if (ac.type === "safe_orphan") return { ...base, background: "var(--color-severity-low-bg)", color: "var(--color-severity-low-fg)" };
+  if (ac.type === "companion_not_running") return { ...base, background: "var(--color-severity-info-bg)", color: "var(--color-severity-info-fg)" };
+  return { ...base, background: "var(--color-bg-elev-3)", color: "var(--color-text-muted)" };
+}
+
+function rowIcon(ac: ActionClass) {
+  if (ac.type === "safe_orphan") return <CircleCheck size={13} color="var(--color-severity-low-fg)" />;
+  if (ac.type === "companion_not_running") return <CircleAlert size={13} color="var(--color-accent)" />;
+  if (ac.type === "companion_running") return <OctagonX size={13} color="var(--color-severity-high-fg)" />;
+  return <OctagonX size={13} color="var(--color-text-muted)" />;
+}
+
+// ── Row component ─────────────────────────────────────────────────────────────
+
+function TargetRow({
+  target, checked, onCheck,
+}: {
+  target: ResolvedTarget; checked: boolean; onCheck?: (v: boolean) => void;
+}) {
+  const blocked = isBlocked(target.action_class);
+
+  const isCompanionNotRunning = target.action_class.type === "companion_not_running";
+
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "20px 20px minmax(0,1fr) 72px 80px",
+        gap: "8px",
+        padding: "7px 12px",
+        borderBottom: "1px solid var(--color-border-divider)",
+        alignItems: "center",
+        opacity: blocked ? 0.5 : 1,
+        background: isCompanionNotRunning ? "rgba(245,166,35,0.03)" : "transparent",
+      }}
+    >
+      {/* Checkbox */}
+      <div>
+        {!blocked && onCheck && (
+          <input
+            type="checkbox"
+            checked={checked}
+            onChange={(e) => onCheck(e.target.checked)}
+            style={{ width: 13, height: 13, accentColor: "var(--color-accent)", cursor: "pointer" }}
+          />
+        )}
+      </div>
+      {/* Icon */}
+      <div style={{ display: "flex", alignItems: "center" }}>
+        {rowIcon(target.action_class)}
+      </div>
+      {/* Label */}
+      <div style={{ minWidth: 0 }}>
+        <div
+          style={{
+            fontSize: "11px", fontFamily: "var(--font-mono)", color: "var(--color-text-primary)",
+            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+          }}
+        >
+          {target.display_label}
+        </div>
+        {isCompanionNotRunning && (
+          <div style={{ fontSize: "10px", color: "var(--color-text-muted)", marginTop: "1px" }}>
+            This data belongs to{" "}
+            {(target.action_class as { app_display: string }).app_display}.
+            Settings/cache will reset on next launch.
+          </div>
+        )}
+      </div>
+      {/* Size */}
+      <div style={{ fontSize: "11px", fontFamily: "var(--font-mono)", color: "var(--color-text-secondary)", textAlign: "right" }}>
+        {formatBytes(target.size_bytes)}
+      </div>
+      {/* Chip */}
+      <div>
+        <span style={chipStyle(target.action_class)}>{chipLabel(target.action_class)}</span>
+      </div>
+    </div>
+  );
+}
+
+// ── Section header ────────────────────────────────────────────────────────────
+
+function SectionHeader({ label, count }: { label: string; count: number }) {
+  return (
+    <div
+      style={{
+        padding: "6px 12px",
+        background: "var(--color-bg-elev-2)",
+        borderBottom: "1px solid var(--color-border-divider)",
+        fontSize: "10px", fontWeight: 600, letterSpacing: "0.08em",
+        textTransform: "uppercase", color: "var(--color-text-muted)",
+        fontFamily: "var(--font-mono)",
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+      }}
+    >
+      <span>{label}</span>
+      <span style={{ fontWeight: 400 }}>{count}</span>
+    </div>
+  );
+}
+
+// ── Main component ────────────────────────────────────────────────────────────
+
+interface Props {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  findings: Finding[];
+  snapshotId: number | null;
+  onComplete: (result: ExecuteResult) => void;
+}
+
+type Phase = "loading" | "review" | "executing" | "error";
+
+export default function PreviewDialog({ open, onOpenChange, findings, snapshotId, onComplete }: Props) {
+  const [phase, setPhase] = useState<Phase>("loading");
+  const [targets, setTargets] = useState<ResolvedTarget[]>([]);
+  const [checked, setChecked] = useState<Set<string>>(new Set());
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  const allPaths = findings.flatMap((f) => f.paths_to_remove ?? []);
+
+  // Load preview when dialog opens
+  useEffect(() => {
+    if (!open) return;
+    if (allPaths.length === 0) { setTargets([]); setPhase("review"); return; }
+    if (snapshotId == null) { setLoadError("No snapshot context — cannot preview"); setPhase("error"); return; }
+
+    setPhase("loading");
+    setLoadError(null);
+
+    invoke<ResolvedTarget[]>("preview_execution", { snapshotId, paths: allPaths })
+      .then((result) => {
+        setTargets(result);
+        // Pre-check safe orphan targets; leave companion_not_running unchecked
+        const preChecked = new Set(
+          result.filter((t) => t.action_class.type === "safe_orphan").map((t) => t.path)
+        );
+        setChecked(preChecked);
+        setPhase("review");
+      })
+      .catch((err) => {
+        setLoadError(String(err));
+        setPhase("error");
+      });
+  }, [open, snapshotId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Keyboard: Escape closes
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onOpenChange(false); };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [open, onOpenChange]);
+
+  const handleCheck = useCallback((path: string, val: boolean) => {
+    setChecked((prev) => {
+      const next = new Set(prev);
+      val ? next.add(path) : next.delete(path);
+      return next;
+    });
+  }, []);
+
+  const handleExecute = useCallback(async () => {
+    setPhase("executing");
+    try {
+      const safePaths = targets
+        .filter((t) => t.action_class.type === "safe_orphan" && checked.has(t.path))
+        .map((t) => t.path);
+      const companionApproved = targets
+        .filter((t) => t.action_class.type === "companion_not_running" && checked.has(t.path))
+        .map((t) => t.path);
+
+      const report = await invoke<ExecutionReport>("execute_previewed", {
+        safePaths,
+        companionApproved,
+      });
+
+      const moved = new Set(report.items.filter((i) => i.status === "moved").map((i) => i.path));
+      const partial = new Set(report.items.filter((i) => i.status === "partial").map((i) => i.path));
+      const partialItems = report.items.filter((i) => i.status === "partial");
+      const failed = report.items.filter((i) => i.status !== "moved" && i.status !== "partial");
+
+      if (report.total_bytes_freed > 0) {
+        const note = partialItems.length > 0 ? ` · ${partialItems.length} partial` : "";
+        toast.success(`Moved ${formatBytes(report.total_bytes_freed)} to Trash${note}`);
+      } else if (moved.size === 0 && partial.size === 0) {
+        toast.error("Nothing moved — all paths were denied or failed");
+      }
+
+      for (const item of partialItems) {
+        toast.warning(item.path, { description: item.error ?? "Some subdirectories could not be moved", duration: 8000 });
+      }
+      if (failed.length > 0) {
+        toast.error(`${failed.length} path${failed.length > 1 ? "s" : ""} could not be moved`, {
+          description: failed.map((i) => `${i.path}: ${i.error ?? i.status}`).join("\n"),
+          duration: 8000,
+        });
+      }
+
+      onComplete({ moved, partial });
+      onOpenChange(false);
+    } catch (e) {
+      toast.error(`Execution failed: ${String(e)}`);
+      setPhase("review");
+    }
+  }, [targets, checked, onComplete, onOpenChange]);
+
+  if (!open) return null;
+
+  // ── Groups ──────────────────────────────────────────────────────────────────
+  const safeTargets = targets.filter((t) => t.action_class.type === "safe_orphan");
+  const companionNotRunning = targets.filter((t) => t.action_class.type === "companion_not_running");
+  const skipped = targets.filter((t) => isBlocked(t.action_class));
+
+  const checkedTargets = targets.filter((t) => checked.has(t.path));
+  const checkedSize = checkedTargets.reduce((s, t) => s + t.size_bytes, 0);
+  const checkedCount = checkedTargets.length;
+  const safeSize = safeTargets.filter((t) => checked.has(t.path)).reduce((s, t) => s + t.size_bytes, 0);
+
+  const canExecute = checkedCount > 0 && phase === "review";
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div
+        onClick={() => onOpenChange(false)}
+        style={{
+          position: "fixed", inset: 0, zIndex: 50,
+          background: "rgba(0,0,0,0.55)", backdropFilter: "blur(2px)",
+        }}
+      />
+
+      {/* Modal */}
+      <div
+        role="dialog"
+        aria-modal
+        style={{
+          position: "fixed", inset: 0, zIndex: 51,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          pointerEvents: "none",
+        }}
+      >
+        <div
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            pointerEvents: "auto",
+            width: "min(680px, 96vw)",
+            maxHeight: "80vh",
+            background: "var(--color-bg-elev-1)",
+            border: "1px solid var(--color-border-subtle)",
+            borderRadius: "var(--radius-lg)",
+            display: "flex",
+            flexDirection: "column",
+            overflow: "hidden",
+            boxShadow: "0 24px 48px rgba(0,0,0,0.45)",
+          }}
+        >
+          {/* Header */}
+          <div
+            style={{
+              padding: "16px 20px 12px",
+              borderBottom: "1px solid var(--color-border-divider)",
+              flexShrink: 0,
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
+              <div>
+                <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--color-text-primary)" }}>
+                  {phase === "loading" ? "Analyzing targets…" : `Review ${targets.length} action${targets.length !== 1 ? "s" : ""} before executing`}
+                </div>
+                {phase === "review" && safeSize > 0 && (
+                  <div style={{ fontSize: "12px", color: "var(--color-text-muted)", marginTop: "3px" }}>
+                    {formatBytes(safeSize)} confirmed safe to free
+                    {skipped.length > 0 && ` · ${skipped.length} action${skipped.length !== 1 ? "s" : ""} will be skipped automatically`}
+                  </div>
+                )}
+              </div>
+              <button
+                onClick={() => onOpenChange(false)}
+                style={{ background: "none", border: "none", cursor: "pointer", color: "var(--color-text-muted)", padding: "2px" }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+          </div>
+
+          {/* Body */}
+          <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden" }}>
+            {phase === "loading" && (
+              <div style={{ padding: "40px 20px", display: "flex", alignItems: "center", justifyContent: "center", gap: "10px", color: "var(--color-text-muted)", fontSize: "var(--text-sm)" }}>
+                <Loader2 size={16} className="mscope-pulse" />
+                Classifying targets…
+              </div>
+            )}
+
+            {phase === "error" && (
+              <div style={{ padding: "24px 20px", color: "var(--color-severity-medium-fg)", fontSize: "var(--text-sm)", fontFamily: "var(--font-mono)" }}>
+                {loadError ?? "Failed to load preview"}
+              </div>
+            )}
+
+            {phase === "review" && targets.length === 0 && (
+              <div style={{ padding: "24px 20px", color: "var(--color-text-muted)", fontSize: "var(--text-sm)" }}>
+                No targets to preview.
+              </div>
+            )}
+
+            {(phase === "review" || phase === "executing") && targets.length > 0 && (
+              <>
+                {/* Safe section */}
+                {safeTargets.length > 0 && (
+                  <>
+                    <SectionHeader label="Safe to delete" count={safeTargets.length} />
+                    {safeTargets.map((t) => (
+                      <TargetRow
+                        key={t.path}
+                        target={t}
+                        checked={checked.has(t.path)}
+                        onCheck={(v) => handleCheck(t.path, v)}
+                      />
+                    ))}
+                  </>
+                )}
+
+                {/* Companion (not running) section */}
+                {companionNotRunning.length > 0 && (
+                  <>
+                    <SectionHeader label="Companion data (app not running)" count={companionNotRunning.length} />
+                    {companionNotRunning.map((t) => (
+                      <TargetRow
+                        key={t.path}
+                        target={t}
+                        checked={checked.has(t.path)}
+                        onCheck={(v) => handleCheck(t.path, v)}
+                      />
+                    ))}
+                  </>
+                )}
+
+                {/* Skipped section */}
+                {skipped.length > 0 && (
+                  <>
+                    <SectionHeader label="Will be skipped" count={skipped.length} />
+                    {skipped.map((t) => (
+                      <TargetRow key={t.path} target={t} checked={false} />
+                    ))}
+                  </>
+                )}
+              </>
+            )}
+          </div>
+
+          {/* Footer */}
+          <div
+            style={{
+              padding: "12px 20px",
+              borderTop: "1px solid var(--color-border-divider)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              flexShrink: 0,
+            }}
+          >
+            <span style={{ fontSize: "12px", color: "var(--color-text-muted)", fontFamily: "var(--font-mono)" }}>
+              {phase === "review" && checkedCount > 0
+                ? `${checkedCount} action${checkedCount !== 1 ? "s" : ""} selected · ${formatBytes(checkedSize)} to free`
+                : phase === "review"
+                ? "No actions selected"
+                : ""}
+            </span>
+            <div style={{ display: "flex", gap: "10px" }}>
+              <button
+                onClick={() => onOpenChange(false)}
+                disabled={phase === "executing"}
+                style={{
+                  background: "none",
+                  border: "1px solid var(--color-border-subtle)",
+                  borderRadius: "var(--radius-md)",
+                  padding: "6px 16px",
+                  fontSize: "var(--text-sm)",
+                  color: "var(--color-text-secondary)",
+                  cursor: "pointer",
+                  opacity: phase === "executing" ? 0.5 : 1,
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleExecute}
+                disabled={!canExecute}
+                style={{
+                  background: canExecute ? "var(--color-accent)" : "var(--color-text-muted)",
+                  color: canExecute ? "#1a1a26" : "var(--color-text-disabled)",
+                  border: "none",
+                  borderRadius: "var(--radius-md)",
+                  padding: "6px 16px",
+                  fontSize: "var(--text-sm)",
+                  fontWeight: 500,
+                  cursor: canExecute ? "pointer" : "not-allowed",
+                  minWidth: "120px",
+                }}
+              >
+                {phase === "executing" ? "Moving…" : `Execute ${checkedCount > 0 ? checkedCount : ""} action${checkedCount !== 1 ? "s" : ""}`}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}

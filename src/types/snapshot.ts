@@ -132,6 +132,22 @@ export interface LeftoverDir {
   matched_app_name: string | null;
 }
 
+// Mirrors identity::target_resolver types.
+export type ActionClass =
+  | { type: "safe_orphan" }
+  | { type: "companion_running"; app_display: string; app_bundle_id: string }
+  | { type: "companion_not_running"; app_display: string; app_bundle_id: string }
+  | { type: "system_managed" }
+  | { type: "ambiguous"; pattern_hint: string }
+  | { type: "protected" };
+
+export interface ResolvedTarget {
+  path: string;
+  size_bytes: number;
+  action_class: ActionClass;
+  display_label: string;
+}
+
 // Mirrors identity::LeftoverStatus — internally-tagged serde enum.
 export type LeftoverStatus =
   | { type: "orphaned" }

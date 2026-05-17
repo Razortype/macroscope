@@ -8,7 +8,7 @@ import { computeServiceTarget } from "../lib/persistence";
 import { useAnalysisRun } from "../context/AnalysisRunContext";
 import TopBar from "../components/TopBar";
 import TabBar, { type TabId } from "../components/TabBar";
-import ExecuteDialog, { type ExecuteResult } from "../components/ExecuteDialog";
+import PreviewDialog, { type ExecuteResult } from "../components/PreviewDialog";
 import AnalysisProgress from "../components/AnalysisProgress";
 import OverviewTab, { type LastAnalysisSummary } from "./tabs/OverviewTab";
 import FindingsTab from "./tabs/FindingsTab";
@@ -399,10 +399,11 @@ export default function Dashboard() {
         </div>
       )}
 
-      <ExecuteDialog
+      <PreviewDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         findings={dialogFindings}
+        snapshotId={activeSnapshotId}
         onComplete={handleExecuteComplete}
       />
     </div>
