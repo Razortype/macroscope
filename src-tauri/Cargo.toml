@@ -3,6 +3,9 @@ name = "macroscope"
 version = "0.1.0"
 description = "Macroscope — local macOS system snapshot and analysis tool"
 authors = ["Orkun Kurul"]
+license = "AGPL-3.0"
+repository = "https://github.com/Razortype/macroscope"
+homepage = "https://github.com/Razortype/macroscope"
 edition = "2021"
 
 [lib]
