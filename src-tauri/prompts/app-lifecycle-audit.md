@@ -41,12 +41,14 @@ Field semantics:
 NEVER recommend deletion of any path in `companion_data`. This data is actively used by an installed application. If a companion entry is large enough to be worth noting, you MAY produce one `info` finding summarising the companion data for a vendor — clearly label it as companion data, do NOT include any freeable-space claims, and set `suggested_action: "ignore"`. Do not produce companion findings unless the total companion size exceeds 2 GB.
 
 **Real orphans — primary recommendation surface:**
-Group orphans by `guessed_vendor`. Produce ONE finding per vendor cluster. Apply the same severity thresholds as before:
+Group orphans by `guessed_vendor`. Produce ONE finding per vendor cluster. Apply these severity thresholds:
 - < 100 MB: skip (too small to surface)
 - 100 MB – 500 MB: info
 - 500 MB – 2 GB: low
 - 2 GB – 5 GB: medium
 - 5+ GB: high
+
+LOW is appropriate ONLY for a single, well-identified orphan path ≤500 MB. A parent-directory target, any item ≥500 MB, or an item belonging to a companion or ambiguous category must be MEDIUM or higher. A finding with `suggested_action: delete_paths` at `low` severity implies a tiny, verified-safe, atomic operation.
 
 `suggested_action: "delete_paths"` with `paths_to_remove` and `estimated_bytes_freed` for the cluster total.
 

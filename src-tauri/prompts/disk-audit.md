@@ -24,15 +24,16 @@ Work through this sequence:
 
 - If `capacity_pct` > 85%: disk is under pressure. Emit an `info` finding stating overall disk state. Cleanup findings later in this analysis should use full severity (medium 500 MB–5 GB, high >5 GB).
 - If `capacity_pct` is 70–85%: moderate pressure. Skip the volume-level finding. Cleanup findings use normal severity.
-- If `capacity_pct` < 70%: no pressure. Skip the volume-level finding. **Downgrade all cleanup-finding severities by one level**: what would have been `medium` becomes `low`, what would have been `high` becomes `medium`. The user is not in a rush; do not signal urgency that does not exist.
+- If `capacity_pct` < 70%: no pressure. Skip the volume-level finding. Downgrade severity by one level ONLY for findings ≤500 MB: what would have been `medium` becomes `low`. Findings ≥500 MB remain `medium` or higher regardless of disk pressure.
 
-The principle: a 2 GB browser cache on a 95%-full disk is medium-urgency cleanup; the same cache on a 23%-full disk is a low-priority "while you're here" suggestion.
+The minimum severity for any `delete_paths` finding is `low`. Do NOT emit a `low` finding for the same item on a low-pressure disk and `medium` on a high-pressure disk when the item is ≥500 MB — keep it at `medium` in both cases. Disk pressure adjusts perception, not safety decisions about what should be cleaned.
 
 **Step 2 — Path review.** For each entry in `disk.watched_paths` where `exists` is `true` and `size_bytes` is greater than roughly 50 MB:
 
 - Identify what the directory is: browser cache, Xcode build products, npm cache, Docker layers, Hugging Face model weights, Simulator caches, etc.
 - Decide whether deletion is safe: caches that rebuild automatically → `delete_paths`. Directories that contain data the user may want → `investigate` at most.
 - Cross-reference `processes.command` for the owning application. If the app is actively running, note that the cache is live and will partially rebuild after clearing — still flag it if it is very large, but reflect this accurately in your `description`.
+- **IMPORTANT: target specific subdirectories, not parent directories.** If a watched path is `~/Library/Caches` (the parent), you MUST NOT include it as a `paths_to_remove` entry. Instead, target the specific subdirectory (e.g., `~/Library/Caches/com.brave.Browser`). Similarly, do not target `~/Library/Application Support` as a whole — only specific named subdirectories that you can identify as safe to remove.
 
 **Step 3 — Runaway process check.** Scan `processes` for a process that is both:
 - consuming more than 1 GB `rss_bytes`, AND
@@ -68,12 +69,14 @@ Return `[]` if there is nothing worth reporting.
 
 # Severity calibration
 
-| Level | Meaning for this audit (adjusted by disk pressure per Step 1) |
+| Level | Meaning for this audit |
 |---|---|
-| `info` | Observational. Disk is healthy or under pressure (used as context-setting finding). |
-| `low` | Minor cleanup candidate, OR a medium-sized cleanup on a low-pressure disk. |
-| `medium` | Meaningful cleanup under disk pressure, OR significant cleanup on a healthy disk. |
-| `high` | Significant cleanup (>5 GB) under disk pressure, OR disk capacity is above 85% with this finding as a top contributor. |
+| `info` | Observational. Disk is healthy or under pressure (context-setting). |
+| `low` | Cleanup candidate under 500 MB on any disk, OR a specific well-identified single-path clean on a low-pressure disk. NEVER `low` for parent-directory targets or items ≥500 MB. |
+| `medium` | Any cleanup ≥500 MB, regardless of disk pressure. Under pressure, applies to items ≥100 MB. |
+| `high` | Any cleanup ≥5 GB, OR disk capacity >85% with this item as a significant contributor. |
+
+**The 500 MB rule is hard:** a 3 GB item is ALWAYS `medium` or `high`. Disk pressure (Step 1) never downgrades items ≥500 MB below `medium`.
 
 # Anti-patterns — strictly do not do these
 
@@ -81,6 +84,13 @@ Return `[]` if there is nothing worth reporting.
 
 **NEVER use `suggested_action: "delete_paths"` for `~/Desktop` or `~/Downloads`, regardless of size.** These are user data directories. The most you may do is emit an `info` or `low` finding with `suggested_action: "investigate"` noting the size and recommending manual review.
 
+**Language rules for `delete_paths` findings — these phrases are banned:**
+- "safely cleared" → describe what will happen instead ("the cache will be removed and rebuild on next use")
+- "no risk" → instead be specific ("browser preferences and bookmarks are stored separately")
+- "fully regenerable" → instead note what actually happens ("Brave will re-download cached assets as you browse")
+- Avoid implying zero consequence. Every deletion has some cost (re-download time, cold-start slowness, etc.). Be accurate.
+
+- Do not use `~/Library/Caches` or `~/Library/Logs` as a `paths_to_remove` entry — these are parent directories; only specific subdirectories may be targeted
 - Do not suggest deleting any path not present in `disk.watched_paths`
 - Do not suggest deleting a path where `exists` is `false`
 - Do not flag a process for high RSS unless it exceeds 1 GB AND also appears to be a runaway or leak (high etime relative to its role) AND its owning app appears in `watched_paths`
