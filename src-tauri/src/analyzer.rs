@@ -10,7 +10,7 @@ use tauri::{AppHandle, Emitter};
 use crate::db::{settings_keys, Db};
 use crate::error::AppError;
 use crate::finding::{Finding, SuggestedAction};
-use crate::snapshot::Snapshot;
+use crate::snapshot::{AuditTokenUsage, Snapshot};
 
 // Compiled-in defaults — always present regardless of AppSupport directory state.
 const DISK_AUDIT_PROMPT: &str = include_str!("../prompts/disk-audit.md");
@@ -266,11 +266,11 @@ pub async fn analyze_snapshot(
             tokio::spawn(async move {
                 let result = run_single_preset(&snap, &preset, &path, &app).await;
                 match result {
-                    Ok(findings) => {
+                    Ok((findings, usage)) => {
                         if let Err(e) = db.save_analysis_result(snapshot_id, &preset, &findings) {
                             eprintln!("[macroscope] Could not persist {preset} results: {e}");
                         }
-                        (preset, Ok(findings))
+                        (preset, Ok((findings, usage)))
                     }
                     Err(e) => {
                         let _ = app.emit(
@@ -286,13 +286,34 @@ pub async fn analyze_snapshot(
 
     // Collect results; partial failures have already been emitted as events
     let mut all_findings: Vec<Finding> = Vec::new();
+    let mut all_usage: std::collections::HashMap<String, AuditTokenUsage> = std::collections::HashMap::new();
     for handle in tasks {
         match handle.await {
-            Ok((_, Ok(findings))) => all_findings.extend(findings),
+            Ok((preset, Ok((findings, usage)))) => {
+                all_findings.extend(findings);
+                all_usage.insert(preset, usage);
+            }
             Ok((preset, Err(e))) => {
                 eprintln!("[macroscope] Preset {preset} failed: {e}");
             }
             Err(e) => eprintln!("[macroscope] Task panicked: {e}"),
+        }
+    }
+
+    // Persist token usage back to the snapshot blob so it survives app restarts
+    if !all_usage.is_empty() {
+        match db.get_snapshot_payload(snapshot_id) {
+            Ok(payload_str) => {
+                if let Ok(mut snap) = serde_json::from_str::<Snapshot>(&payload_str) {
+                    snap.token_usage = all_usage;
+                    if let Ok(updated) = serde_json::to_string(&snap) {
+                        if let Err(e) = db.update_snapshot_payload(snapshot_id, &updated) {
+                            eprintln!("[macroscope] Could not persist token usage: {e}");
+                        }
+                    }
+                }
+            }
+            Err(e) => eprintln!("[macroscope] Could not load snapshot for token usage patch: {e}"),
         }
     }
 
@@ -316,7 +337,7 @@ async fn run_single_preset(
     preset: &str,
     claude_path: &str,
     app: &AppHandle,
-) -> Result<Vec<Finding>, AppError> {
+) -> Result<(Vec<Finding>, AuditTokenUsage), AppError> {
     let start = Instant::now();
 
     let filtered = filter_snapshot_for_preset(snapshot, preset)?;
@@ -349,6 +370,7 @@ async fn run_single_preset(
     let mut lines = tokio::io::BufReader::new(stdout).lines();
     let mut result_text: Option<String> = None;
     let mut is_error = false;
+    let mut token_usage = AuditTokenUsage::default();
 
     let read_result = tokio::time::timeout(Duration::from_secs(300), async {
         while let Some(line) = lines.next_line().await? {
@@ -386,6 +408,14 @@ async fn run_single_preset(
                     let error_flag =
                         event.get("is_error").and_then(|v| v.as_bool()).unwrap_or(false);
                     is_error = error_flag;
+                    if let Some(u) = event.get("usage") {
+                        token_usage = AuditTokenUsage {
+                            input_tokens: u.get("input_tokens").and_then(|v| v.as_u64()).unwrap_or(0),
+                            output_tokens: u.get("output_tokens").and_then(|v| v.as_u64()).unwrap_or(0),
+                            cache_read_input_tokens: u.get("cache_read_input_tokens").and_then(|v| v.as_u64()).unwrap_or(0),
+                            cache_creation_input_tokens: u.get("cache_creation_input_tokens").and_then(|v| v.as_u64()).unwrap_or(0),
+                        };
+                    }
                     let timing = serde_json::json!({
                         "duration_ms": event.get("duration_ms").and_then(|v| v.as_u64()),
                         "duration_api_ms": event.get("duration_api_ms").and_then(|v| v.as_u64()),
@@ -398,6 +428,12 @@ async fn run_single_preset(
                             "elapsed_ms": elapsed_ms,
                             "pid": pid,
                             "timing": timing,
+                            "usage": {
+                                "input_tokens": token_usage.input_tokens,
+                                "output_tokens": token_usage.output_tokens,
+                                "cache_read_input_tokens": token_usage.cache_read_input_tokens,
+                                "cache_creation_input_tokens": token_usage.cache_creation_input_tokens,
+                            },
                         }),
                     );
                     result_text =
@@ -430,7 +466,7 @@ async fn run_single_preset(
     })?;
 
     validate_findings(&mut findings, preset);
-    Ok(findings)
+    Ok((findings, token_usage))
 }
 
 fn validate_findings(findings: &mut Vec<Finding>, preset: &str) {

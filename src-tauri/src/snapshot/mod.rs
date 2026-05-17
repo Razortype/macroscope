@@ -34,6 +34,16 @@ pub struct ProbeFailure {
     pub message: String,
 }
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct AuditTokenUsage {
+    pub input_tokens: u64,
+    pub output_tokens: u64,
+    #[serde(default)]
+    pub cache_read_input_tokens: u64,
+    #[serde(default)]
+    pub cache_creation_input_tokens: u64,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Snapshot {
     pub created_at: DateTime<Utc>,
@@ -50,6 +60,8 @@ pub struct Snapshot {
     pub executed_paths: Vec<String>,
     #[serde(default)]
     pub partial_paths: Vec<String>,
+    #[serde(default)]
+    pub token_usage: std::collections::HashMap<String, AuditTokenUsage>,
 }
 
 async fn probe_timed<T>(
@@ -151,5 +163,6 @@ pub async fn take_snapshot(app: &AppHandle) -> Snapshot {
         partial_failures,
         executed_paths: Vec::new(),
         partial_paths: Vec::new(),
+        token_usage: std::collections::HashMap::new(),
     }
 }

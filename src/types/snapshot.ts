@@ -183,6 +183,13 @@ export interface LargeFilesSnapshot {
   partial_failures: string[];
 }
 
+export interface AuditTokenUsage {
+  input_tokens: number;
+  output_tokens: number;
+  cache_read_input_tokens: number;
+  cache_creation_input_tokens: number;
+}
+
 export interface Snapshot {
   created_at: string;           // ISO 8601 UTC
   disk: DiskReport | null;
@@ -196,6 +203,7 @@ export interface Snapshot {
   partial_failures: ProbeFailure[]; // always an array, never null
   executed_paths: string[];
   partial_paths: string[];
+  token_usage: Record<string, AuditTokenUsage>;
 }
 
 // Mirror of src-tauri/src/analyzer.rs::ClaudeStatus

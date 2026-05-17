@@ -7,6 +7,7 @@ import {
   useState,
 } from "react";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import type { AuditTokenUsage } from "../types/snapshot";
 
 // ── Types (shared with AnalysisProgress) ─────────────────────────────────────
 
@@ -35,6 +36,7 @@ export interface AuditState {
   elapsed_ms: number;
   events: AuditEvent[];
   timing?: { ttft_ms?: number; duration_api_ms?: number; duration_ms?: number };
+  token_usage?: AuditTokenUsage;
   error?: string;
 }
 
@@ -52,6 +54,7 @@ interface ProgressPayload {
   elapsed_ms: number;
   pid?: number;
   timing?: { ttft_ms?: number; duration_api_ms?: number; duration_ms?: number };
+  usage?: AuditTokenUsage;
   error?: string;
 }
 interface FailedPayload {
@@ -263,6 +266,7 @@ export function AnalysisRunProvider({ children }: { children: React.ReactNode })
                   elapsed_ms: payload.elapsed_ms,
                   events: filtered,
                   timing: payload.timing,
+                  token_usage: payload.usage,
                   error: payload.error,
                 },
               },
