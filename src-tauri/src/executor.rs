@@ -678,7 +678,6 @@ fn log_audit_toggle(
 
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
     use super::{check_path, is_label_toggleable};
 
     #[test]
