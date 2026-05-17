@@ -249,7 +249,9 @@ pub async fn analyze_snapshot(
                 .unwrap_or_else(|| "Claude CLI not available".into()),
         ));
     }
-    let claude_path = claude_status.path.clone().unwrap();
+    let claude_path = claude_status.path.clone().ok_or_else(|| {
+        AppError::ClaudeCli("claude path is None despite available=true".into())
+    })?;
 
     // Load and parse snapshot once — shared across all preset tasks via clone
     let payload = db.get_snapshot_payload(snapshot_id)?;
