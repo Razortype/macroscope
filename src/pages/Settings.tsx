@@ -214,6 +214,7 @@ function ApiKeyInput({
           />
           <button
             type="button"
+            onMouseDown={(e) => e.preventDefault()}
             onClick={() => setVisible((v) => !v)}
             style={{
               position: "absolute",
