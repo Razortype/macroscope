@@ -1,6 +1,7 @@
 pub mod apps;
 pub mod disk;
 pub mod kernel;
+pub mod large_files;
 pub mod network;
 pub mod persistence;
 pub mod processes;
@@ -15,6 +16,7 @@ use tauri::{AppHandle, Emitter};
 use self::apps::AppsSnapshot;
 use self::disk::DiskReport;
 use self::kernel::KernelReport;
+use self::large_files::LargeFilesSnapshot;
 use self::network::NetworkReport;
 use self::persistence::PersistenceReport;
 use self::processes::ProcessInfo;
@@ -42,6 +44,7 @@ pub struct Snapshot {
     pub users: Option<Vec<UserAccount>>,
     pub kernel: Option<KernelReport>,
     pub apps: Option<AppsSnapshot>,
+    pub large_files: Option<LargeFilesSnapshot>,
     pub partial_failures: Vec<ProbeFailure>,
 }
 
@@ -81,6 +84,19 @@ pub async fn take_snapshot(app: &AppHandle) -> Snapshot {
     let kernel_res = probe_timed(app, "kernel", kernel::probe()).await;
     let apps_res = probe_timed(app, "apps", apps::probe()).await;
 
+    // large_files probe doesn't return Result — it silently skips unreadable dirs
+    let _ = app.emit(
+        "snapshot:probe",
+        serde_json::json!({ "probe": "large_files", "status": "starting", "duration_ms": 0u64 }),
+    );
+    let large_files_start = Instant::now();
+    let large_files_snap = large_files::probe().await;
+    let large_files_ms = large_files_start.elapsed().as_millis() as u64;
+    let _ = app.emit(
+        "snapshot:probe",
+        serde_json::json!({ "probe": "large_files", "status": "complete", "duration_ms": large_files_ms }),
+    );
+
     macro_rules! unwrap_probe {
         ($result:expr, $name:literal) => {
             match $result {
@@ -117,6 +133,7 @@ pub async fn take_snapshot(app: &AppHandle) -> Snapshot {
         users,
         kernel,
         apps,
+        large_files: Some(large_files_snap),
         partial_failures,
     }
 }

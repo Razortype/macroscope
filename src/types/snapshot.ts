@@ -120,6 +120,19 @@ export interface AppsSnapshot {
   leftovers: LeftoverDir[];
 }
 
+export interface LargeFile {
+  path: string;
+  size_bytes: number;
+  modified_days_ago: number;
+  category: "video" | "archive" | "binary" | "other";
+}
+
+export interface LargeFilesSnapshot {
+  files: LargeFile[];
+  scopes_scanned: string[];
+  partial_failures: string[];
+}
+
 export interface Snapshot {
   created_at: string;           // ISO 8601 UTC
   disk: DiskReport | null;
@@ -129,6 +142,7 @@ export interface Snapshot {
   users: UserAccount[] | null;
   kernel: KernelReport | null;
   apps: AppsSnapshot | null;
+  large_files: LargeFilesSnapshot | null;
   partial_failures: ProbeFailure[]; // always an array, never null
 }
 
