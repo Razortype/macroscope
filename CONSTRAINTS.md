@@ -1,7 +1,7 @@
 # Constraints
 
 Non-functional truths about Macroscope. These are not bugs; they are scope
-decisions for v0.1.0.
+decisions for v0.2.0.
 
 ## Platform
 
@@ -16,13 +16,17 @@ decisions for v0.1.0.
 
 ## Dependencies
 
-- **Claude Code CLI required.** Macroscope invokes `claude -p` as a
-  subprocess and parses its stream-json output. It does not call the
-  Anthropic API directly and does not accept an API key. Your Claude Code
-  subscription is the auth mechanism.
-- **No fallback if Claude is unavailable.** If the CLI cannot be reached,
-  snapshots will still complete the probe stage but the analyzer stage
-  fails and no findings are produced.
+- **An AI provider is required (Claude CLI, Anthropic API, OpenAI, Gemini,
+  or Ollama).** Claude Code CLI is the default; switch providers in
+  Settings → AI Provider. Without a reachable provider the analyzer stage
+  will fail with a clear error and no findings are produced.
+- **No fallback if the active provider is unavailable.** Macroscope performs
+  a pre-flight connectivity check before starting audits. If the check fails,
+  you are directed to Settings to reconfigure.
+- **API keys for HTTP providers are stored in macOS Keychain** under service
+  `com.orkunkurul.macroscope`. Deleting this service in Keychain Access.app
+  invalidates configured API-key providers. Keys are never written to disk,
+  logged, or surfaced in the UI.
 
 ## Operations
 
@@ -37,9 +41,10 @@ decisions for v0.1.0.
 ## Privacy and network
 
 - **Zero telemetry.** Macroscope does not phone home, does not send usage
-  data to any server, does not enable analytics. The only outbound network
-  traffic is whatever your local Claude Code CLI generates against
-  api.anthropic.com.
+  data to any server, does not enable analytics. Outbound network traffic
+  exists only if you select an HTTP-based provider (Anthropic API, OpenAI,
+  Gemini); Claude CLI and Ollama generate no outbound traffic from Macroscope
+  itself.
 - **No remote sync.** Snapshot data is stored locally in
   `~/Library/Application Support/Macroscope/`. There is no iCloud, no
   cross-device, no backup.
@@ -77,11 +82,10 @@ decisions for v0.1.0.
   services are included. Unknown system services may appear as orphans
   until the list is extended.
 
-## Out of scope for v0.1.0
+## Out of scope for v0.2.0
 
 - Auto-update mechanism
 - Code signing and notarization
-- Direct Anthropic API integration (subscription bypass)
 - Background scheduled snapshots
 - Cross-platform support (Linux, Windows)
 - Intel Mac support
@@ -90,3 +94,5 @@ decisions for v0.1.0.
 - Multi-user account separation
 - Custom audit prompt editing
 - Plugin system
+- Custom OpenAI-compatible endpoint (planned for v0.2.1)
+- Usage limits, quotas, or cost displays

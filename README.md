@@ -1,6 +1,6 @@
 # Macroscope
 
-> Local-first macOS system audit, powered by Claude.
+> Local-first macOS system audit.
 
 ## Origin
 
@@ -15,7 +15,7 @@ that belongs to an app I still use.
 
 Macroscope is a self-hosted desktop application that scans your Mac, runs a
 deterministic identity graph over installed apps and their leftover data,
-then uses local Claude Code CLI to surface findings. Everything stays on
+then uses an AI provider of your choice to surface findings. Everything stays on
 your machine. No telemetry, no cloud upload, no account.
 
 I built this because every commercial Mac cleaner I tried lied to me about
@@ -36,9 +36,9 @@ and asks for explicit confirmation per item before any destructive action.
   app, blocked), ambiguous (unknown origin, needs investigation),
   system-managed (macOS service, hidden), or self (Macroscope's own data,
   hidden).
-- **Get AI findings**: three parallel Claude audits (disk, security, app
-  lifecycle) read the structured snapshot and produce prioritized findings
-  with severity, rationale, and concrete recommendations.
+- **Get AI findings**: four parallel AI audits (disk, security, app
+  lifecycle, file inventory) read the structured snapshot and produce
+  prioritized findings with severity, rationale, and concrete recommendations.
 - **Review before executing**: every cleanup action goes through a preview
   modal that itemizes every path, classifies each by safety, and refuses
   destructive actions on companion / system / protected paths regardless
@@ -66,6 +66,23 @@ leftover. Companion data appears in the Apps tab with a disabled clean
 button and a clear "belongs to X" label.
 
 ![Apps](assets/apps.png)
+
+## AI Provider
+
+Macroscope supports five interchangeable AI providers, selected from Settings
+→ AI Provider. The default is Claude Code CLI. All providers receive the same
+structured snapshot data and produce findings in the same schema.
+
+| Provider | Auth | Notes |
+|---|---|---|
+| Claude Code CLI | Subscription | Local subprocess, inherits your Claude account |
+| Anthropic API | API key | Direct HTTPS to api.anthropic.com, SSE streaming |
+| OpenAI | API key | Direct HTTPS to api.openai.com, SSE streaming |
+| Gemini | API key | Direct HTTPS to generativelanguage.googleapis.com |
+| Ollama | None | Local HTTP, NDJSON streaming, live model discovery |
+
+API keys for HTTP providers are stored in macOS Keychain under service
+`com.orkunkurul.macroscope`. They are never written to disk or logged.
 
 ## Safety model
 
@@ -108,9 +125,12 @@ allowlist but only the snapshot makes them visible; nothing is auto-deleted.
 
 - macOS Sequoia (15.x) or later on Apple Silicon. Intel and earlier macOS
   versions are untested.
-- Claude Code CLI installed and authenticated. Macroscope uses your local
-  CLI subprocess and inherits your Claude Code subscription; no API key is
-  passed.
+- One of five AI providers (configured in Settings → AI Provider):
+  - **Claude Code CLI** (default) — requires Claude Code installed and authenticated.
+  - **Anthropic API** — requires an API key from console.anthropic.com.
+  - **OpenAI** — requires an API key from platform.openai.com.
+  - **Gemini** — requires an API key from aistudio.google.com.
+  - **Ollama** — requires Ollama running locally with at least one chat-capable model.
 - Around 200 MB of free disk for the application and its SQLite snapshot
   store.
 
@@ -164,9 +184,10 @@ allowlist. You can edit project roots from Settings at any time.
 - **Backend**: Rust + Tauri v2, SQLite for snapshot persistence, walkdir
   for filesystem traversal, the `trash` crate via `NsFileManager` for
   trash operations.
-- **AI**: local Claude Code CLI subprocess invoked with `claude -p
-  --output-format=stream-json --verbose`. Token usage and cache hits are
-  captured per audit and displayed in the analysis progress.
+- **AI**: pluggable provider layer supporting Claude CLI, Anthropic API,
+  OpenAI, Gemini, and Ollama. Active provider is selected in Settings; all
+  providers receive the same prompt shape and produce the same finding schema.
+  Token usage is captured per audit and displayed in the analysis progress.
 - **Identity graph**: a Rust module that runs after the apps probe and
   before the analyzer, classifying every leftover directory deterministically.
 
@@ -176,5 +197,5 @@ AGPL-3.0. See LICENSE for full text.
 
 ## Status
 
-Macroscope is at v0.1.0. It works on my machine and the macOS systems I
+Macroscope is at v0.2.0. It works on my machine and the macOS systems I
 have access to. Issues and pull requests welcome.
