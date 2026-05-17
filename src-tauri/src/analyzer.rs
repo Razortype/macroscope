@@ -16,6 +16,7 @@ use crate::snapshot::Snapshot;
 const DISK_AUDIT_PROMPT: &str = include_str!("../prompts/disk-audit.md");
 const SECURITY_AUDIT_PROMPT: &str = include_str!("../prompts/security-audit.md");
 const APP_LIFECYCLE_AUDIT_PROMPT: &str = include_str!("../prompts/app-lifecycle-audit.md");
+const FILE_INVENTORY_AUDIT_PROMPT: &str = include_str!("../prompts/file-inventory-audit.md");
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClaudeStatus {
@@ -128,6 +129,18 @@ pub fn filter_snapshot_for_preset(
         }));
     }
 
+    if preset == "file-inventory-audit" {
+        let summary = snapshot
+            .large_files
+            .as_ref()
+            .map(crate::snapshot::large_files::summarize_for_analyzer)
+            .unwrap_or_default();
+        return Ok(serde_json::json!({
+            "created_at": snapshot.created_at,
+            "files": summary,
+        }));
+    }
+
     let keys: &[&str] = match preset {
         "disk-audit" => &["created_at", "disk", "processes"],
         "security-audit" => &[
@@ -170,6 +183,7 @@ pub fn load_prompt(preset: &str) -> Result<String, AppError> {
         "disk-audit" => Ok(DISK_AUDIT_PROMPT.to_string()),
         "security-audit" => Ok(SECURITY_AUDIT_PROMPT.to_string()),
         "app-lifecycle-audit" => Ok(APP_LIFECYCLE_AUDIT_PROMPT.to_string()),
+        "file-inventory-audit" => Ok(FILE_INVENTORY_AUDIT_PROMPT.to_string()),
         other => Err(AppError::Config(format!("unknown preset: {other}"))),
     }
 }
@@ -189,6 +203,7 @@ pub fn copy_default_prompts() -> Result<(), AppError> {
         ("disk-audit", DISK_AUDIT_PROMPT),
         ("security-audit", SECURITY_AUDIT_PROMPT),
         ("app-lifecycle-audit", APP_LIFECYCLE_AUDIT_PROMPT),
+        ("file-inventory-audit", FILE_INVENTORY_AUDIT_PROMPT),
     ] {
         let dest = dir.join(format!("{name}.md"));
         if !dest.exists() {
@@ -431,6 +446,9 @@ fn validate_findings(findings: &mut Vec<Finding>, preset: &str) {
         }
         if preset == "app-lifecycle-audit" {
             f.category = Category::Apps;
+        }
+        if preset == "file-inventory-audit" {
+            f.category = Category::Files;
         }
         if f.suggested_action != SuggestedAction::DeletePaths {
             f.paths_to_remove = None;

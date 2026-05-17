@@ -4,7 +4,7 @@
 // suggested_action != "delete_paths" (Rust: skip_serializing_if = "Option::is_none").
 
 export type Severity = "info" | "low" | "medium" | "high";
-export type Category = "disk" | "security" | "network" | "persistence" | "process" | "apps";
+export type Category = "disk" | "security" | "network" | "persistence" | "process" | "apps" | "files";
 export type SuggestedAction = "delete_paths" | "investigate" | "ignore";
 
 export interface Finding {
