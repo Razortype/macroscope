@@ -116,6 +116,24 @@ function SectionGeneral() {
   );
 }
 
+// Plain label that matches FormLabel visually but requires no FormFieldContext.
+// Use this inside SectionAIProvider which manages its own state outside react-hook-form.
+function FieldLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <label
+      style={{
+        fontSize: "var(--text-sm)",
+        fontWeight: 500,
+        color: "var(--color-text-secondary)",
+        lineHeight: 1,
+        display: "block",
+      }}
+    >
+      {children}
+    </label>
+  );
+}
+
 // ── Section: AI Provider ──────────────────────────────────────────────────────
 
 interface ProviderCard {
@@ -170,7 +188,7 @@ function ApiKeyInput({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-      <FormLabel>API key</FormLabel>
+      <FieldLabel>API key</FieldLabel>
       <div style={{ display: "flex", gap: "6px" }}>
         <div style={{ position: "relative", flex: 1 }}>
           <input
@@ -239,7 +257,7 @@ function ModelSelect({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-      <FormLabel>{label}</FormLabel>
+      <FieldLabel>{label}</FieldLabel>
       <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
         <select
           value={custom ? "__custom__" : value}
@@ -431,7 +449,7 @@ function SectionAIProvider() {
     claude_cli: (
       <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-          <FormLabel>CLI path override</FormLabel>
+          <FieldLabel>CLI path override</FieldLabel>
           <Input
             placeholder="Auto-detected"
             value={config.claude_cli.path_override}
@@ -504,7 +522,7 @@ function SectionAIProvider() {
     ollama: (
       <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-          <FormLabel>Endpoint</FormLabel>
+          <FieldLabel>Endpoint</FieldLabel>
           <Input
             placeholder="http://localhost:11434"
             value={config.ollama.endpoint}
@@ -514,7 +532,7 @@ function SectionAIProvider() {
           />
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-          <FormLabel>Model</FormLabel>
+          <FieldLabel>Model</FieldLabel>
           <div style={{ display: "flex", gap: "6px" }}>
             <select
               value={config.ollama.model}
