@@ -20,6 +20,15 @@ pub enum AppError {
 
     #[error("config error: {0}")]
     Config(String),
+
+    #[error("provider error: {0}")]
+    Provider(String),
+
+    #[error("keychain error: {0}")]
+    Keychain(String),
+
+    #[error("http error: {0}")]
+    Http(String),
 }
 
 impl From<AppError> for String {

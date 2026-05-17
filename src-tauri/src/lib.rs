@@ -4,12 +4,15 @@ pub mod error;
 pub mod executor;
 pub mod finding;
 pub mod identity;
+pub mod keychain;
+pub mod provider_config;
 pub mod snapshot;
 
 use std::sync::Arc;
 
 use analyzer::{ClaudeStatus, ClaudeCliProvider, AnalyzerService};
 use db::Db;
+use provider_config::{ProviderConfig, ProviderId};
 use executor::{ExecutionReport, get_allowed_prefixes, get_allowed_globs, get_denied_prefixes, get_denied_exact, ToggleAction};
 use finding::Finding;
 use snapshot::{Snapshot, SnapshotMeta};
@@ -99,6 +102,50 @@ async fn list_settings(db: State<'_, Db>) -> Result<Vec<(String, String)>, Strin
         .await
         .map_err(|e| e.to_string())?
         .map_err(Into::into)
+}
+
+// ── Provider config commands ─────────────────────────────────────────────────
+
+#[tauri::command]
+async fn get_provider_config(db: State<'_, Db>) -> Result<ProviderConfig, String> {
+    let db = db.inner().clone();
+    tokio::task::spawn_blocking(move || ProviderConfig::load(&db))
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(Into::into)
+}
+
+#[tauri::command]
+async fn set_provider_config(config: ProviderConfig, db: State<'_, Db>) -> Result<(), String> {
+    let db = db.inner().clone();
+    tokio::task::spawn_blocking(move || config.save(&db))
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(Into::into)
+}
+
+#[tauri::command]
+async fn set_provider_secret(provider: ProviderId, secret: String) -> Result<(), String> {
+    let account = provider
+        .keychain_account()
+        .ok_or_else(|| format!("{} does not use API keys", provider.display_name()))?;
+    keychain::keychain_set(account, &secret).map_err(Into::into)
+}
+
+#[tauri::command]
+async fn clear_provider_secret(provider: ProviderId) -> Result<(), String> {
+    let account = provider
+        .keychain_account()
+        .ok_or_else(|| format!("{} does not use API keys", provider.display_name()))?;
+    keychain::keychain_delete(account).map_err(Into::into)
+}
+
+#[tauri::command]
+async fn has_provider_secret(provider: ProviderId) -> Result<bool, String> {
+    let Some(account) = provider.keychain_account() else {
+        return Ok(false);
+    };
+    keychain::keychain_has(account).map_err(Into::into)
 }
 
 // ── Executor commands ────────────────────────────────────────────────────────
@@ -419,6 +466,11 @@ pub fn run() {
             get_setting,
             set_setting,
             list_settings,
+            get_provider_config,
+            set_provider_config,
+            set_provider_secret,
+            clear_provider_secret,
+            has_provider_secret,
             get_claude_status,
             analyze_snapshot,
             latest_snapshot_id,
