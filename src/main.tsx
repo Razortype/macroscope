@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter } from "react-router-dom";
 import { restoreStateCurrent, StateFlags } from "@tauri-apps/plugin-window-state";
 import App from "./App";
+import { AnalysisRunProvider } from "./context/AnalysisRunContext";
 import "./styles/tokens.css";
 
 // Restore window position and size saved from the previous session.
@@ -22,7 +23,9 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
-        <App />
+        <AnalysisRunProvider>
+          <App />
+        </AnalysisRunProvider>
       </BrowserRouter>
     </QueryClientProvider>
   </React.StrictMode>,

@@ -1,10 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { toast } from "sonner";
 import type { Finding } from "../types/finding";
 import type { PersistenceEntry, Snapshot } from "../types/snapshot";
 import { computeServiceTarget } from "../lib/persistence";
+import { useAnalysisRun } from "../context/AnalysisRunContext";
 import TopBar from "../components/TopBar";
 import TabBar, { type TabId } from "../components/TabBar";
 import ExecuteDialog, { type ExecuteResult } from "../components/ExecuteDialog";
@@ -55,6 +56,7 @@ function sortFindings(fs: Finding[]): Finding[] {
 
 export default function Dashboard() {
   const qc = useQueryClient();
+  const { run, startRun, deactivateRun } = useAnalysisRun();
 
   const [active, setActive] = useState<TabId>("overview");
   const [activeSnapshot, setActiveSnapshot] = useState<Snapshot | null>(null);
@@ -66,9 +68,8 @@ export default function Dashboard() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogFindings, setDialogFindings] = useState<Finding[]>([]);
   const [analyzeError, setAnalyzeError] = useState<string | null>(null);
-  const [showProgress, setShowProgress] = useState(false);
   const [lastAnalysis, setLastAnalysis] = useState<LastAnalysisSummary | null>(null);
-  const [analysisStartedAt, setAnalysisStartedAt] = useState<number | null>(null);
+  const analysisStartedAtRef = useRef<number | null>(null);
 
   const latestIdQuery = useQuery<number | null>({
     queryKey: ["latest_snapshot_id"],
@@ -91,13 +92,13 @@ export default function Dashboard() {
 
   const runFullScan = useMutation<Finding[], string>({
     onMutate: () => {
-      setShowProgress(true);
+      startRun();
+      analysisStartedAtRef.current = Date.now();
       setFindings(null);
       setSelectedIds(new Set());
       setExecutedPaths(new Set());
       setPartialPaths(new Set());
       setAnalyzeError(null);
-      setAnalysisStartedAt(Date.now());
     },
     mutationFn: async () => {
       const snap = await invoke<Snapshot>("take_snapshot");
@@ -109,20 +110,20 @@ export default function Dashboard() {
     },
     onSuccess: (data) => {
       setFindings(sortFindings(data));
-      setLastAnalysis(buildLastAnalysis(data, analysisStartedAt));
+      setLastAnalysis(buildLastAnalysis(data, analysisStartedAtRef.current));
     },
-    onError: (err) => { setShowProgress(false); setAnalyzeError(err); },
+    onError: (err) => { deactivateRun(); setAnalyzeError(err); },
   });
 
   const reAnalyze = useMutation<Finding[], string>({
     onMutate: () => {
-      setShowProgress(true);
+      startRun();
+      analysisStartedAtRef.current = Date.now();
       setFindings(null);
       setSelectedIds(new Set());
       setExecutedPaths(new Set());
       setPartialPaths(new Set());
       setAnalyzeError(null);
-      setAnalysisStartedAt(Date.now());
     },
     mutationFn: async () => {
       if (activeSnapshotId == null) throw new Error("No snapshot loaded");
@@ -130,14 +131,27 @@ export default function Dashboard() {
     },
     onSuccess: (data) => {
       setFindings(sortFindings(data));
-      setLastAnalysis(buildLastAnalysis(data, analysisStartedAt));
+      setLastAnalysis(buildLastAnalysis(data, analysisStartedAtRef.current));
     },
-    onError: (err) => { setShowProgress(false); setAnalyzeError(err); },
+    onError: (err) => { deactivateRun(); setAnalyzeError(err); },
   });
 
   const isAnalyzing = runFullScan.isPending || reAnalyze.isPending;
-  const showingProgress = showProgress || isAnalyzing;
+  const showingProgress = run.active || isAnalyzing;
   const deleteableFindings = findings?.filter((f) => f.suggested_action === "delete_paths") ?? [];
+
+  // When a run that started while Dashboard was unmounted completes, reload
+  // findings from DB. Also fires in the normal case (harmless re-fetch).
+  const prevRunActiveRef = useRef(run.active);
+  useEffect(() => {
+    const wasActive = prevRunActiveRef.current;
+    prevRunActiveRef.current = run.active;
+    if (wasActive && !run.active && activeSnapshotId != null) {
+      invoke<Finding[]>("get_findings_for_snapshot", { snapshotId: activeSnapshotId })
+        .then((found) => setFindings(sortFindings(found)))
+        .catch(() => {});
+    }
+  }, [run.active, activeSnapshotId]); // eslint-disable-line react-hooks/exhaustive-deps
   const selectedFindings = deleteableFindings.filter((f) => selectedIds.has(f.id));
   const totalBytesToFree = selectedFindings.reduce((sum, f) => sum + (f.estimated_bytes_freed ?? 0), 0);
 
@@ -281,10 +295,7 @@ export default function Dashboard() {
       <div style={{ flex: 1, overflow: "auto", overflowX: "hidden" }}>
         {showingProgress && (
           <div style={{ padding: "20px 20px 0" }}>
-            <AnalysisProgress
-              isActive={showingProgress}
-              onComplete={() => setShowProgress(false)}
-            />
+            <AnalysisProgress />
           </div>
         )}
         {analyzeError && (
