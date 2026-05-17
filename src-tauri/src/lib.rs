@@ -148,6 +148,15 @@ async fn has_provider_secret(provider: ProviderId) -> Result<bool, String> {
     keychain::keychain_has(account).map_err(Into::into)
 }
 
+// ── Ollama model discovery ────────────────────────────────────────────────────
+
+#[tauri::command]
+async fn fetch_ollama_models(endpoint: String) -> Result<Vec<String>, String> {
+    analyzer::providers::ollama::fetch_model_names(&endpoint)
+        .await
+        .map_err(Into::into)
+}
+
 // ── Executor commands ────────────────────────────────────────────────────────
 
 /// Execute paths that have been identity-reviewed in the preview modal.
@@ -471,6 +480,7 @@ pub fn run() {
             set_provider_secret,
             clear_provider_secret,
             has_provider_secret,
+            fetch_ollama_models,
             get_claude_status,
             analyze_snapshot,
             latest_snapshot_id,
