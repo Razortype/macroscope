@@ -280,191 +280,127 @@ fn du_path_blocking(path: &Path) -> u64 {
     }
 }
 
-// ── Analyzer summary types ────────────────────────────────────────────────────
+// ── Identity-aware analyzer payload ──────────────────────────────────────────
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct AppGroup {
-    pub vendor: String,
-    pub paths: Vec<String>,
-    pub total_bytes: u64,
-    pub dir_count: usize,
-    pub examples: Vec<String>,
+#[derive(Debug, Serialize, Clone, Default)]
+pub struct InstalledAppEntry {
+    pub bundle_id: String,
+    pub display_name: String,
+    pub size_bytes: u64,
+    pub last_opened_days_ago: Option<u32>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct StaleAppSummary {
-    pub name: String,
+#[derive(Debug, Serialize, Clone)]
+pub struct CompanionEntry {
     pub path: String,
     pub size_bytes: u64,
-    pub last_opened_days_ago: u32,
+    pub belongs_to: String,
+    pub belongs_to_display: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Default)]
-pub struct AppStats {
-    pub installed_total: usize,
-    pub active_count: usize,
-    pub stale_count: usize,
-    pub leftover_count: usize,
-    pub leftover_total_bytes: u64,
+#[derive(Debug, Serialize, Clone)]
+pub struct OrphanEntry {
+    pub path: String,
+    pub size_bytes: u64,
+    pub guessed_vendor: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Default)]
-pub struct MiscBucket {
-    pub count: usize,
-    pub total_bytes: u64,
-    pub sample_names: Vec<String>,
+#[derive(Debug, Serialize, Clone)]
+pub struct AmbiguousEntry {
+    pub path: String,
+    pub size_bytes: u64,
+    pub pattern: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Default)]
-pub struct AppsSummaryForAnalyzer {
-    pub stats: AppStats,
-    pub leftover_groups: Vec<AppGroup>,
-    pub misc_leftovers: MiscBucket,
-    pub stale_apps: Vec<StaleAppSummary>,
+/// Structured identity-aware summary sent to app-lifecycle-audit Claude invocation.
+/// system_managed entries are intentionally excluded — Claude never sees them.
+#[derive(Debug, Serialize, Clone, Default)]
+pub struct AppIdentityPayload {
+    pub installed_apps: Vec<InstalledAppEntry>,
+    pub companion_data: Vec<CompanionEntry>,
+    pub real_orphans: Vec<OrphanEntry>,
+    pub ambiguous: Vec<AmbiguousEntry>,
 }
 
-// ── Summarizer ────────────────────────────────────────────────────────────────
+const MAX_ORPHANS: usize = 20;
+const MAX_AMBIGUOUS: usize = 10;
 
-const SMALL_LEFTOVER_THRESHOLD: u64 = 50_000_000; // 50 MB
-const STALE_DAYS_THRESHOLD: u32 = 180;
-const MAX_STALE_APPS: usize = 15;
-const MAX_GROUPS: usize = 20;
-
-pub fn summarize_for_analyzer(snap: &AppsSnapshot) -> AppsSummaryForAnalyzer {
-    // 1. Split leftovers into big (≥50 MB) vs small (<50 MB)
-    let (big_leftovers, small_leftovers): (Vec<_>, Vec<_>) =
-        snap.leftovers.iter().partition(|l| l.size_bytes >= SMALL_LEFTOVER_THRESHOLD);
-
-    // 2. Group big leftovers by vendor
-    let mut groups: HashMap<String, AppGroup> = HashMap::new();
-    for leftover in &big_leftovers {
-        let vendor = infer_vendor(&leftover.path, leftover.matched_app_name.as_deref());
-        let group = groups.entry(vendor.clone()).or_insert_with(|| AppGroup {
-            vendor: vendor.clone(),
-            paths: Vec::new(),
-            total_bytes: 0,
-            dir_count: 0,
-            examples: Vec::new(),
-        });
-        group.paths.push(leftover.path.clone());
-        group.total_bytes += leftover.size_bytes;
-        group.dir_count += 1;
-        if let Some(name) = &leftover.matched_app_name {
-            if !group.examples.contains(name) && group.examples.len() < 3 {
-                group.examples.push(name.clone());
-            }
-        }
-    }
-
-    // 3. Sort groups by total_bytes desc, cap at MAX_GROUPS
-    let mut leftover_groups: Vec<AppGroup> = groups.into_values().collect();
-    leftover_groups.sort_by(|a, b| b.total_bytes.cmp(&a.total_bytes));
-    leftover_groups.truncate(MAX_GROUPS);
-
-    // 4. Aggregate small leftovers into misc bucket
-    let misc_leftovers = MiscBucket {
-        count: small_leftovers.len(),
-        total_bytes: small_leftovers.iter().map(|l| l.size_bytes).sum(),
-        sample_names: small_leftovers
-            .iter()
-            .filter_map(|l| {
-                l.matched_app_name.clone().or_else(|| {
-                    std::path::Path::new(&l.path)
-                        .file_name()
-                        .and_then(|n| n.to_str())
-                        .map(String::from)
-                })
-            })
-            .take(8)
-            .collect(),
-    };
-
-    // 5. Stale apps: unused for > STALE_DAYS_THRESHOLD, top N by size
-    let mut stale_apps: Vec<StaleAppSummary> = snap
-        .installed
-        .iter()
-        .filter(|a| a.last_opened_days_ago.map_or(false, |d| d > STALE_DAYS_THRESHOLD))
-        .map(|a| StaleAppSummary {
-            name: a.name.clone(),
-            path: a.path.clone(),
+pub fn summarize_for_analyzer(snap: &AppsSnapshot) -> AppIdentityPayload {
+    let mut installed_apps: Vec<InstalledAppEntry> = snap.installed.iter()
+        .map(|a| InstalledAppEntry {
+            bundle_id: a.bundle_id.clone().unwrap_or_default(),
+            display_name: a.name.clone(),
             size_bytes: a.size_bytes,
-            last_opened_days_ago: a.last_opened_days_ago.unwrap_or(0),
+            last_opened_days_ago: a.last_opened_days_ago,
         })
         .collect();
-    stale_apps.sort_by(|a, b| b.size_bytes.cmp(&a.size_bytes));
-    stale_apps.truncate(MAX_STALE_APPS);
+    installed_apps.sort_by(|a, b| b.size_bytes.cmp(&a.size_bytes));
 
-    // 6. Stats
-    let stale_count = snap
-        .installed
-        .iter()
-        .filter(|a| a.last_opened_days_ago.map_or(false, |d| d > STALE_DAYS_THRESHOLD))
-        .count();
-    let active_count = snap.installed.len() - stale_count;
-    let leftover_total_bytes = snap.leftovers.iter().map(|l| l.size_bytes).sum();
-
-    AppsSummaryForAnalyzer {
-        stats: AppStats {
-            installed_total: snap.installed.len(),
-            active_count,
-            stale_count,
-            leftover_count: snap.leftovers.len(),
-            leftover_total_bytes,
-        },
-        leftover_groups,
-        misc_leftovers,
-        stale_apps,
-    }
-}
-
-fn infer_vendor(path: &str, matched_app_name: Option<&str>) -> String {
-    let dirname = std::path::Path::new(path)
-        .file_name()
-        .and_then(|n| n.to_str())
-        .unwrap_or(path);
-
-    let candidate = matched_app_name.unwrap_or(dirname);
-
-    // Reverse-domain bundle IDs: com.adobe.Acrobat → "Adobe"
-    if candidate.starts_with("com.") || candidate.starts_with("org.") {
-        let parts: Vec<&str> = candidate.split('.').collect();
-        if parts.len() >= 2 {
-            return capitalize(parts[1]);
-        }
+    // Fall back to legacy leftovers as orphans for old snapshots without identity data
+    let classified = &snap.classified_leftovers;
+    if classified.is_empty() {
+        let real_orphans = snap.leftovers.iter()
+            .map(|l| OrphanEntry {
+                path: l.path.clone(),
+                size_bytes: l.size_bytes,
+                guessed_vendor: Path::new(&l.path)
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .unwrap_or("")
+                    .to_string(),
+            })
+            .take(MAX_ORPHANS)
+            .collect();
+        return AppIdentityPayload {
+            installed_apps,
+            companion_data: vec![],
+            real_orphans,
+            ambiguous: vec![],
+        };
     }
 
-    // Known multi-word brands (normalize both sides)
-    let known_brands: &[(&str, &str)] = &[
-        ("adobe", "Adobe"),
-        ("brave", "Brave"),
-        ("jetbrains", "JetBrains"),
-        ("google", "Google"),
-        ("microsoft", "Microsoft"),
-        ("zoom", "Zoom"),
-        ("slack", "Slack"),
-        ("discord", "Discord"),
-        ("notion", "Notion"),
-        ("unity", "Unity"),
-        ("docker", "Docker"),
-        ("vmware", "VMware"),
-        ("parallels", "Parallels"),
-    ];
-    let lower = candidate.to_lowercase();
-    for (key, label) in known_brands {
-        if lower.contains(key) {
-            return label.to_string();
-        }
-    }
+    // companion_data: all entries, never truncated (needed for context)
+    let companion_data: Vec<CompanionEntry> = classified.iter()
+        .filter_map(|cl| {
+            if let LeftoverStatus::Companion { belongs_to_bundle_id, belongs_to_display_name } = &cl.status {
+                Some(CompanionEntry {
+                    path: cl.path.clone(),
+                    size_bytes: cl.size_bytes,
+                    belongs_to: belongs_to_bundle_id.clone(),
+                    belongs_to_display: belongs_to_display_name.clone(),
+                })
+            } else { None }
+        })
+        .collect();
 
-    capitalize(candidate)
-}
+    // real_orphans: top MAX_ORPHANS by size
+    let mut real_orphans: Vec<OrphanEntry> = classified.iter()
+        .filter(|cl| matches!(cl.status, LeftoverStatus::Orphaned))
+        .map(|cl| OrphanEntry {
+            path: cl.path.clone(),
+            size_bytes: cl.size_bytes,
+            guessed_vendor: cl.dir_name.clone(),
+        })
+        .collect();
+    real_orphans.sort_by(|a, b| b.size_bytes.cmp(&a.size_bytes));
+    real_orphans.truncate(MAX_ORPHANS);
 
-fn capitalize(s: &str) -> String {
-    let mut chars = s.chars();
-    match chars.next() {
-        None => String::new(),
-        Some(c) => c.to_uppercase().chain(chars).collect(),
-    }
+    // ambiguous: top MAX_AMBIGUOUS by size
+    let mut ambiguous: Vec<AmbiguousEntry> = classified.iter()
+        .filter_map(|cl| {
+            if let LeftoverStatus::Ambiguous { pattern_hint } = &cl.status {
+                Some(AmbiguousEntry {
+                    path: cl.path.clone(),
+                    size_bytes: cl.size_bytes,
+                    pattern: pattern_hint.clone(),
+                })
+            } else { None }
+        })
+        .collect();
+    ambiguous.sort_by(|a, b| b.size_bytes.cmp(&a.size_bytes));
+    ambiguous.truncate(MAX_AMBIGUOUS);
+
+    AppIdentityPayload { installed_apps, companion_data, real_orphans, ambiguous }
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -472,87 +408,114 @@ fn capitalize(s: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::identity::{ClassifiedLeftover, LeftoverStatus};
 
-    fn make_leftover(path: &str, size: u64, name: Option<&str>) -> LeftoverDir {
-        LeftoverDir {
-            path: path.to_string(),
-            size_bytes: size,
-            matched_app_name: name.map(String::from),
-        }
-    }
-
-    fn make_app(name: &str, days: Option<u32>, size: u64) -> InstalledApp {
+    fn make_app(name: &str, bundle_id: Option<&str>, size: u64, days: Option<u32>) -> InstalledApp {
         InstalledApp {
             name: name.to_string(),
-            bundle_id: None,
+            bundle_id: bundle_id.map(String::from),
             path: format!("/Applications/{}.app", name),
             size_bytes: size,
             last_opened_days_ago: days,
         }
     }
 
-    #[test]
-    fn small_leftovers_go_to_misc_bucket() {
-        let snap = AppsSnapshot {
-            installed: vec![],
-            leftovers: vec![
-                make_leftover("/test/SmallApp", 10_000_000, Some("SmallApp")),
-                make_leftover("/test/SmallApp2", 30_000_000, Some("SmallApp2")),
-            ],
-            classified_leftovers: vec![],
-        };
-        let summary = summarize_for_analyzer(&snap);
-        assert_eq!(summary.misc_leftovers.count, 2);
-        assert_eq!(summary.leftover_groups.len(), 0);
+    fn cl(path: &str, dir: &str, size: u64, status: LeftoverStatus) -> ClassifiedLeftover {
+        ClassifiedLeftover { path: path.to_string(), dir_name: dir.to_string(), size_bytes: size, status }
     }
 
     #[test]
-    fn big_leftovers_grouped_by_vendor() {
-        let snap = AppsSnapshot {
-            installed: vec![],
-            leftovers: vec![
-                make_leftover("/test/Adobe", 200_000_000, Some("Adobe")),
-                make_leftover("/test/com.adobe.Acrobat.plist", 60_000_000, None),
-            ],
-            classified_leftovers: vec![],
-        };
-        let summary = summarize_for_analyzer(&snap);
-        let adobe_group = summary.leftover_groups.iter().find(|g| g.vendor == "Adobe");
-        assert!(adobe_group.is_some(), "expected Adobe group");
-        assert_eq!(adobe_group.unwrap().dir_count, 2);
-    }
-
-    #[test]
-    fn stale_apps_capped_and_sorted_by_size() {
+    fn installed_apps_sorted_by_size_desc() {
         let snap = AppsSnapshot {
             installed: vec![
-                make_app("OldApp1", Some(365), 5_000_000_000),
-                make_app("OldApp2", Some(300), 1_000_000_000),
-                make_app("Recent", Some(10), 100_000_000),
-                make_app("NeverOpened", None, 100_000_000),
+                make_app("Small", None, 100_000_000, Some(5)),
+                make_app("Large", None, 5_000_000_000, Some(5)),
             ],
             leftovers: vec![],
             classified_leftovers: vec![],
         };
-        let summary = summarize_for_analyzer(&snap);
-        assert_eq!(summary.stale_apps.len(), 2);
-        assert_eq!(summary.stale_apps[0].name, "OldApp1");
+        let payload = summarize_for_analyzer(&snap);
+        assert_eq!(payload.installed_apps[0].display_name, "Large");
+        assert_eq!(payload.installed_apps[1].display_name, "Small");
     }
 
     #[test]
-    fn stats_are_correct() {
+    fn orphans_capped_at_max_by_size() {
+        let classified_leftovers = (0..25u64).map(|i| {
+            cl(&format!("/x/App{}", i), &format!("App{}", i),
+               (25 - i) * 100_000_000, LeftoverStatus::Orphaned)
+        }).collect();
         let snap = AppsSnapshot {
-            installed: vec![
-                make_app("ActiveApp", Some(5), 100_000_000),
-                make_app("StaleApp", Some(300), 200_000_000),
+            installed: vec![],
+            leftovers: vec![],
+            classified_leftovers,
+        };
+        let payload = summarize_for_analyzer(&snap);
+        assert_eq!(payload.real_orphans.len(), 20); // capped at MAX_ORPHANS
+        assert!(payload.real_orphans[0].size_bytes >= payload.real_orphans[19].size_bytes);
+    }
+
+    #[test]
+    fn companion_data_never_truncated() {
+        let classified_leftovers = (0..30u64).map(|i| {
+            cl(&format!("/x/Companion{}", i), &format!("Companion{}", i),
+               1_000_000, LeftoverStatus::Companion {
+                   belongs_to_bundle_id: "com.example.App".into(),
+                   belongs_to_display_name: "Example App".into(),
+               })
+        }).collect();
+        let snap = AppsSnapshot {
+            installed: vec![],
+            leftovers: vec![],
+            classified_leftovers,
+        };
+        let payload = summarize_for_analyzer(&snap);
+        assert_eq!(payload.companion_data.len(), 30);
+    }
+
+    #[test]
+    fn ambiguous_capped_at_max_by_size() {
+        let classified_leftovers = (0..15u64).map(|i| {
+            cl(&format!("/x/cache_{}", i), &format!("cache_{}", i),
+               i * 200_000_000, LeftoverStatus::Ambiguous { pattern_hint: "electron_shell_cache".into() })
+        }).collect();
+        let snap = AppsSnapshot {
+            installed: vec![],
+            leftovers: vec![],
+            classified_leftovers,
+        };
+        let payload = summarize_for_analyzer(&snap);
+        assert_eq!(payload.ambiguous.len(), 10); // capped at MAX_AMBIGUOUS
+    }
+
+    #[test]
+    fn system_managed_excluded_from_payload() {
+        let snap = AppsSnapshot {
+            installed: vec![],
+            leftovers: vec![],
+            classified_leftovers: vec![
+                cl("/x/SiriTTS", "SiriTTS", 50_000_000, LeftoverStatus::SystemManaged),
+                cl("/x/JetBrains", "JetBrains", 999_000_000, LeftoverStatus::Orphaned),
             ],
-            leftovers: vec![make_leftover("/test/X", 50_000_000, None)],
+        };
+        let payload = summarize_for_analyzer(&snap);
+        assert_eq!(payload.real_orphans.len(), 1);
+        assert_eq!(payload.real_orphans[0].guessed_vendor, "JetBrains");
+        assert!(payload.companion_data.is_empty());
+    }
+
+    #[test]
+    fn legacy_fallback_uses_leftovers_field() {
+        // classified_leftovers empty → falls back to legacy leftovers
+        let snap = AppsSnapshot {
+            installed: vec![make_app("App", None, 100_000_000, None)],
+            leftovers: vec![
+                LeftoverDir { path: "/x/OldLeftover".into(), size_bytes: 200_000_000, matched_app_name: None },
+            ],
             classified_leftovers: vec![],
         };
-        let summary = summarize_for_analyzer(&snap);
-        assert_eq!(summary.stats.installed_total, 2);
-        assert_eq!(summary.stats.active_count, 1);
-        assert_eq!(summary.stats.stale_count, 1);
-        assert_eq!(summary.stats.leftover_count, 1);
+        let payload = summarize_for_analyzer(&snap);
+        assert_eq!(payload.real_orphans.len(), 1);
+        assert_eq!(payload.real_orphans[0].guessed_vendor, "OldLeftover");
     }
 }
