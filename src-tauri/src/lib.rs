@@ -7,7 +7,7 @@ pub mod snapshot;
 
 use analyzer::ClaudeStatus;
 use db::Db;
-use executor::{ExecutionReport, get_allowed_prefixes, get_allowed_globs, get_denied_prefixes, get_denied_exact};
+use executor::{ExecutionReport, get_allowed_prefixes, get_allowed_globs, get_denied_prefixes, get_denied_exact, ToggleAction};
 use finding::Finding;
 use snapshot::{Snapshot, SnapshotMeta};
 use tauri::State;
@@ -104,6 +104,32 @@ async fn execute_paths(paths: Vec<String>, db: State<'_, Db>) -> Result<Executio
     executor::execute_actions(paths, &db)
         .await
         .map_err(Into::into)
+}
+
+// ── Launchctl toggle command ─────────────────────────────────────────────────
+
+#[tauri::command]
+async fn toggle_persistence(
+    label: String,
+    service_target: String,
+    action: String,
+    requires_sudo: bool,
+) -> Result<bool, String> {
+    let action_enum = match action.as_str() {
+        "disable" => ToggleAction::Disable,
+        "enable" => ToggleAction::Enable,
+        other => return Err(format!("unknown action: {other}")),
+    };
+    tokio::task::spawn_blocking(move || {
+        let result = executor::toggle_launchctl(&label, &service_target, action_enum, requires_sudo);
+        if result.success {
+            Ok(true)
+        } else {
+            Err(result.error.unwrap_or_else(|| "toggle failed".into()))
+        }
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 // ── Analysis result commands ─────────────────────────────────────────────────
@@ -273,6 +299,7 @@ pub fn run() {
             get_allowed_globs,
             get_denied_prefixes,
             get_denied_exact,
+            toggle_persistence,
             reveal_in_finder,
             get_app_version,
             get_lifetime_stats,

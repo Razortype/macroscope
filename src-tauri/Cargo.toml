@@ -27,6 +27,7 @@ tauri-plugin-window-state = "2"
 trash = "5"
 globset = "0.4"
 walkdir = "2"
+libc = "0.2"
 
 [profile.dev]
 incremental = true

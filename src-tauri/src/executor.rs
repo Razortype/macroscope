@@ -391,11 +391,137 @@ pub fn get_denied_exact() -> Vec<String> {
     DENIED_EXACT.iter().map(|s| s.to_string()).collect()
 }
 
+// ── Launchctl toggle ─────────────────────────────────────────────────────────
+
+const DENIED_LABEL_PREFIXES: &[&str] = &[
+    "com.apple.",
+    "system.",
+    "auth.",
+    "homed",
+    "cloudd",
+    "bird",
+    "lsd",
+    "tccd",
+    "secinitd",
+    "syspolicyd",
+    "WindowServer",
+    "loginwindow",
+    "SafariBookmarksSyncAgent",
+];
+
+pub fn is_label_toggleable(label: &str) -> bool {
+    !DENIED_LABEL_PREFIXES.iter().any(|denied| label.starts_with(denied))
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum ToggleAction {
+    Disable,
+    Enable,
+}
+
+pub struct ToggleResult {
+    pub label: String,
+    pub action: ToggleAction,
+    pub success: bool,
+    pub error: Option<String>,
+}
+
+pub fn toggle_launchctl(
+    label: &str,
+    service_target: &str,
+    action: ToggleAction,
+    requires_sudo: bool,
+) -> ToggleResult {
+    if !is_label_toggleable(label) {
+        return ToggleResult {
+            label: label.to_string(),
+            action,
+            success: false,
+            error: Some(format!("label '{}' is in denylist (system service)", label)),
+        };
+    }
+
+    let verb = match action {
+        ToggleAction::Disable => "disable",
+        ToggleAction::Enable => "enable",
+    };
+
+    let output = if requires_sudo {
+        let cmd = format!(
+            "do shell script \"/bin/launchctl {} {}\" with administrator privileges",
+            verb, service_target
+        );
+        std::process::Command::new("osascript").args(["-e", &cmd]).output()
+    } else {
+        std::process::Command::new("/bin/launchctl")
+            .args([verb, service_target])
+            .output()
+    };
+
+    match output {
+        Ok(out) if out.status.success() => {
+            log_audit_toggle(label, service_target, action, true, None);
+            ToggleResult { label: label.to_string(), action, success: true, error: None }
+        }
+        Ok(out) => {
+            let err = String::from_utf8_lossy(&out.stderr).trim().to_string();
+            log_audit_toggle(label, service_target, action, false, Some(&err));
+            ToggleResult { label: label.to_string(), action, success: false, error: Some(err) }
+        }
+        Err(e) => {
+            let err = e.to_string();
+            log_audit_toggle(label, service_target, action, false, Some(&err));
+            ToggleResult { label: label.to_string(), action, success: false, error: Some(err) }
+        }
+    }
+}
+
+fn log_audit_toggle(
+    label: &str,
+    service_target: &str,
+    action: ToggleAction,
+    success: bool,
+    error: Option<&str>,
+) {
+    let verb = match action {
+        ToggleAction::Disable => "disable",
+        ToggleAction::Enable => "enable",
+    };
+    let status = if success { "ok" } else { "failed" };
+    let line = format!(
+        "{}\n",
+        serde_json::json!({
+            "timestamp": Utc::now().to_rfc3339(),
+            "action": "toggle",
+            "verb": verb,
+            "service_target": service_target,
+            "label": label,
+            "status": status,
+            "error": error,
+        })
+    );
+    let home = match dirs::home_dir() {
+        Some(h) => h,
+        None => return,
+    };
+    let log_path = home
+        .join("Library")
+        .join("Application Support")
+        .join("Macroscope")
+        .join("audit.log");
+    if let Some(parent) = log_path.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
+    if let Ok(mut f) = fs::OpenOptions::new().create(true).append(true).open(&log_path) {
+        let _ = f.write_all(line.as_bytes());
+    }
+}
+
 // ── Unit tests ────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
 mod tests {
-    use super::check_path;
+    use super::{check_path, is_label_toggleable};
 
     #[test]
     fn allowed_cache_prefix() {
@@ -444,5 +570,20 @@ mod tests {
 
         let result = check_path("~/Library/Preferences/com.apple.Safari.plist");
         assert!(result.is_err(), "expected com.apple.* plist to be denied: {result:?}");
+    }
+
+    #[test]
+    fn apple_labels_are_denied() {
+        assert!(!is_label_toggleable("com.apple.WindowServer"));
+        assert!(!is_label_toggleable("com.apple.loginwindow"));
+        assert!(!is_label_toggleable("homed"));
+        assert!(!is_label_toggleable("cloudd"));
+    }
+
+    #[test]
+    fn third_party_labels_are_allowed() {
+        assert!(is_label_toggleable("com.perplexity.comet"));
+        assert!(is_label_toggleable("com.tailscale.tailscaled"));
+        assert!(is_label_toggleable("com.dr.buho.BuhoCleaner.helper"));
     }
 }
