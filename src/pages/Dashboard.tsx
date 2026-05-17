@@ -206,19 +206,6 @@ export default function Dashboard() {
 
   const handleTogglePersistence = useCallback(
     async (entry: PersistenceEntry, action: "disable" | "enable") => {
-      // Optimistic update
-      setActiveSnapshot((prev) => {
-        if (!prev?.persistence) return prev;
-        return {
-          ...prev,
-          persistence: {
-            ...prev.persistence,
-            entries: prev.persistence.entries.map((e) =>
-              e.label === entry.label ? { ...e, disabled: action === "disable" } : e
-            ),
-          },
-        };
-      });
       try {
         await invoke("toggle_persistence", {
           label: entry.label,
@@ -226,9 +213,7 @@ export default function Dashboard() {
           action,
           requiresSudo: entry.kind === "system_daemon" || entry.kind === "system_agent",
         });
-        toast.success(`${entry.label}: ${action}d`);
-      } catch (err) {
-        // Revert optimistic update
+        // Update only after backend confirms — toggle position reflects real state
         setActiveSnapshot((prev) => {
           if (!prev?.persistence) return prev;
           return {
@@ -236,11 +221,13 @@ export default function Dashboard() {
             persistence: {
               ...prev.persistence,
               entries: prev.persistence.entries.map((e) =>
-                e.label === entry.label ? { ...e, disabled: entry.disabled } : e
+                e.label === entry.label ? { ...e, disabled: action === "disable" } : e
               ),
             },
           };
         });
+        toast.success(`${entry.label}: ${action}d`);
+      } catch (err) {
         toast.error(`Failed to ${action} ${entry.label}: ${String(err)}`);
       }
     },
