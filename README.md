@@ -69,20 +69,30 @@ button and a clear "belongs to X" label.
 
 ## AI Provider
 
-Macroscope supports five interchangeable AI providers, selected from Settings
-→ AI Provider. The default is Claude Code CLI. All providers receive the same
-structured snapshot data and produce findings in the same schema.
+Macroscope's analysis runs through an AI provider you choose in Settings.
+Five are supported:
 
-| Provider | Auth | Notes |
-|---|---|---|
-| Claude Code CLI | Subscription | Local subprocess, inherits your Claude account |
-| Anthropic API | API key | Direct HTTPS to api.anthropic.com, SSE streaming |
-| OpenAI | API key | Direct HTTPS to api.openai.com, SSE streaming |
-| Gemini | API key | Direct HTTPS to generativelanguage.googleapis.com |
-| Ollama | None | Local HTTP, NDJSON streaming, live model discovery |
+- **Gemini (default)** - Google's gemini-2.5-flash is the default for new
+  installs. It's fast, cheap, and in my own dogfood testing produced richer
+  findings than the alternatives at a fraction of the cost. The free tier is
+  generous; a paid key removes rate limits.
+- **Claude CLI** - Macroscope was originally built around `claude -p` because
+  Claude Code was the LLM I had fastest access to, and I assumed most people
+  reading this already have a Claude subscription. It still works, still uses
+  your existing CLI auth, and is the right choice if you don't want to manage
+  another API key.
+- **Anthropic API** - Direct HTTPS to api.anthropic.com. Use this if you want
+  Sonnet 4.6 or Opus 4.7 without going through the CLI.
+- **OpenAI** - Direct HTTPS to api.openai.com. GPT-5, GPT-4.1, and friends.
+- **Ollama** - Local inference via localhost:11434. Zero outbound traffic.
+  Bring your own model (llama, qwen, mistral, anything chat-capable).
 
 API keys for HTTP providers are stored in macOS Keychain under service
-`com.orkunkurul.macroscope`. They are never written to disk or logged.
+`com.orkunkurul.macroscope`. They are never written to disk in plain text
+and never sent anywhere except the provider you have configured.
+
+Switch providers anytime in Settings → AI Provider. The next snapshot uses
+the new provider; existing snapshots are unchanged.
 
 ## Safety model
 
@@ -125,16 +135,34 @@ allowlist but only the snapshot makes them visible; nothing is auto-deleted.
 
 - macOS Sequoia (15.x) or later on Apple Silicon. Intel and earlier macOS
   versions are untested.
-- One of five AI providers (configured in Settings → AI Provider):
-  - **Claude Code CLI** (default) — requires Claude Code installed and authenticated.
-  - **Anthropic API** — requires an API key from console.anthropic.com.
-  - **OpenAI** — requires an API key from platform.openai.com.
-  - **Gemini** — requires an API key from aistudio.google.com.
-  - **Ollama** — requires Ollama running locally with at least one chat-capable model.
+- An AI provider configured in Settings → AI Provider (see above). The
+  default is Gemini, which needs a free API key from
+  [aistudio.google.com](https://aistudio.google.com).
 - Around 200 MB of free disk for the application and its SQLite snapshot
   store.
+- No additional packages. Macroscope uses only commands that ship with
+  macOS (`launchctl`, `lsof`, `osascript`, `ps`, `du`, `df`). No Homebrew,
+  no Node, no Python runtime required at runtime.
 
 See CONSTRAINTS.md for a complete list of platform and scope assumptions.
+
+## Permissions
+
+Macroscope asks for two macOS permissions during normal use:
+
+- **Automation (System Events)** - needed to read your login items. macOS
+  prompts you once on the first snapshot. If denied, login items won't
+  appear in the Security tab but the rest of the snapshot still works.
+- **Administrator password** - needed only when toggling a persistence entry
+  (enabling or disabling a launch agent or daemon). You are prompted each
+  time, since the underlying `launchctl` call is sudo-protected.
+
+Macroscope does not request Full Disk Access. It only scans your home
+directory (`~/Library`), never system-wide paths.
+
+On first launch, macOS Gatekeeper will warn that Macroscope is an
+unidentified developer (the build is unsigned). Right-click the app and
+choose Open to bypass this once.
 
 ## Install
 
@@ -145,7 +173,6 @@ releases are not provided.
 git clone https://github.com/Razortype/macroscope.git
 cd macroscope
 npm install
-cd src-tauri && cargo build --release && cd ..
 npm run tauri build
 ```
 
@@ -156,11 +183,15 @@ First launch will silently auto-detect your project root directories
 (`~/Code`, `~/Projects`, `~/Desktop/*/Projects`, etc.) and populate the
 allowlist. You can edit project roots from Settings at any time.
 
+See the Permissions section for the Gatekeeper bypass and macOS permission
+prompts you will encounter on first use.
+
 ## Usage
 
 1. Click **Take snapshot** in the top right.
-2. Wait roughly two minutes for the local probes and three Claude audits
-   to complete. The progress UI streams stage-by-stage.
+2. Wait for the local probes and four parallel AI audits to complete.
+   Timing depends on your provider; Gemini Flash typically finishes in
+   under a minute. The progress UI streams stage-by-stage.
 3. Browse the tabs:
    - **Overview**: disk capacity, findings count, recoverable estimate,
      last analysis stats, top priority findings.
@@ -184,12 +215,43 @@ allowlist. You can edit project roots from Settings at any time.
 - **Backend**: Rust + Tauri v2, SQLite for snapshot persistence, walkdir
   for filesystem traversal, the `trash` crate via `NsFileManager` for
   trash operations.
-- **AI**: pluggable provider layer supporting Claude CLI, Anthropic API,
-  OpenAI, Gemini, and Ollama. Active provider is selected in Settings; all
-  providers receive the same prompt shape and produce the same finding schema.
-  Token usage is captured per audit and displayed in the analysis progress.
+- **AI**: pluggable provider layer supporting Gemini, Claude CLI,
+  Anthropic API, OpenAI, and Ollama. Active provider is selected in Settings;
+  all providers receive the same prompt shape and produce the same finding
+  schema. Token usage is captured per audit and displayed in the analysis
+  progress.
 - **Identity graph**: a Rust module that runs after the apps probe and
   before the analyzer, classifying every leftover directory deterministically.
+
+## Roadmap
+
+Planned for v0.2.1:
+
+- First-run onboarding wizard (provider selection, permission setup, project
+  roots) - to replace the current "open Settings and configure" flow with a
+  proper guided setup
+- Support for custom OpenAI-compatible endpoints (Groq, OpenRouter, Together)
+- Prompt tuning for consistent finding length across providers
+
+Planned for v0.3.0:
+
+- Orphaned daemon detection - flag persistence entries whose parent app is
+  uninstalled (OpenVPN, ZeroTier, Sophos leftovers)
+- Global hotkey (Cmd+Shift+M) and menubar entry
+
+Planned for later:
+
+- Auto-update mechanism via the Tauri updater plugin
+- Landing page at macroscope.razortype.com
+- Code signing and notarization (removes the Gatekeeper warning)
+
+Out of scope:
+
+- Intel Mac support
+- Linux or Windows ports
+- Cloud sync of snapshots
+- Background scheduled snapshots
+- Multi-user account separation
 
 ## License
 
