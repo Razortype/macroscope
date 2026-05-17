@@ -479,6 +479,49 @@ fn audit_log_path() -> Result<PathBuf, AppError> {
         .join("audit.log"))
 }
 
+// ── First-run project root auto-detection ─────────────────────────────────────
+
+/// Detects likely project root directories on this machine by checking a list of
+/// conventional candidates plus any `~/Desktop/*/Projects/` subdirectory pattern.
+/// Only directories that exist on disk are included. The result is deduplicated.
+pub fn auto_detect_project_roots() -> Vec<PathBuf> {
+    let home = match dirs::home_dir() {
+        Some(h) => h,
+        None => return Vec::new(),
+    };
+
+    let mut candidates: Vec<PathBuf> = vec![
+        home.join("Desktop").join("Projects"),
+        home.join("Documents").join("Projects"),
+        home.join("Code"),
+        home.join("Workspace"),
+        home.join("Projects"),
+        home.join("Repos"),
+        home.join("Dev"),
+        home.join("dev"),
+    ];
+
+    // ~/Desktop/*/Projects/ — any Desktop subdir that contains a Projects/ child
+    if let Ok(entries) = std::fs::read_dir(home.join("Desktop")) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                let projects = path.join("Projects");
+                if projects.is_dir() {
+                    candidates.push(projects);
+                }
+            }
+        }
+    }
+
+    let mut seen = std::collections::HashSet::new();
+    candidates
+        .into_iter()
+        .filter(|p| p.is_dir())
+        .filter(|p| seen.insert(p.clone()))
+        .collect()
+}
+
 // ── Allowlist/denylist accessors (exposed as Tauri commands) ──────────────────
 
 #[tauri::command]

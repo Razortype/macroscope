@@ -358,6 +358,21 @@ fn get_app_version() -> String {
 pub fn run() {
     let db = Db::new().expect("failed to open database");
 
+    // On first launch (key absent), silently populate project_roots from auto-detection.
+    // A stored "[]" means the user intentionally cleared it — don't re-run.
+    if db.get_setting("project_roots").ok().flatten().is_none() {
+        let detected = executor::auto_detect_project_roots();
+        let n = detected.len();
+        let paths: Vec<String> = detected.iter().map(|p| p.display().to_string()).collect();
+        let json = serde_json::to_string(&paths).unwrap_or_else(|_| "[]".to_string());
+        if let Err(e) = db.set_setting("project_roots", &json) {
+            eprintln!("[macroscope] warning: could not save project_roots: {e}");
+        }
+        if n > 0 {
+            eprintln!("[macroscope] auto-detected {n} project roots: {paths:?}");
+        }
+    }
+
     if let Err(e) = analyzer::copy_default_prompts() {
         eprintln!("[macroscope] Warning: could not copy default prompts: {e}");
     }
