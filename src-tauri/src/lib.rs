@@ -108,6 +108,21 @@ async fn execute_paths(paths: Vec<String>, db: State<'_, Db>) -> Result<Executio
         .map_err(Into::into)
 }
 
+/// Execute paths that have been identity-reviewed in the preview modal.
+/// `safe_paths` are SafeOrphan items; `companion_approved` are CompanionNotRunning
+/// items the user individually opted into. All other ActionClass values are never sent.
+#[tauri::command]
+async fn execute_previewed(
+    safe_paths: Vec<String>,
+    companion_approved: Vec<String>,
+    db: State<'_, Db>,
+) -> Result<ExecutionReport, String> {
+    let db = db.inner().clone();
+    executor::execute_previewed_paths(safe_paths, companion_approved, &db)
+        .await
+        .map_err(Into::into)
+}
+
 // ── Launchctl toggle command ─────────────────────────────────────────────────
 
 #[tauri::command]
@@ -338,6 +353,7 @@ pub fn run() {
             get_app_version,
             get_lifetime_stats,
             preview_execution,
+            execute_previewed,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

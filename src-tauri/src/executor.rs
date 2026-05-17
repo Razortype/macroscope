@@ -159,6 +159,53 @@ pub fn check_path(path: &str) -> Result<PathBuf, AppError> {
 
 // ── Executor ─────────────────────────────────────────────────────────────────
 
+/// Execute ONLY paths the user has explicitly reviewed in the preview modal.
+///
+/// `safe_paths`        — ActionClass::SafeOrphan items the user confirmed
+/// `companion_approved` — ActionClass::CompanionNotRunning items the user
+///                        individually opted in to (checkbox in preview modal)
+///
+/// CompanionRunning, SystemManaged, Protected, and Ambiguous paths are NEVER
+/// accepted here — the frontend does not send them, and even if it somehow did,
+/// `check_path()` provides a final backend safety net.
+///
+/// The action_class of each approved path is written to the audit log before
+/// execution so the log is self-explaining.
+pub async fn execute_previewed_paths(
+    safe_paths: Vec<String>,
+    companion_approved: Vec<String>,
+    db: &Db,
+) -> Result<ExecutionReport, AppError> {
+    let _ = db;
+    let audit_log = audit_log_path()?;
+    if let Some(parent) = audit_log.parent() {
+        fs::create_dir_all(parent)?;
+    }
+
+    let mut items: Vec<ExecutionItem> = Vec::new();
+    let mut total_freed: u64 = 0;
+
+    for path in &safe_paths {
+        append_audit_log_classed(&audit_log, path, "safe_orphan", "queued", 0, None);
+        let item = execute_single(path, &audit_log).await;
+        if item.status == "moved" || item.status == "partial" {
+            total_freed += item.bytes;
+        }
+        items.push(item);
+    }
+
+    for path in &companion_approved {
+        append_audit_log_classed(&audit_log, path, "companion_not_running", "queued", 0, None);
+        let item = execute_single(path, &audit_log).await;
+        if item.status == "moved" || item.status == "partial" {
+            total_freed += item.bytes;
+        }
+        items.push(item);
+    }
+
+    Ok(ExecutionReport { items, total_bytes_freed: total_freed })
+}
+
 pub async fn execute_actions(paths: Vec<String>, db: &Db) -> Result<ExecutionReport, AppError> {
     let _ = db; // reserved for future per-item DB logging
     let audit_log = audit_log_path()?;
@@ -350,6 +397,30 @@ fn append_audit_log(log: &Path, path: &str, status: &str, bytes: u64, error: Opt
         serde_json::json!({
             "timestamp": Utc::now().to_rfc3339(),
             "path": path,
+            "status": status,
+            "bytes": bytes,
+            "error": error,
+        })
+    );
+    if let Ok(mut f) = fs::OpenOptions::new().create(true).append(true).open(log) {
+        let _ = f.write_all(line.as_bytes());
+    }
+}
+
+fn append_audit_log_classed(
+    log: &Path,
+    path: &str,
+    action_class: &str,
+    status: &str,
+    bytes: u64,
+    error: Option<&str>,
+) {
+    let line = format!(
+        "{}\n",
+        serde_json::json!({
+            "timestamp": Utc::now().to_rfc3339(),
+            "path": path,
+            "action_class": action_class,
             "status": status,
             "bytes": bytes,
             "error": error,
