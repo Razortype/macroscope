@@ -196,6 +196,10 @@ fn cl_to_resolved_target(
             (ActionClass::SystemManaged, format!("{name} (system)"))
         }
 
+        LeftoverStatus::SelfManaged => {
+            (ActionClass::SystemManaged, format!("{name} (self)"))
+        }
+
         LeftoverStatus::Ambiguous { pattern_hint } => (
             ActionClass::Ambiguous { pattern_hint: pattern_hint.clone() },
             format!("{name} ({pattern_hint})"),

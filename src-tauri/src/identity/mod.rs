@@ -32,6 +32,8 @@ pub enum LeftoverStatus {
     },
     /// macOS system service or developer default cache. Hidden by default.
     SystemManaged,
+    /// Belongs to Macroscope itself. Hidden by default alongside SystemManaged.
+    SelfManaged,
     /// Pattern matches an Electron shell cache or similar, but no vendor known.
     Ambiguous {
         pattern_hint: String,

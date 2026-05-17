@@ -285,7 +285,7 @@ pub struct AmbiguousEntry {
 }
 
 /// Structured identity-aware summary sent to app-lifecycle-audit Claude invocation.
-/// system_managed entries are intentionally excluded — Claude never sees them.
+/// system_managed and self_managed entries are intentionally excluded — Claude never sees them.
 #[derive(Debug, Serialize, Clone, Default)]
 pub struct AppIdentityPayload {
     pub installed_apps: Vec<InstalledAppEntry>,

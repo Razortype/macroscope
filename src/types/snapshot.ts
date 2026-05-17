@@ -153,6 +153,7 @@ export type LeftoverStatus =
   | { type: "orphaned" }
   | { type: "companion"; belongs_to_bundle_id: string; belongs_to_display_name: string }
   | { type: "system_managed" }
+  | { type: "self_managed" }
   | { type: "ambiguous"; pattern_hint: string };
 
 export interface ClassifiedLeftover {

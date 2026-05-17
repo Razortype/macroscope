@@ -2,6 +2,8 @@ use std::path::Path;
 use crate::snapshot::apps::{InstalledApp, LeftoverDir};
 use super::{aliases, system_managed, CanonicalApp, ClassifiedLeftover, IdentityGraph, LeftoverStatus};
 
+pub const MACROSCOPE_BUNDLE_ID: &str = "com.orkunkurul.macroscope";
+
 // ── CanonicalApp construction ─────────────────────────────────────────────────
 
 /// Classify a single leftover against a pre-built canonical app list.
@@ -73,9 +75,29 @@ fn classify(leftover: &LeftoverDir, canonical: &[CanonicalApp]) -> ClassifiedLef
     // Strip .plist suffix for Preferences entries before pattern matching
     let match_name = dir_name.trim_end_matches(".plist").to_lowercase();
 
+    // Rule 0: Macroscope's own data — fires before companion checks so the app's
+    // own directories are never surfaced as actionable entries in the Apps tab.
+    if is_macroscope_self(&match_name) {
+        return ClassifiedLeftover {
+            path: leftover.path.clone(),
+            dir_name,
+            size_bytes: leftover.size_bytes,
+            status: LeftoverStatus::SelfManaged,
+        };
+    }
+
     // Rules 1-4 (via precomputed dir_patterns on each CanonicalApp)
     for app in canonical {
         if app.dir_patterns.iter().any(|p| p == &match_name) {
+            // Belt-and-suspenders: if a pattern match resolves back to Macroscope, hide it.
+            if app.bundle_id == MACROSCOPE_BUNDLE_ID {
+                return ClassifiedLeftover {
+                    path: leftover.path.clone(),
+                    dir_name,
+                    size_bytes: leftover.size_bytes,
+                    status: LeftoverStatus::SelfManaged,
+                };
+            }
             return ClassifiedLeftover {
                 path: leftover.path.clone(),
                 dir_name,
@@ -115,6 +137,12 @@ fn classify(leftover: &LeftoverDir, canonical: &[CanonicalApp]) -> ClassifiedLef
         size_bytes: leftover.size_bytes,
         status: LeftoverStatus::Orphaned,
     }
+}
+
+/// True if `match_name` (already lowercased, plist suffix stripped) refers to Macroscope itself.
+fn is_macroscope_self(match_name: &str) -> bool {
+    let last_segment = MACROSCOPE_BUNDLE_ID.split('.').last().unwrap_or("");
+    match_name == last_segment || match_name == MACROSCOPE_BUNDLE_ID
 }
 
 /// Returns "electron_shell_cache" if dir_name matches `*_cache_<digits>`.
@@ -238,6 +266,26 @@ mod tests {
         let leftovers = &[make_leftover("/Users/x/Library/Preferences/com.brave.Browser.plist")];
         let cl = &resolve(apps, leftovers)[0];
         assert!(matches!(cl.status, LeftoverStatus::Companion { .. }), "plist should be Companion");
+    }
+
+    // Rule 0: Macroscope's own dirs are SelfManaged regardless of installed list
+    #[test]
+    fn macroscope_dirs_are_self_managed() {
+        let macroscope_app = make_app("Macroscope", Some("com.orkunkurul.macroscope"), "/Applications/Macroscope.app");
+        let apps = &[macroscope_app];
+
+        let cases = &[
+            "/Users/x/Library/Application Support/macroscope",
+            "/Users/x/Library/Application Support/Macroscope",
+            "/Users/x/Library/Preferences/com.orkunkurul.macroscope.plist",
+        ];
+        for path in cases {
+            let cl = &resolve(apps, &[make_leftover(path)])[0];
+            assert!(
+                matches!(cl.status, LeftoverStatus::SelfManaged),
+                "expected SelfManaged for {path}, got {:?}", cl.status
+            );
+        }
     }
 
     // Rule ordering: Companion takes priority over SystemManaged

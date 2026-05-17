@@ -98,6 +98,19 @@ function SystemBadge() {
   );
 }
 
+function SelfBadge() {
+  return (
+    <span style={{
+      background: "var(--color-bg-elev-3)", color: "var(--color-text-disabled)",
+      fontSize: "9px", fontWeight: 600, padding: "2px 6px",
+      borderRadius: "var(--radius-xs)", textTransform: "uppercase" as const,
+      letterSpacing: "0.06em", fontFamily: "var(--font-mono)",
+    }}>
+      SELF
+    </span>
+  );
+}
+
 // ── Row layout ────────────────────────────────────────────────────────────────
 
 const GRID = "50px minmax(0, 1fr) 110px 100px 110px 80px";
@@ -201,6 +214,7 @@ function LeftoverRow({
     if (status.type === "companion") return `belongs to ${status.belongs_to_display_name}`;
     if (status.type === "ambiguous") return `unknown origin · ${status.pattern_hint}`;
     if (status.type === "system_managed") return "managed by macOS";
+    if (status.type === "self_managed") return "Macroscope's own data";
     return "— uninstalled";
   })();
 
@@ -215,6 +229,7 @@ function LeftoverRow({
     if (status.type === "orphaned") return <StatusBadge label="ORPHANED" semantic="medium" />;
     if (status.type === "companion") return <StatusBadge label="COMPANION" semantic="info" />;
     if (status.type === "ambiguous") return <StatusBadge label="INVESTIGATE" semantic="medium" />;
+    if (status.type === "self_managed") return <SelfBadge />;
     return <SystemBadge />;
   })();
 
@@ -224,6 +239,7 @@ function LeftoverRow({
     if (status.type === "orphaned") return [true, "Move to Trash"];
     if (status.type === "companion") return [false, "Active app data — uninstall the app first"];
     if (status.type === "ambiguous") return [false, "Identify the source before removing"];
+    if (status.type === "self_managed") return [false, "Macroscope's own data — don't delete"];
     return [false, "Managed by macOS — don't delete"];
   })();
 
@@ -281,9 +297,9 @@ export default function AppsTab({ apps, executedPaths, partialPaths, onCleanLeft
         status: { type: "orphaned" as const },
       }));
 
-  // Visible leftovers (hide system_managed unless show-system toggle is on)
+  // Visible leftovers (hide system_managed and self_managed unless show-system toggle is on)
   const visibleLeftovers = classifiedLeftovers.filter((cl) =>
-    cl.status.type !== "system_managed" || showSystem
+    (cl.status.type !== "system_managed" && cl.status.type !== "self_managed") || showSystem
   );
 
   const allRows: AppRow[] = [
