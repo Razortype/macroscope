@@ -5,6 +5,8 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use tauri::{AppHandle, Emitter};
 
+use serde::Serialize;
+
 use crate::db::Db;
 use crate::error::AppError;
 use crate::finding::{Finding, SuggestedAction};
@@ -15,6 +17,23 @@ pub use providers::claude_cli::{
     ClaudeStatus, ClaudeCliProvider, compute_claude_status, detect_claude_path,
 };
 pub use providers::claude_cli::expand_tilde;
+
+/// Auto-detect Claude CLI without DB lookup (used when path_override is empty).
+pub fn detect_claude_path_simple() -> Option<String> {
+    let candidates = [
+        "/opt/homebrew/bin/claude",
+        "~/.local/bin/claude",
+        "/usr/local/bin/claude",
+        "~/.claude/local/claude",
+    ];
+    for raw in candidates {
+        let path = expand_tilde(raw);
+        if path.exists() {
+            return Some(path.display().to_string());
+        }
+    }
+    None
+}
 
 // ── Compiled-in prompt defaults ───────────────────────────────────────────────
 
@@ -46,6 +65,7 @@ pub struct AnalysisChunk {
     pub phase: Option<ChunkPhase>,
 }
 
+#[derive(Debug, Serialize)]
 pub struct TestConnectionResult {
     pub ok: bool,
     pub model_responded: Option<String>,

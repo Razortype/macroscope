@@ -11,6 +11,12 @@ pub mod snapshot;
 use std::sync::Arc;
 
 use analyzer::{ClaudeStatus, ClaudeCliProvider, AnalyzerService};
+use analyzer::providers::{
+    anthropic_api::AnthropicApiProvider,
+    gemini::GeminiProvider,
+    ollama::OllamaProvider,
+    openai::OpenAiProvider,
+};
 use db::Db;
 use provider_config::{ProviderConfig, ProviderId};
 use executor::{ExecutionReport, get_allowed_prefixes, get_allowed_globs, get_denied_prefixes, get_denied_exact, ToggleAction};
@@ -146,6 +152,92 @@ async fn has_provider_secret(provider: ProviderId) -> Result<bool, String> {
         return Ok(false);
     };
     keychain::keychain_has(account).map_err(Into::into)
+}
+
+// ── Provider factory ─────────────────────────────────────────────────────────
+
+fn build_provider(
+    provider_id: &ProviderId,
+    config: &ProviderConfig,
+) -> Result<Arc<dyn AnalyzerService>, String> {
+    use analyzer::providers::{
+        anthropic_api::AnthropicApiProvider,
+        gemini::GeminiProvider,
+        ollama::OllamaProvider,
+        openai::OpenAiProvider,
+    };
+
+    match provider_id {
+        ProviderId::ClaudeCli => {
+            let path = if config.claude_cli.path_override.is_empty() {
+                analyzer::detect_claude_path_simple().ok_or_else(|| {
+                    "Claude CLI not found. Check Settings → AI Provider → Claude CLI".to_string()
+                })?
+            } else {
+                config.claude_cli.path_override.clone()
+            };
+            Ok(Arc::new(ClaudeCliProvider { path }))
+        }
+        ProviderId::AnthropicApi => {
+            let key = keychain::keychain_get(keychain::ACCOUNT_ANTHROPIC)
+                .map_err(|e| e.to_string())?
+                .ok_or_else(|| {
+                    "Anthropic API key not set. Add it in Settings → AI Provider".to_string()
+                })?;
+            Ok(Arc::new(AnthropicApiProvider {
+                api_key: key,
+                model: config.anthropic_api.model.clone(),
+            }))
+        }
+        ProviderId::OpenAi => {
+            let key = keychain::keychain_get(keychain::ACCOUNT_OPENAI)
+                .map_err(|e| e.to_string())?
+                .ok_or_else(|| {
+                    "OpenAI API key not set. Add it in Settings → AI Provider".to_string()
+                })?;
+            Ok(Arc::new(OpenAiProvider {
+                api_key: key,
+                model: config.openai.model.clone(),
+            }))
+        }
+        ProviderId::Gemini => {
+            let key = keychain::keychain_get(keychain::ACCOUNT_GEMINI)
+                .map_err(|e| e.to_string())?
+                .ok_or_else(|| {
+                    "Gemini API key not set. Add it in Settings → AI Provider".to_string()
+                })?;
+            Ok(Arc::new(GeminiProvider {
+                api_key: key,
+                model: config.gemini.model.clone(),
+            }))
+        }
+        ProviderId::Ollama => {
+            if config.ollama.model.is_empty() {
+                return Err(
+                    "No Ollama model selected. Choose one in Settings → AI Provider".to_string(),
+                );
+            }
+            Ok(Arc::new(OllamaProvider {
+                endpoint: config.ollama.endpoint.clone(),
+                model: config.ollama.model.clone(),
+            }))
+        }
+    }
+}
+
+#[tauri::command]
+async fn test_provider_connection(
+    provider_id: ProviderId,
+    db: State<'_, Db>,
+) -> Result<analyzer::TestConnectionResult, String> {
+    let db_clone = db.inner().clone();
+    let config = tokio::task::spawn_blocking(move || ProviderConfig::load(&db_clone))
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(|e: crate::error::AppError| e.to_string())?;
+
+    let provider = build_provider(&provider_id, &config)?;
+    provider.test_connection().await.map_err(Into::into)
 }
 
 // ── Ollama model discovery ────────────────────────────────────────────────────
@@ -480,6 +572,7 @@ pub fn run() {
             set_provider_secret,
             clear_provider_secret,
             has_provider_secret,
+            test_provider_connection,
             fetch_ollama_models,
             get_claude_status,
             analyze_snapshot,
