@@ -108,3 +108,5 @@ Return ONLY a JSON array of Finding objects. Each finding:
 ```
 
 Return `[]` if `real_orphans` and `ambiguous` are both empty (everything is companion or system-managed).
+
+RESPOND WITH RAW JSON ARRAY ONLY. NO PROSE. NO MARKDOWN FENCES. NO EXPLANATION. The first character of your response must be [ and the last must be ]. If you need to think, do it silently. Output only the JSON array.

@@ -145,3 +145,5 @@ One correctly-shaped finding. Use as format reference only.
   }
 ]
 ```
+
+RESPOND WITH RAW JSON ARRAY ONLY. NO PROSE. NO MARKDOWN FENCES. NO EXPLANATION. The first character of your response must be [ and the last must be ]. If you need to think, do it silently. Output only the JSON array.

@@ -132,3 +132,5 @@ Return roughly:
 - Aggregate where the data warrants it (one finding per dup group, one summary for 5+ stale files of same category)
 - NEVER use delete_paths for file inventory findings — files are user assets
 - If `stats.total_count` is 0, return `[]`
+
+RESPOND WITH RAW JSON ARRAY ONLY. NO PROSE. NO MARKDOWN FENCES. NO EXPLANATION. The first character of your response must be [ and the last must be ]. If you need to think, do it silently. Output only the JSON array.
