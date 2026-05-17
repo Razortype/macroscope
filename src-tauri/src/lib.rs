@@ -421,19 +421,25 @@ async fn analyze_snapshot(
     snapshot_id: i64,
     presets: Vec<String>,
     db: State<'_, Db>,
-    claude_status: State<'_, ClaudeStatus>,
     app: tauri::AppHandle,
 ) -> Result<Vec<Finding>, String> {
-    if !claude_status.available {
-        return Err(claude_status
-            .error
-            .clone()
-            .unwrap_or_else(|| "Claude CLI not available".into()));
+    let db_inner = db.inner().clone();
+    let config = tokio::task::spawn_blocking(move || ProviderConfig::load(&db_inner))
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(|e: crate::error::AppError| e.to_string())?;
+
+    // Pre-flight: verify the active provider is reachable before starting audits
+    let provider = build_provider(&config.active_provider, &config)?;
+    let pre = provider.test_connection().await.map_err(|e| e.to_string())?;
+    if !pre.ok {
+        return Err(format!(
+            "{} is not reachable: {} — check Settings → AI Provider",
+            config.active_provider.display_name(),
+            pre.error.as_deref().unwrap_or("unknown error")
+        ));
     }
-    let path = claude_status.path.clone().ok_or_else(|| {
-        "claude path is None despite available=true".to_string()
-    })?;
-    let provider: Arc<dyn AnalyzerService> = Arc::new(ClaudeCliProvider { path });
+
     analyzer::analyze_snapshot(snapshot_id, presets, db.inner(), provider, &app)
         .await
         .map_err(Into::into)

@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { toast } from "sonner";
 import type { Finding } from "../types/finding";
 import type { AuditTokenUsage, PersistenceEntry, Snapshot } from "../types/snapshot";
+import type { ProviderConfig } from "../types/provider";
 import { useAnalysisRun } from "../context/AnalysisRunContext";
 import TopBar from "../components/TopBar";
 import TabBar, { type TabId } from "../components/TabBar";
@@ -83,10 +84,24 @@ export default function Dashboard() {
   const [dialogFindings, setDialogFindings] = useState<Finding[]>([]);
   const [analyzeError, setAnalyzeError] = useState<string | null>(null);
   const [lastAnalysis, setLastAnalysis] = useState<LastAnalysisSummary | null>(null);
+  const [providerLabel, setProviderLabel] = useState<string>("claude code cli");
   const analysisStartedAtRef = useRef<number | null>(null);
 
   const runAuditsRef = useRef(run.audits);
   useEffect(() => { runAuditsRef.current = run.audits; }, [run.audits]);
+
+  useEffect(() => {
+    const LABEL_MAP: Record<string, string> = {
+      claude_cli: "claude code cli",
+      anthropic_api: "anthropic api",
+      open_ai: "openai",
+      gemini: "gemini",
+      ollama: "ollama",
+    };
+    invoke<ProviderConfig>("get_provider_config")
+      .then((cfg) => setProviderLabel(LABEL_MAP[cfg.active_provider] ?? cfg.active_provider))
+      .catch(() => {});
+  }, []);
 
   const latestIdQuery = useQuery<number | null>({
     queryKey: ["latest_snapshot_id"],
@@ -331,7 +346,7 @@ export default function Dashboard() {
       <div style={{ flex: 1, overflow: "auto", overflowX: "hidden" }}>
         {showingProgress && (
           <div style={{ padding: "20px 20px 0" }}>
-            <AnalysisProgress />
+            <AnalysisProgress providerLabel={providerLabel} />
           </div>
         )}
         {analyzeError && (

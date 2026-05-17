@@ -270,9 +270,11 @@ function AuditRow({ preset, audit }: { preset: string; audit: AuditState }) {
 function ClaudeSection({
   enabled,
   audits,
+  providerLabel,
 }: {
   enabled: boolean;
   audits: Record<string, AuditState>;
+  providerLabel?: string;
 }) {
   return (
     <div
@@ -296,7 +298,7 @@ function ClaudeSection({
             flex: 1,
           }}
         >
-          step 2 · ai analysis (claude sonnet)
+          step 2 · ai analysis ({providerLabel ?? "claude sonnet"})
         </span>
         <span style={{ fontFamily: "var(--font-mono)", fontSize: "10px", color: "rgba(255,255,255,0.25)" }}>
           claude -p · stream-json
@@ -315,7 +317,7 @@ function ClaudeSection({
 
 // ── AnalysisProgress ──────────────────────────────────────────────────────────
 
-export default function AnalysisProgress() {
+export default function AnalysisProgress({ providerLabel }: { providerLabel?: string }) {
   const { run } = useAnalysisRun();
 
   const allProbesComplete = run.probes.every(
@@ -371,7 +373,7 @@ export default function AnalysisProgress() {
           <span
             style={{ fontFamily: "var(--font-mono)", fontSize: "10px", color: "rgba(255,255,255,0.4)" }}
           >
-            powered by claude code cli
+            powered by {providerLabel ?? "claude code cli"}
           </span>
         </span>
         <span
@@ -398,7 +400,7 @@ export default function AnalysisProgress() {
       <div style={{ height: "1px", background: "rgba(255,255,255,0.06)" }} />
 
       {/* Step 2 */}
-      <ClaudeSection enabled={allProbesComplete} audits={run.audits} />
+      <ClaudeSection enabled={allProbesComplete} audits={run.audits} providerLabel={providerLabel} />
     </div>
   );
 }
