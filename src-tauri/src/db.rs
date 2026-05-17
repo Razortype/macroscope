@@ -156,6 +156,15 @@ impl Db {
         Ok(payload)
     }
 
+    pub fn update_snapshot_payload(&self, id: i64, payload: &str) -> Result<(), AppError> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "UPDATE snapshots SET payload = ?1 WHERE id = ?2",
+            params![payload, id],
+        )?;
+        Ok(())
+    }
+
     pub fn delete_snapshot(&self, id: i64) -> Result<(), AppError> {
         let conn = self.conn.lock().unwrap();
         conn.execute("DELETE FROM snapshots WHERE id = ?1", params![id])?;

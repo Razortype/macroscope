@@ -46,6 +46,10 @@ pub struct Snapshot {
     pub apps: Option<AppsSnapshot>,
     pub large_files: Option<LargeFilesSnapshot>,
     pub partial_failures: Vec<ProbeFailure>,
+    #[serde(default)]
+    pub executed_paths: Vec<String>,
+    #[serde(default)]
+    pub partial_paths: Vec<String>,
 }
 
 async fn probe_timed<T>(
@@ -135,5 +139,7 @@ pub async fn take_snapshot(app: &AppHandle) -> Snapshot {
         apps,
         large_files: Some(large_files_snap),
         partial_failures,
+        executed_paths: Vec::new(),
+        partial_paths: Vec::new(),
     }
 }

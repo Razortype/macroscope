@@ -181,6 +181,58 @@ async fn preview_execution(
     Ok(result)
 }
 
+// ── Snapshot patch commands ──────────────────────────────────────────────────
+
+/// Persist executed/partial path sets back to the snapshot JSON blob.
+/// Called fire-and-forget from the frontend after execute_previewed resolves.
+#[tauri::command]
+async fn patch_snapshot_actions(
+    snapshot_id: i64,
+    executed_paths: Vec<String>,
+    partial_paths: Vec<String>,
+    db: State<'_, Db>,
+) -> Result<(), String> {
+    let db = db.inner().clone();
+    tokio::task::spawn_blocking(move || {
+        let payload_str = db.get_snapshot_payload(snapshot_id).map_err(Into::<String>::into)?;
+        let mut snap: Snapshot = serde_json::from_str(&payload_str).map_err(|e| e.to_string())?;
+        snap.executed_paths = executed_paths;
+        snap.partial_paths = partial_paths;
+        let updated = serde_json::to_string(&snap).map_err(|e| e.to_string())?;
+        db.update_snapshot_payload(snapshot_id, &updated).map_err(Into::<String>::into)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Persist a single persistence entry's disabled state back to the snapshot JSON blob.
+/// Called fire-and-forget from the frontend after toggle_persistence resolves.
+#[tauri::command]
+async fn patch_snapshot_persistence(
+    snapshot_id: i64,
+    label: String,
+    disabled: bool,
+    db: State<'_, Db>,
+) -> Result<(), String> {
+    let db = db.inner().clone();
+    tokio::task::spawn_blocking(move || {
+        let payload_str = db.get_snapshot_payload(snapshot_id).map_err(Into::<String>::into)?;
+        let mut snap: Snapshot = serde_json::from_str(&payload_str).map_err(|e| e.to_string())?;
+        if let Some(persistence) = snap.persistence.as_mut() {
+            for entry in persistence.entries.iter_mut() {
+                if entry.label == label {
+                    entry.disabled = disabled;
+                    break;
+                }
+            }
+        }
+        let updated = serde_json::to_string(&snap).map_err(|e| e.to_string())?;
+        db.update_snapshot_payload(snapshot_id, &updated).map_err(Into::<String>::into)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 // ── Analysis result commands ─────────────────────────────────────────────────
 
 #[tauri::command]
@@ -354,6 +406,8 @@ pub fn run() {
             get_lifetime_stats,
             preview_execution,
             execute_previewed,
+            patch_snapshot_actions,
+            patch_snapshot_persistence,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

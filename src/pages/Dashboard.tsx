@@ -87,6 +87,8 @@ export default function Dashboard() {
       setActiveSnapshot(snap);
       setActiveSnapshotId(id);
       setFindings(sortFindings(found));
+      setExecutedPaths(new Set(snap.executed_paths ?? []));
+      setPartialPaths(new Set(snap.partial_paths ?? []));
     }).catch(() => {});
   }, [latestIdQuery.data, activeSnapshotId]);
 
@@ -227,16 +229,25 @@ export default function Dashboard() {
           };
         });
         toast.success(`${entry.label}: ${action}d`);
+        if (activeSnapshotId != null) {
+          invoke("patch_snapshot_persistence", {
+            snapshotId: activeSnapshotId,
+            label: entry.label,
+            disabled: action === "disable",
+          }).catch((e) => console.error("[patch_snapshot_persistence]", e));
+        }
       } catch (err) {
         toast.error(`Failed to ${action} ${entry.label}: ${String(err)}`);
       }
     },
-    []
+    [activeSnapshotId]
   );
 
   const handleExecuteComplete = useCallback(({ moved, partial }: ExecuteResult) => {
-    setExecutedPaths((prev) => new Set([...prev, ...moved]));
-    setPartialPaths((prev) => new Set([...prev, ...partial]));
+    const nextExecuted = new Set([...executedPaths, ...moved]);
+    const nextPartial = new Set([...partialPaths, ...partial]);
+    setExecutedPaths(nextExecuted);
+    setPartialPaths(nextPartial);
     setSelectedIds((prev) => {
       const next = new Set(prev);
       for (const f of deleteableFindings) {
@@ -245,7 +256,14 @@ export default function Dashboard() {
       }
       return next;
     });
-  }, [deleteableFindings]);
+    if (activeSnapshotId != null) {
+      invoke("patch_snapshot_actions", {
+        snapshotId: activeSnapshotId,
+        executedPaths: [...nextExecuted],
+        partialPaths: [...nextPartial],
+      }).catch((e) => console.error("[patch_snapshot_actions]", e));
+    }
+  }, [deleteableFindings, activeSnapshotId, executedPaths, partialPaths]);
 
   if (latestIdQuery.isLoading) {
     return (

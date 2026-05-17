@@ -194,6 +194,8 @@ export interface Snapshot {
   apps: AppsSnapshot | null;
   large_files: LargeFilesSnapshot | null;
   partial_failures: ProbeFailure[]; // always an array, never null
+  executed_paths: string[];
+  partial_paths: string[];
 }
 
 // Mirror of src-tauri/src/analyzer.rs::ClaudeStatus
