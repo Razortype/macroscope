@@ -1,8 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
 import { useState, useEffect, useCallback } from "react";
+import { toast } from "sonner";
 import type { Finding } from "../types/finding";
-import type { Snapshot } from "../types/snapshot";
+import type { PersistenceEntry, Snapshot } from "../types/snapshot";
+import { computeServiceTarget } from "../lib/persistence";
 import TopBar from "../components/TopBar";
 import TabBar, { type TabId } from "../components/TabBar";
 import ExecuteDialog, { type ExecuteResult } from "../components/ExecuteDialog";
@@ -188,6 +190,49 @@ export default function Dashboard() {
     setDialogOpen(true);
   }, [activeSnapshot]);
 
+  const handleTogglePersistence = useCallback(
+    async (entry: PersistenceEntry, action: "disable" | "enable") => {
+      // Optimistic update
+      setActiveSnapshot((prev) => {
+        if (!prev?.persistence) return prev;
+        return {
+          ...prev,
+          persistence: {
+            ...prev.persistence,
+            entries: prev.persistence.entries.map((e) =>
+              e.label === entry.label ? { ...e, disabled: action === "disable" } : e
+            ),
+          },
+        };
+      });
+      try {
+        await invoke("toggle_persistence", {
+          label: entry.label,
+          serviceTarget: computeServiceTarget(entry),
+          action,
+          requiresSudo: entry.kind === "system_daemon" || entry.kind === "system_agent",
+        });
+        toast.success(`${entry.label}: ${action}d`);
+      } catch (err) {
+        // Revert optimistic update
+        setActiveSnapshot((prev) => {
+          if (!prev?.persistence) return prev;
+          return {
+            ...prev,
+            persistence: {
+              ...prev.persistence,
+              entries: prev.persistence.entries.map((e) =>
+                e.label === entry.label ? { ...e, disabled: entry.disabled } : e
+              ),
+            },
+          };
+        });
+        toast.error(`Failed to ${action} ${entry.label}: ${String(err)}`);
+      }
+    },
+    []
+  );
+
   const handleExecuteComplete = useCallback(({ moved, partial }: ExecuteResult) => {
     setExecutedPaths((prev) => new Set([...prev, ...moved]));
     setPartialPaths((prev) => new Set([...prev, ...partial]));
@@ -294,7 +339,13 @@ export default function Dashboard() {
             onExecute={handleFilesExecute}
           />
         )}
-        {active === "security" && <SecurityTab />}
+        {active === "security" && (
+          <SecurityTab
+            snapshot={activeSnapshot}
+            findings={findings ?? []}
+            onTogglePersistence={handleTogglePersistence}
+          />
+        )}
       </div>
 
       {selectedIds.size > 0 && (
