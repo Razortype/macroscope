@@ -56,15 +56,44 @@ const ALLOWED_PREFIXES: &[&str] = &[
     "~/Pictures/",
 ];
 
-// Glob patterns: matched with globset after tilde expansion of both pattern and path.
-const ALLOWED_GLOBS: &[&str] = &[
+// Static glob patterns not tied to any project root.
+const STATIC_ALLOWED_GLOBS: &[&str] = &[
     "~/.cache/huggingface/hub/models--*",
-    "~/Desktop/Orkun/Projects/*/node_modules",
-    "~/Desktop/Orkun/Projects/*/.next",
-    "~/Desktop/Orkun/Projects/*/target",
-    "~/Desktop/Orkun/Projects/*/build",
-    "~/Desktop/Orkun/Projects/*/dist",
 ];
+
+// Build artifact directory names applied per configured project root via resolve_all_globs.
+pub const BUILD_ARTIFACT_GLOBS: &[&str] = &[
+    "node_modules", ".next", ".nuxt", ".svelte-kit",
+    "target", "build", "dist", "out",
+    "__pycache__", ".venv", ".pytest_cache", ".mypy_cache",
+    ".gradle", "Pods",
+];
+
+/// Returns all effective glob patterns: static globs plus one pattern per (project_root, artifact)
+/// pair. Project-root patterns are already absolute; static ones use `~/` and are expanded later.
+pub fn resolve_all_globs(project_roots: &[PathBuf]) -> Vec<String> {
+    let mut result: Vec<String> = STATIC_ALLOWED_GLOBS.iter().map(|s| s.to_string()).collect();
+    for root in project_roots {
+        let root_str = root.display().to_string();
+        let root_str = root_str.trim_end_matches('/');
+        for &suffix in BUILD_ARTIFACT_GLOBS {
+            result.push(format!("{root_str}/*/{suffix}"));
+        }
+    }
+    result
+}
+
+/// Reads project_roots from DB settings (stored as a JSON array of path strings).
+pub fn load_project_roots(db: &Db) -> Vec<PathBuf> {
+    db.get_setting("project_roots")
+        .ok()
+        .flatten()
+        .and_then(|s| serde_json::from_str::<Vec<String>>(&s).ok())
+        .unwrap_or_default()
+        .into_iter()
+        .map(|s| expand_tilde(&s))
+        .collect()
+}
 
 // Hard deny: these prefixes are NEVER allowed regardless of the allowlist above.
 // These are checked before the allowlist.
@@ -95,7 +124,7 @@ const EXPAND_ON_EXECUTION: &[&str] = &[
 /// Validate that `path` is safe to move to Trash.
 /// Returns the expanded, canonical PathBuf on success.
 /// Returns `AppError::PathNotAllowed` if the path fails any check.
-pub fn check_path(path: &str) -> Result<PathBuf, AppError> {
+pub fn check_path(path: &str, project_roots: &[PathBuf]) -> Result<PathBuf, AppError> {
     let expanded = expand_tilde(path);
     let expanded_str = expanded.display().to_string();
 
@@ -144,11 +173,11 @@ pub fn check_path(path: &str) -> Result<PathBuf, AppError> {
     // 4. Glob allowlist
     let home = dirs::home_dir().ok_or_else(|| AppError::Config("no home dir".into()))?;
     let mut builder = GlobSetBuilder::new();
-    for raw_glob in ALLOWED_GLOBS {
+    for raw_glob in resolve_all_globs(project_roots) {
         let expanded_glob = if raw_glob.starts_with("~/") {
             format!("{}/{}", home.display(), &raw_glob[2..])
         } else {
-            raw_glob.to_string()
+            raw_glob.clone()
         };
         let glob = GlobBuilder::new(&expanded_glob)
             .literal_separator(true) // * does not cross /
@@ -186,7 +215,7 @@ pub async fn execute_previewed_paths(
     companion_approved: Vec<String>,
     db: &Db,
 ) -> Result<ExecutionReport, AppError> {
-    let _ = db;
+    let project_roots = load_project_roots(db);
     let audit_log = audit_log_path()?;
     if let Some(parent) = audit_log.parent() {
         fs::create_dir_all(parent)?;
@@ -197,7 +226,7 @@ pub async fn execute_previewed_paths(
 
     for path in &safe_paths {
         append_audit_log_classed(&audit_log, path, "safe_orphan", "queued", 0, None);
-        let item = execute_single(path, &audit_log).await;
+        let item = execute_single(path, &audit_log, &project_roots).await;
         if item.status == "moved" || item.status == "partial" {
             total_freed += item.bytes;
         }
@@ -206,7 +235,7 @@ pub async fn execute_previewed_paths(
 
     for path in &companion_approved {
         append_audit_log_classed(&audit_log, path, "companion_not_running", "queued", 0, None);
-        let item = execute_single(path, &audit_log).await;
+        let item = execute_single(path, &audit_log, &project_roots).await;
         if item.status == "moved" || item.status == "partial" {
             total_freed += item.bytes;
         }
@@ -217,7 +246,7 @@ pub async fn execute_previewed_paths(
 }
 
 pub async fn execute_actions(paths: Vec<String>, db: &Db) -> Result<ExecutionReport, AppError> {
-    let _ = db; // reserved for future per-item DB logging
+    let project_roots = load_project_roots(db);
     let audit_log = audit_log_path()?;
 
     // Ensure the parent directory exists (it should from Db::new, but be safe)
@@ -229,7 +258,7 @@ pub async fn execute_actions(paths: Vec<String>, db: &Db) -> Result<ExecutionRep
     let mut total_freed: u64 = 0;
 
     for path in paths {
-        let item = execute_single(&path, &audit_log).await;
+        let item = execute_single(&path, &audit_log, &project_roots).await;
         if item.status == "moved" || item.status == "partial" {
             total_freed += item.bytes;
         }
@@ -242,8 +271,8 @@ pub async fn execute_actions(paths: Vec<String>, db: &Db) -> Result<ExecutionRep
     })
 }
 
-async fn execute_single(path: &str, audit_log: &Path) -> ExecutionItem {
-    match check_path(path) {
+async fn execute_single(path: &str, audit_log: &Path, project_roots: &[PathBuf]) -> ExecutionItem {
+    match check_path(path, project_roots) {
         Err(AppError::PathNotAllowed(msg)) => {
             append_audit_log(audit_log, path, "denied", 0, Some(&msg));
             ExecutionItem {
@@ -458,8 +487,12 @@ pub fn get_allowed_prefixes() -> Vec<String> {
 }
 
 #[tauri::command]
-pub fn get_allowed_globs() -> Vec<String> {
-    ALLOWED_GLOBS.iter().map(|s| s.to_string()).collect()
+pub async fn get_allowed_globs(db: tauri::State<'_, Db>) -> Result<Vec<String>, String> {
+    let db = db.inner().clone();
+    let project_roots = tokio::task::spawn_blocking(move || load_project_roots(&db))
+        .await
+        .unwrap_or_default();
+    Ok(resolve_all_globs(&project_roots))
 }
 
 #[tauri::command]
@@ -602,12 +635,13 @@ fn log_audit_toggle(
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
     use super::{check_path, is_label_toggleable};
 
     #[test]
     fn allowed_cache_prefix() {
         // ~/.cache/ is in the exact-prefix allowlist
-        let result = check_path("~/.cache/something");
+        let result = check_path("~/.cache/something", &[]);
         assert!(result.is_ok(), "expected Ok, got: {result:?}");
     }
 
@@ -615,7 +649,7 @@ mod tests {
     fn denied_documents_prefix() {
         // ~/Documents/ is in the hard-deny list — must reject even if it somehow
         // matched an allowlist entry (it doesn't, but the deny check runs first)
-        let result = check_path("~/Documents/anything");
+        let result = check_path("~/Documents/anything", &[]);
         assert!(result.is_err(), "expected Err for Documents path");
         let err_str = result.unwrap_err().to_string();
         assert!(err_str.contains("hard-deny"), "error should mention hard-deny: {err_str}");
@@ -623,33 +657,36 @@ mod tests {
 
     #[test]
     fn allowed_via_glob() {
-        // ~/Desktop/Orkun/Projects/*/node_modules matches via the glob allowlist
-        let result = check_path("~/Desktop/Orkun/Projects/librarr/node_modules");
-        assert!(result.is_ok(), "expected glob match, got: {result:?}");
+        // Project-root-derived glob: node_modules under a configured project root
+        let home = dirs::home_dir().unwrap();
+        let root = home.join("Desktop").join("TestProjects");
+        let test_path = format!("{}/my-app/node_modules", root.display());
+        let result = check_path(&test_path, &[root]);
+        assert!(result.is_ok(), "expected glob match for project root, got: {result:?}");
     }
 
     #[test]
     fn denied_non_allowlisted_path() {
         // A random path that is not in any allowlist entry
-        let result = check_path("~/SomeOtherFolder/random.txt");
+        let result = check_path("~/SomeOtherFolder/random.txt", &[]);
         assert!(result.is_err(), "expected Err for non-allowlisted path");
     }
 
     #[test]
     fn leftover_directories_are_allowed() {
-        let result = check_path("~/Library/Application Support/Adobe");
+        let result = check_path("~/Library/Application Support/Adobe", &[]);
         assert!(result.is_ok(), "expected Application Support/Adobe to be allowed: {result:?}");
 
-        let result = check_path("~/Library/Preferences/com.adobe.Acrobat.plist");
+        let result = check_path("~/Library/Preferences/com.adobe.Acrobat.plist", &[]);
         assert!(result.is_ok(), "expected Preferences plist to be allowed: {result:?}");
     }
 
     #[test]
     fn apple_paths_are_denied_even_under_allowed_prefix() {
-        let result = check_path("~/Library/Application Support/com.apple.calendarservices");
+        let result = check_path("~/Library/Application Support/com.apple.calendarservices", &[]);
         assert!(result.is_err(), "expected com.apple.* to be denied: {result:?}");
 
-        let result = check_path("~/Library/Preferences/com.apple.Safari.plist");
+        let result = check_path("~/Library/Preferences/com.apple.Safari.plist", &[]);
         assert!(result.is_err(), "expected com.apple.* plist to be denied: {result:?}");
     }
 
