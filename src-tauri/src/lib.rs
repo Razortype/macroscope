@@ -397,6 +397,7 @@ pub fn run() {
         .manage(claude_status)
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             take_snapshot,
             save_snapshot,

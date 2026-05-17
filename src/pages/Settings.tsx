@@ -3,8 +3,9 @@ import { Link } from "react-router-dom";
 import { useForm, useFormContext } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-import { ArrowLeft, Activity, ExternalLink } from "lucide-react";
+import { ArrowLeft, Activity, ExternalLink, X, Plus } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
+import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage, FormDescription } from "../components/ui/form";
 import { Input } from "../components/ui/input";
 import { Checkbox } from "../components/ui/checkbox";
@@ -251,6 +252,145 @@ function SectionHotkey() {
   );
 }
 
+// ── Section: Project Roots ────────────────────────────────────────────────────
+
+function SectionProjectRoots({ onChanged }: { onChanged: () => void }) {
+  const [roots, setRoots] = useState<string[]>([]);
+
+  useEffect(() => {
+    invoke<[string, string][]>("list_settings").then((rows) => {
+      const map = Object.fromEntries(rows);
+      const raw = map["project_roots"];
+      if (raw) {
+        try {
+          setRoots(JSON.parse(raw));
+        } catch {
+          setRoots([]);
+        }
+      }
+    }).catch(() => {});
+  }, []);
+
+  async function persistRoots(updated: string[]) {
+    await invoke("set_setting", {
+      key: "project_roots",
+      value: JSON.stringify(updated),
+    });
+    setRoots(updated);
+    onChanged();
+  }
+
+  async function removeRoot(root: string) {
+    await persistRoots(roots.filter((r) => r !== root));
+  }
+
+  async function addRoot() {
+    const selected = await openDialog({ directory: true, multiple: false, title: "Select project directory" });
+    if (!selected || typeof selected !== "string") return;
+    if (roots.includes(selected)) return;
+    await persistRoots([...roots, selected]);
+  }
+
+  return (
+    <Section
+      title="Project Roots"
+      description="Macroscope cleans build artifacts (node_modules, target, .venv, .gradle, etc.) from these directories. Auto-detected on first launch — edit anytime."
+    >
+      <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+        {roots.length === 0 ? (
+          <p
+            style={{
+              margin: 0,
+              fontSize: "var(--text-xs)",
+              color: "var(--color-text-disabled)",
+              fontStyle: "italic",
+            }}
+          >
+            No project directories configured. Add one to enable build artifact cleanup.
+          </p>
+        ) : (
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "3px",
+              background: "var(--color-bg-elev-2)",
+              borderRadius: "var(--radius-sm)",
+              padding: "8px 10px",
+              border: "1px solid var(--color-border-subtle)",
+            }}
+          >
+            {roots.map((root) => (
+              <div
+                key={root}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: "8px",
+                }}
+              >
+                <span
+                  style={{
+                    fontFamily: "var(--font-mono)",
+                    fontSize: "var(--text-xs)",
+                    color: "var(--color-text-secondary)",
+                    flex: 1,
+                    minWidth: 0,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {root}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => removeRoot(root)}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    background: "none",
+                    border: "none",
+                    padding: "2px",
+                    cursor: "pointer",
+                    color: "var(--color-text-disabled)",
+                    flexShrink: 0,
+                  }}
+                  aria-label={`Remove ${root}`}
+                >
+                  <X size={12} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        <button
+          type="button"
+          onClick={addRoot}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "4px",
+            alignSelf: "flex-start",
+            background: "none",
+            border: "1px solid var(--color-border-subtle)",
+            borderRadius: "var(--radius-sm)",
+            padding: "3px 8px",
+            color: "var(--color-text-secondary)",
+            fontSize: "var(--text-xs)",
+            fontFamily: "var(--font-sans)",
+            cursor: "pointer",
+          }}
+        >
+          <Plus size={12} />
+          Add directory…
+        </button>
+      </div>
+    </Section>
+  );
+}
+
 // ── Section: Safety ───────────────────────────────────────────────────────────
 
 function PathList({ paths, globs }: { paths: string[]; globs?: string[] }) {
@@ -288,7 +428,7 @@ function PathList({ paths, globs }: { paths: string[]; globs?: string[] }) {
   );
 }
 
-function SectionSafety() {
+function SectionSafety({ refreshKey }: { refreshKey: number }) {
   const [allowedPrefixes, setAllowedPrefixes] = useState<string[]>([]);
   const [allowedGlobs, setAllowedGlobs] = useState<string[]>([]);
   const [deniedPrefixes, setDeniedPrefixes] = useState<string[]>([]);
@@ -307,7 +447,7 @@ function SectionSafety() {
       setDeniedPrefixes(dp);
       setDeniedExact(de);
     });
-  }, []);
+  }, [refreshKey]);
 
   async function revealAuditLog() {
     await invoke("reveal_in_finder", { path: auditLogPath }).catch((e) => {
@@ -324,7 +464,8 @@ function SectionSafety() {
             Allowed paths
           </p>
           <p style={{ margin: 0, fontSize: "var(--text-xs)", color: "var(--color-text-muted)" }}>
-            Macroscope can only move items to Trash from these locations.
+            Macroscope can only move items to Trash from these locations. This list updates
+            automatically based on your Project Roots above.
           </p>
           <PathList paths={allowedPrefixes} globs={allowedGlobs} />
         </div>
@@ -472,6 +613,7 @@ function SectionAbout() {
 
 export default function Settings() {
   const [saving, setSaving] = useState(false);
+  const [rootsVersion, setRootsVersion] = useState(0);
 
   const form = useForm<SettingsValues>({
     resolver: zodResolver(settingsSchema),
@@ -563,7 +705,8 @@ export default function Settings() {
             <SectionGeneral />
             <SectionClaudeCLI />
             <SectionHotkey />
-            <SectionSafety />
+            <SectionProjectRoots onChanged={() => setRootsVersion((v) => v + 1)} />
+            <SectionSafety refreshKey={rootsVersion} />
             <SectionAbout />
           </form>
         </Form>
