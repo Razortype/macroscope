@@ -11,6 +11,7 @@ use db::Db;
 use executor::{ExecutionReport, get_allowed_prefixes, get_allowed_globs, get_denied_prefixes, get_denied_exact, ToggleAction};
 use finding::Finding;
 use snapshot::{Snapshot, SnapshotMeta};
+use identity::target_resolver::ResolvedTarget;
 use tauri::State;
 
 // ── Snapshot commands ────────────────────────────────────────────────────────
@@ -131,6 +132,38 @@ async fn toggle_persistence(
     })
     .await
     .map_err(|e| e.to_string())?
+}
+
+// ── Preview execution command ────────────────────────────────────────────────
+
+/// Resolve finding target paths to a per-item identity-classified list.
+/// Parent directories (~/Library/Caches, ~/Library/Logs) are expanded to their
+/// direct children so the UI can show each item with its ActionClass before any
+/// execution occurs. Runs du in a blocking thread pool.
+#[tauri::command]
+async fn preview_execution(
+    snapshot_id: i64,
+    paths: Vec<String>,
+    db: State<'_, Db>,
+) -> Result<Vec<ResolvedTarget>, String> {
+    let db = db.inner().clone();
+    let payload = tokio::task::spawn_blocking(move || db.get_snapshot_payload(snapshot_id))
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(Into::<String>::into)?;
+
+    let snapshot: Snapshot = serde_json::from_str(&payload).map_err(|e| e.to_string())?;
+    let installed = snapshot.apps.as_ref().map(|a| a.installed.clone()).unwrap_or_default();
+    let classified = snapshot.apps.as_ref().map(|a| a.classified_leftovers.clone()).unwrap_or_default();
+    let processes = snapshot.processes.clone().unwrap_or_default();
+
+    let result = tokio::task::spawn_blocking(move || {
+        identity::target_resolver::resolve_finding_targets(&paths, &installed, &classified, &processes)
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+
+    Ok(result)
 }
 
 // ── Analysis result commands ─────────────────────────────────────────────────
@@ -304,6 +337,7 @@ pub fn run() {
             reveal_in_finder,
             get_app_version,
             get_lifetime_stats,
+            preview_execution,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

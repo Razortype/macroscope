@@ -4,6 +4,12 @@ use super::{aliases, system_managed, CanonicalApp, ClassifiedLeftover, IdentityG
 
 // ── CanonicalApp construction ─────────────────────────────────────────────────
 
+/// Classify a single leftover against a pre-built canonical app list.
+/// Used by target_resolver to avoid rebuilding the graph per path.
+pub(crate) fn classify_one(leftover: &LeftoverDir, canonical: &[CanonicalApp]) -> ClassifiedLeftover {
+    classify(leftover, canonical)
+}
+
 pub(super) fn build_graph(raw_apps: &[InstalledApp], raw_leftovers: &[LeftoverDir]) -> IdentityGraph {
     let installed: Vec<CanonicalApp> = raw_apps.iter().map(build_canonical).collect();
     let leftovers: Vec<ClassifiedLeftover> = raw_leftovers
