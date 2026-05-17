@@ -23,7 +23,7 @@ what was safe to delete. Macroscope refuses to recommend deleting data that
 belongs to an installed app, refuses to touch protected system locations,
 and asks for explicit confirmation per item before any destructive action.
 
-![Overview](assets/overview.png)
+![Overview](docs/screenshots/overview.png)
 
 ## What it does
 
@@ -46,7 +46,7 @@ and asks for explicit confirmation per item before any destructive action.
 - **See what changed**: snapshot history persists across restarts; cleaned
   items stay marked even after the app closes.
 
-![Findings](assets/findings.png)
+![Findings](docs/screenshots/findings.png)
 
 ## Identity-aware classification
 
@@ -65,7 +65,7 @@ A directory that maps to a currently installed app is companion data, not a
 leftover. Companion data appears in the Apps tab with a disabled clean
 button and a clear "belongs to X" label.
 
-![Apps](assets/apps.png)
+![Apps](docs/screenshots/apps.png)
 
 ## AI Provider
 
@@ -112,7 +112,7 @@ Three layers prevent accidental destruction:
 The Trash is the only destination. Macroscope never `rm -rf`. Items can be
 restored via macOS Finder until you empty the Trash yourself.
 
-![Security](assets/security.png)
+![Security](docs/screenshots/security.png)
 
 ## Persistence audit
 
@@ -129,7 +129,7 @@ binary, other) and surfaced in the Files tab. Build artifacts in project
 roots (`node_modules`, `target`, `.venv`, etc.) are reachable by the
 allowlist but only the snapshot makes them visible; nothing is auto-deleted.
 
-![Files](assets/files.png)
+![Files](docs/screenshots/files.png)
 
 ## Requirements
 
