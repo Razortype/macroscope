@@ -23,7 +23,7 @@ pub fn keychain_get(account: &str) -> Result<Option<String>, AppError> {
 pub fn keychain_delete(account: &str) -> Result<(), AppError> {
     let entry = Entry::new(SERVICE, account)
         .map_err(|e| AppError::Keychain(e.to_string()))?;
-    match entry.delete_credential() {
+    match entry.delete_password() {
         Ok(()) => Ok(()),
         Err(keyring::Error::NoEntry) => Ok(()),
         Err(e) => Err(AppError::Keychain(e.to_string())),
