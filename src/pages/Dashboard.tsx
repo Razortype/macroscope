@@ -4,7 +4,6 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { toast } from "sonner";
 import type { Finding } from "../types/finding";
 import type { AuditTokenUsage, PersistenceEntry, Snapshot } from "../types/snapshot";
-import { computeServiceTarget } from "../lib/persistence";
 import { useAnalysisRun } from "../context/AnalysisRunContext";
 import TopBar from "../components/TopBar";
 import TabBar, { type TabId } from "../components/TabBar";
@@ -244,9 +243,8 @@ export default function Dashboard() {
       try {
         await invoke("toggle_persistence", {
           label: entry.label,
-          serviceTarget: computeServiceTarget(entry),
+          kind: entry.kind,
           action,
-          requiresSudo: entry.kind === "system_daemon" || entry.kind === "system_agent",
         });
         // Update only after backend confirms — toggle position reflects real state
         setActiveSnapshot((prev) => {

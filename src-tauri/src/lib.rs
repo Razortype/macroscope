@@ -13,6 +13,7 @@ use finding::Finding;
 use snapshot::{Snapshot, SnapshotMeta};
 use identity::target_resolver::ResolvedTarget;
 use tauri::State;
+use libc;
 
 // ── Snapshot commands ────────────────────────────────────────────────────────
 
@@ -125,18 +126,31 @@ async fn execute_previewed(
 
 // ── Launchctl toggle command ─────────────────────────────────────────────────
 
+/// Build the launchctl service target string in Rust using the actual running
+/// user's UID from libc. The frontend passes only the label and kind; it never
+/// constructs or supplies the service target string.
+fn build_service_target(label: &str, kind: &str) -> Result<(String, bool), String> {
+    let uid = unsafe { libc::getuid() };
+    match kind {
+        "user_agent" | "login_item" => Ok((format!("gui/{uid}/{label}"), false)),
+        "user_daemon"               => Ok((format!("user/{uid}/{label}"), false)),
+        "system_daemon" | "system_agent" => Ok((format!("system/{label}"), true)),
+        other => Err(format!("unknown persistence kind: {other}")),
+    }
+}
+
 #[tauri::command]
 async fn toggle_persistence(
     label: String,
-    service_target: String,
+    kind: String,
     action: String,
-    requires_sudo: bool,
 ) -> Result<bool, String> {
     let action_enum = match action.as_str() {
         "disable" => ToggleAction::Disable,
         "enable" => ToggleAction::Enable,
         other => return Err(format!("unknown action: {other}")),
     };
+    let (service_target, requires_sudo) = build_service_target(&label, &kind)?;
     tokio::task::spawn_blocking(move || {
         let result = executor::toggle_launchctl(&label, &service_target, action_enum, requires_sudo);
         if result.success {

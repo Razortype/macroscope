@@ -1,19 +1,5 @@
 import type { PersistenceEntry } from "../types/snapshot";
 
-export function computeServiceTarget(entry: PersistenceEntry): string {
-  const uid = "501";
-  switch (entry.kind) {
-    case "user_agent":
-    case "login_item":
-      return `gui/${uid}/${entry.label}`;
-    case "user_daemon":
-      return `user/${uid}/${entry.label}`;
-    case "system_daemon":
-    case "system_agent":
-      return `system/${entry.label}`;
-  }
-}
-
 const KNOWN_PREFIXES = [
   "com.notion.",
   "com.raycast.",
