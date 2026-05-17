@@ -77,11 +77,28 @@ export interface PlistEntry {
 //   { "Err": "Automation permission required..." }  — when TCC denies
 export type LoginItemsResult = { Ok: string[] } | { Err: string };
 
+export type PersistenceKind =
+  | "user_agent"
+  | "user_daemon"
+  | "system_daemon"
+  | "system_agent"
+  | "login_item";
+
+export interface PersistenceEntry {
+  label: string;
+  path: string;
+  kind: PersistenceKind;
+  program: string | null;
+  disabled: boolean;
+  source: string | null;
+}
+
 export interface PersistenceReport {
   launch_agents_user: PlistEntry[];
   launch_agents_system: PlistEntry[];
   launch_daemons: PlistEntry[];
   login_items: LoginItemsResult;
+  entries: PersistenceEntry[];
 }
 
 export interface UserAccount {

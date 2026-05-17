@@ -1,7 +1,10 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use std::path::Path;
 use tokio::process::Command;
+
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PlistEntry {
@@ -9,6 +12,26 @@ pub struct PlistEntry {
     pub filename: String,
     pub modified_at: Option<DateTime<Utc>>,
     pub size_bytes: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum PersistenceKind {
+    UserAgent,
+    UserDaemon,
+    SystemDaemon,
+    SystemAgent,
+    LoginItem,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PersistenceEntry {
+    pub label: String,
+    pub path: String,
+    pub kind: PersistenceKind,
+    pub program: Option<String>,
+    pub disabled: bool,
+    pub source: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -19,7 +42,34 @@ pub struct PersistenceReport {
     /// Err variant carries a user-displayable permission message, not a
     /// hard failure. The orchestrator does NOT add this to partial_failures.
     pub login_items: Result<Vec<String>, String>,
+    /// Enriched entries for the Security tab UI. Populated on every probe;
+    /// empty array when deserializing snapshots taken before this field existed.
+    #[serde(default)]
+    pub entries: Vec<PersistenceEntry>,
 }
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+pub fn service_target(entry: &PersistenceEntry) -> String {
+    let uid = unsafe { libc::getuid() };
+    match entry.kind {
+        PersistenceKind::UserAgent | PersistenceKind::LoginItem => {
+            format!("gui/{}/{}", uid, entry.label)
+        }
+        PersistenceKind::SystemDaemon | PersistenceKind::SystemAgent => {
+            format!("system/{}", entry.label)
+        }
+        PersistenceKind::UserDaemon => {
+            format!("user/{}/{}", uid, entry.label)
+        }
+    }
+}
+
+pub fn requires_sudo(entry: &PersistenceEntry) -> bool {
+    matches!(entry.kind, PersistenceKind::SystemDaemon | PersistenceKind::SystemAgent)
+}
+
+// ── Probe ─────────────────────────────────────────────────────────────────────
 
 pub async fn probe() -> Result<PersistenceReport, String> {
     let home = dirs::home_dir().ok_or_else(|| "no home dir".to_string())?;
@@ -28,12 +78,65 @@ pub async fn probe() -> Result<PersistenceReport, String> {
     let sys_agents = read_plist_dir(Path::new("/Library/LaunchAgents"));
     let daemons = read_plist_dir(Path::new("/Library/LaunchDaemons"));
     let login_items = query_login_items().await;
+    let disabled_labels = fetch_disabled_labels().await;
+
+    let mut entries: Vec<PersistenceEntry> = Vec::new();
+
+    for plist in &user_agents {
+        let label = plist.filename.trim_end_matches(".plist").to_string();
+        let disabled = disabled_labels.contains(&label);
+        entries.push(PersistenceEntry {
+            label,
+            path: plist.path.clone(),
+            kind: PersistenceKind::UserAgent,
+            program: None,
+            disabled,
+            source: None,
+        });
+    }
+    for plist in &sys_agents {
+        let label = plist.filename.trim_end_matches(".plist").to_string();
+        let disabled = disabled_labels.contains(&label);
+        entries.push(PersistenceEntry {
+            label,
+            path: plist.path.clone(),
+            kind: PersistenceKind::SystemAgent,
+            program: None,
+            disabled,
+            source: None,
+        });
+    }
+    for plist in &daemons {
+        let label = plist.filename.trim_end_matches(".plist").to_string();
+        let disabled = disabled_labels.contains(&label);
+        entries.push(PersistenceEntry {
+            label,
+            path: plist.path.clone(),
+            kind: PersistenceKind::SystemDaemon,
+            program: None,
+            disabled,
+            source: None,
+        });
+    }
+    if let Ok(ref items) = login_items {
+        for item in items {
+            entries.push(PersistenceEntry {
+                label: item.clone(),
+                path: String::new(),
+                kind: PersistenceKind::LoginItem,
+                program: None,
+                disabled: false,
+                source: None,
+            });
+        }
+    }
 
     Ok(PersistenceReport {
         launch_agents_user: user_agents,
         launch_agents_system: sys_agents,
         launch_daemons: daemons,
         login_items,
+        entries,
     })
 }
 
@@ -49,7 +152,6 @@ fn read_plist_dir(dir: &Path) -> Vec<PlistEntry> {
             .map(|n| n.to_string_lossy().to_string())
             .unwrap_or_default();
 
-        // Only plists
         if !filename.ends_with(".plist") {
             continue;
         }
@@ -83,7 +185,6 @@ async fn query_login_items() -> Result<Vec<String>, String> {
 
     if !out.status.success() {
         let stderr = String::from_utf8_lossy(&out.stderr).to_string();
-        // TCC denial surfaces in stderr; surface a friendly message
         if stderr.contains("Not authorized") || stderr.contains("not allowed") {
             return Err(
                 "Automation permission required for System Events — grant in \
@@ -100,7 +201,6 @@ async fn query_login_items() -> Result<Vec<String>, String> {
         return Ok(vec![]);
     }
 
-    // osascript returns a comma-separated list: "item1, item2, item3"
     let items: Vec<String> = trimmed
         .split(", ")
         .map(|s| s.trim().to_string())
@@ -108,4 +208,95 @@ async fn query_login_items() -> Result<Vec<String>, String> {
         .collect();
 
     Ok(items)
+}
+
+async fn fetch_disabled_labels() -> HashSet<String> {
+    let uid = unsafe { libc::getuid() };
+    let domains = [
+        format!("gui/{}", uid),
+        format!("user/{}", uid),
+        "system".to_string(),
+    ];
+    let mut disabled = HashSet::new();
+    for domain in &domains {
+        let Ok(out) = Command::new("/bin/launchctl")
+            .args(["print-disabled", domain])
+            .output()
+            .await
+        else {
+            continue;
+        };
+        let stdout = String::from_utf8_lossy(&out.stdout);
+        for line in stdout.lines() {
+            let line = line.trim();
+            if line.ends_with("=> true") || line.ends_with("=> disabled") {
+                if let Some(eq_idx) = line.find("=>") {
+                    let label = line[..eq_idx].trim().trim_matches('"');
+                    disabled.insert(label.to_string());
+                }
+            }
+        }
+    }
+    disabled
+}
+
+// ── Tests ─────────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn service_target_format_user_agent() {
+        let entry = PersistenceEntry {
+            label: "com.perplexity.comet".into(),
+            path: "/Users/x/Library/LaunchAgents/com.perplexity.comet.plist".into(),
+            kind: PersistenceKind::UserAgent,
+            program: None,
+            disabled: false,
+            source: None,
+        };
+        let target = service_target(&entry);
+        assert!(target.starts_with("gui/"), "expected gui/ prefix, got: {target}");
+        assert!(target.ends_with("/com.perplexity.comet"), "expected label suffix, got: {target}");
+    }
+
+    #[test]
+    fn service_target_format_system_daemon() {
+        let entry = PersistenceEntry {
+            label: "com.tailscale.tailscaled".into(),
+            path: "/Library/LaunchDaemons/com.tailscale.tailscaled.plist".into(),
+            kind: PersistenceKind::SystemDaemon,
+            program: None,
+            disabled: false,
+            source: None,
+        };
+        assert_eq!(service_target(&entry), "system/com.tailscale.tailscaled");
+    }
+
+    #[test]
+    fn sudo_required_for_system_daemons() {
+        let entry = PersistenceEntry {
+            label: "x".into(),
+            path: "x".into(),
+            kind: PersistenceKind::SystemDaemon,
+            program: None,
+            disabled: false,
+            source: None,
+        };
+        assert!(requires_sudo(&entry));
+    }
+
+    #[test]
+    fn sudo_not_required_for_user_agents() {
+        let entry = PersistenceEntry {
+            label: "x".into(),
+            path: "x".into(),
+            kind: PersistenceKind::UserAgent,
+            program: None,
+            disabled: false,
+            source: None,
+        };
+        assert!(!requires_sudo(&entry));
+    }
 }
