@@ -204,7 +204,7 @@ fn build_provider(
             let key = keychain::keychain_get(keychain::ACCOUNT_GEMINI)
                 .map_err(|e| e.to_string())?
                 .ok_or_else(|| {
-                    "Gemini API key not set. Add it in Settings → AI Provider".to_string()
+                    "No Gemini API key configured. Open Settings → AI Provider to add one, or switch to a different provider.".to_string()
                 })?;
             Ok(Arc::new(GeminiProvider {
                 api_key: key,

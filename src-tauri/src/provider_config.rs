@@ -123,7 +123,7 @@ pub struct ProviderConfig {
 impl Default for ProviderConfig {
     fn default() -> Self {
         Self {
-            active_provider: ProviderId::ClaudeCli,
+            active_provider: ProviderId::Gemini,
             claude_cli: ClaudeCliConfig::default(),
             anthropic_api: AnthropicApiConfig::default(),
             openai: OpenAiConfig::default(),

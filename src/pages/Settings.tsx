@@ -144,10 +144,10 @@ interface ProviderCard {
 }
 
 const PROVIDER_CARDS: ProviderCard[] = [
+  { id: "gemini", label: "Gemini", sublabel: "API key", Icon: Zap },
   { id: "claude_cli", label: "Claude CLI", sublabel: "subscription", Icon: Terminal },
   { id: "anthropic_api", label: "Anthropic API", sublabel: "API key", Icon: Cpu },
   { id: "open_ai", label: "OpenAI", sublabel: "API key", Icon: Sparkles },
-  { id: "gemini", label: "Gemini", sublabel: "API key", Icon: Zap },
   { id: "ollama", label: "Ollama", sublabel: "local", Icon: Server },
 ];
 
