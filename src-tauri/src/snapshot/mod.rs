@@ -77,29 +77,39 @@ async fn probe_timed<T>(
     res
 }
 
+async fn probe_timed_infallible<T>(
+    app: &AppHandle,
+    name: &str,
+    fut: impl std::future::Future<Output = T>,
+) -> T {
+    let _ = app.emit(
+        "snapshot:probe",
+        serde_json::json!({ "probe": name, "status": "starting", "duration_ms": 0u64 }),
+    );
+    let start = Instant::now();
+    let result = fut.await;
+    let duration_ms = start.elapsed().as_millis() as u64;
+    let _ = app.emit(
+        "snapshot:probe",
+        serde_json::json!({ "probe": name, "status": "complete", "duration_ms": duration_ms }),
+    );
+    result
+}
+
 pub async fn take_snapshot(app: &AppHandle) -> Snapshot {
     let mut partial_failures = Vec::new();
 
-    let disk_res = probe_timed(app, "disk", disk::probe()).await;
-    let procs_res = probe_timed(app, "processes", processes::probe()).await;
-    let net_res = probe_timed(app, "network", network::probe()).await;
-    let persist_res = probe_timed(app, "persistence", persistence::probe()).await;
-    let users_res = probe_timed(app, "users", users::probe()).await;
-    let kernel_res = probe_timed(app, "kernel", kernel::probe()).await;
-    let apps_res = probe_timed(app, "apps", apps::probe()).await;
-
-    // large_files probe doesn't return Result — it silently skips unreadable dirs
-    let _ = app.emit(
-        "snapshot:probe",
-        serde_json::json!({ "probe": "large_files", "status": "starting", "duration_ms": 0u64 }),
-    );
-    let large_files_start = Instant::now();
-    let large_files_snap = large_files::probe().await;
-    let large_files_ms = large_files_start.elapsed().as_millis() as u64;
-    let _ = app.emit(
-        "snapshot:probe",
-        serde_json::json!({ "probe": "large_files", "status": "complete", "duration_ms": large_files_ms }),
-    );
+    let (disk_res, procs_res, net_res, persist_res, users_res, kernel_res, apps_res, large_files_snap) =
+        tokio::join!(
+            probe_timed(app, "disk", disk::probe()),
+            probe_timed(app, "processes", processes::probe()),
+            probe_timed(app, "network", network::probe()),
+            probe_timed(app, "persistence", persistence::probe()),
+            probe_timed(app, "users", users::probe()),
+            probe_timed(app, "kernel", kernel::probe()),
+            probe_timed(app, "apps", apps::probe()),
+            probe_timed_infallible(app, "large_files", large_files::probe()),
+        );
 
     macro_rules! unwrap_probe {
         ($result:expr, $name:literal) => {

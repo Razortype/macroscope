@@ -68,7 +68,7 @@ function ProbeRow({ probe }: { probe: ProbeState }) {
 function ProbeSection({ probes, allComplete }: { probes: ProbeState[]; allComplete: boolean }) {
   const runningCount = probes.filter((p) => p.status === "running").length;
   const doneCount = probes.filter((p) => p.status === "complete" || p.status === "failed").length;
-  const totalDur = allComplete ? probes.reduce((s, p) => s + (p.duration_ms ?? 0), 0) : null;
+  const totalDur = allComplete ? Math.max(...probes.map((p) => p.duration_ms ?? 0)) : null;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
