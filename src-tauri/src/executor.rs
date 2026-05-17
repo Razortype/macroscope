@@ -5,10 +5,20 @@ use std::path::{Path, PathBuf};
 use chrono::Utc;
 use globset::{GlobBuilder, GlobSetBuilder};
 use serde::{Deserialize, Serialize};
+use trash::macos::{DeleteMethod, TrashContextExtMacos};
 
 use crate::analyzer::expand_tilde;
 use crate::db::Db;
 use crate::error::AppError;
+
+// Use NSFileManager instead of the default osascript/Finder method.
+// The Finder method sends Apple Events which can fail with -10010 (errAEWrongDataType)
+// for paths containing spaces, dots, or other characters on macOS Sequoia+.
+fn trash_ctx() -> trash::TrashContext {
+    let mut ctx = trash::TrashContext::default();
+    ctx.set_delete_method(DeleteMethod::NsFileManager);
+    ctx
+}
 
 // ── Output types ─────────────────────────────────────────────────────────────
 
@@ -259,7 +269,7 @@ async fn execute_single(path: &str, audit_log: &Path) -> ExecutionItem {
             }
             // Capture size BEFORE trashing
             let bytes = dir_size(&canonical).unwrap_or(0);
-            match trash::delete(&canonical) {
+            match trash_ctx().delete(&canonical) {
                 Ok(()) => {
                     append_audit_log(audit_log, path, "moved", bytes, None);
                     ExecutionItem {
@@ -342,7 +352,7 @@ async fn execute_expanded(canonical: &Path, original_path: &str, audit_log: &Pat
 
     for child in &children {
         let child_bytes = dir_size(child).unwrap_or(0);
-        match trash::delete(child) {
+        match trash_ctx().delete(child) {
             Ok(()) => {
                 moved_bytes += child_bytes;
                 moved_count += 1;
