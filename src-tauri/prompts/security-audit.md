@@ -14,11 +14,12 @@ A JSON snapshot will be appended to this prompt in a fenced code block. The snap
 - `network` — object with two arrays:
   - `listening` — ports this machine is accepting connections on: `{ pid, process, protocol, address, port }`
   - `established` — active outbound or bidirectional connections: `{ pid, process, protocol, local, remote, state }`
-- `persistence` — object with four fields:
+- `persistence` — object with five fields:
   - `launch_agents_user` — plist files in `~/Library/LaunchAgents`: `{ path, filename, modified_at, size_bytes }`
   - `launch_agents_system` — plist files in `/Library/LaunchAgents`
   - `launch_daemons` — plist files in `/Library/LaunchDaemons`
   - `login_items` — either `{ "Ok": [string, ...] }` (names of login items if permission was granted) or `{ "Err": string }` (Automation permission was denied)
+  - `entries` — enriched combined list of all persistence items: `{ label, path, kind, program, disabled, source }`; `label` is the exact service identifier (e.g. `com.example.helper`); `disabled: true` means launchctl has already disabled this entry; `source` notes origin if known
 - `users` — real user accounts (uid ≥ 501): `{ username, uid, home_dir, real_name }`
 - `kernel` — third-party kernel extensions only (all com.apple.* extensions pre-filtered): `{ extensions: [{ bundle_id, version, refs }] }`
 - `partial_failures` — probes that failed to complete: `[{ probe, message }]`
@@ -53,12 +54,15 @@ Flag only when the process name is genuinely unidentifiable AND the remote port 
 
 **Launch agents and daemons**
 
-For each plist in `launch_agents_user`, `launch_agents_system`, and `launch_daemons`:
+Work from the `entries` array for a unified view of all persistence items. Cross-reference the raw plist arrays (`launch_agents_user`, `launch_agents_system`, `launch_daemons`) for timestamps and sizes.
 
-- Skip any identifier starting with `com.apple.` — these are Apple system components, never flag them
-- Skip identifiers you clearly recognize as belonging to well-known software: Homebrew services (`homebrew.mxcl.*`), Docker, Brave, Notion, 1Password, Tailscale, Dropbox, Adobe, JetBrains, VS Code, Zed
-- Flag if: the identifier is vague or generic (`com.helper`, `com.update.agent`, `com.agent.startup`, anything that sounds designed to look inconspicuous), or if `modified_at` is very recent and does not correspond to a recognizable software update
-- Flag if: the identifier partially mimics Apple naming (e.g. `com.apple-services.helper`) — the real Apple prefix is exactly `com.apple.`, nothing else
+- Skip any entry whose `label` starts with `com.apple.` — these are Apple system components, never flag them
+- Skip entries whose `disabled` field is `true` — already mitigated, no action needed
+- Skip labels you clearly recognize as belonging to well-known software: Homebrew services (`homebrew.mxcl.*`), Docker, Brave, Notion, 1Password, Tailscale, Dropbox, Adobe, JetBrains, VS Code, Zed
+- Flag if: the label is vague or generic (`com.helper`, `com.update.agent`, `com.agent.startup`, anything that sounds designed to look inconspicuous), or if the corresponding plist's `modified_at` is very recent and does not correspond to a recognizable software update
+- Flag if: the label partially mimics Apple naming (e.g. `com.apple-services.helper`) — the real Apple prefix is exactly `com.apple.`, nothing else
+
+**Important:** When you flag a persistence entry, the finding's `title` must contain the entry's exact `label` (the service identifier string). This is required so the user interface can highlight the matching row. Example title format: `"Launch agent com.example.helper: unknown origin"`.
 
 If `login_items` is `{ "Err": ... }`, emit a single `info` finding noting that login items could not be read due to missing Automation permission. Do not treat this as a security concern — it is a visibility gap.
 If `login_items` is `{ "Ok": [...] }`, scan the list and flag only names that are genuinely unrecognizable.
@@ -134,7 +138,7 @@ One correctly-shaped finding. Use as format reference only.
     "id": "a3d8f21c-44bb-4c90-b7e2-9f6a1d3e7c84",
     "severity": "medium",
     "category": "persistence",
-    "title": "Unrecognized launch agent with generic identifier loaded at login",
+    "title": "Launch agent com.helper.agent: generic identifier, unrecognized origin",
     "description": "A launch agent with a non-descriptive identifier is registered to run at user login. Generic names like 'helper' or 'agent' make it difficult to verify what installed them and what they do. Worth a quick check: identify the source application, or remove the plist if you cannot account for it.",
     "rationale": "persistence.launch_agents_user contains ~/Library/LaunchAgents/com.helper.agent.plist, modified 4 days ago. The identifier 'com.helper.agent' does not correspond to any recognizable application. No process matching this identifier appears in the network snapshot, suggesting it is either not currently running or failed to load.",
     "suggested_action": "investigate"
