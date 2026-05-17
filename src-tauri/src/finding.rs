@@ -29,6 +29,10 @@ pub enum SuggestedAction {
     Ignore,
 }
 
+fn default_suggested_action() -> SuggestedAction {
+    SuggestedAction::Investigate
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Finding {
     pub id: String,
@@ -37,6 +41,7 @@ pub struct Finding {
     pub title: String,
     pub description: String,
     pub rationale: String,
+    #[serde(default = "default_suggested_action")]
     pub suggested_action: SuggestedAction,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub paths_to_remove: Option<Vec<String>>,

@@ -65,6 +65,8 @@ Each element must be an object with exactly these fields:
 
 When `suggested_action` is `"investigate"` or `"ignore"`, omit `paths_to_remove` and `estimated_bytes_freed` entirely — do not include them as null.
 
+You may also omit `suggested_action` entirely for investigate-only findings — the parser defaults it to `"investigate"`. Do NOT fabricate a `suggested_action` value for findings where no specific automated action applies.
+
 Return `[]` if there is nothing worth reporting.
 
 # Severity calibration
