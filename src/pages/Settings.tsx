@@ -1119,7 +1119,7 @@ export default function Settings() {
   const isDirty = form.formState.isDirty;
 
   return (
-    <div style={{ flex: 1, overflowY: "auto", background: "var(--color-bg-base)" }}>
+    <div style={{ flex: 1, overflowY: "auto", minHeight: 0, background: "var(--color-bg-base)" }}>
       <div style={{ maxWidth: "720px", margin: "0 auto", padding: "24px" }}>
         {/* Header */}
         <header
