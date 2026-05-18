@@ -520,6 +520,79 @@ fn read_bytes_freed_from_audit_log() -> u64 {
     total
 }
 
+// ── Provider readiness check ─────────────────────────────────────────────────
+
+#[derive(serde::Serialize)]
+struct ProviderReadiness {
+    ready: bool,
+    reason: Option<String>,
+    active_provider: String,
+}
+
+#[tauri::command]
+async fn is_provider_ready(db: State<'_, Db>) -> Result<ProviderReadiness, String> {
+    let db = db.inner().clone();
+    tokio::task::spawn_blocking(move || -> Result<ProviderReadiness, String> {
+        let config = provider_config::ProviderConfig::load(&db)
+            .map_err(|e: crate::error::AppError| e.to_string())?;
+        let active = config.active_provider.clone();
+        let active_str = active.as_str().to_string();
+
+        let has_key = if active.keychain_account().is_some() {
+            let flag_key = format!("provider_has_key:{}", active.as_str());
+            db.get_setting(&flag_key)
+                .map(|v| v.as_deref() == Some("1"))
+                .unwrap_or(false)
+        } else {
+            true
+        };
+
+        let (ready, reason) = match active {
+            provider_config::ProviderId::ClaudeCli => (true, None),
+            provider_config::ProviderId::AnthropicApi => {
+                if !has_key {
+                    (false, Some("Anthropic API key not set".to_string()))
+                } else if config.anthropic_api.model.is_empty() {
+                    (false, Some("Anthropic model not selected".to_string()))
+                } else {
+                    (true, None)
+                }
+            }
+            provider_config::ProviderId::OpenAi => {
+                if !has_key {
+                    (false, Some("OpenAI API key not set".to_string()))
+                } else if config.openai.model.is_empty() {
+                    (false, Some("OpenAI model not selected".to_string()))
+                } else {
+                    (true, None)
+                }
+            }
+            provider_config::ProviderId::Gemini => {
+                if !has_key {
+                    (false, Some("Gemini API key not set".to_string()))
+                } else if config.gemini.model.is_empty() {
+                    (false, Some("Gemini model not selected".to_string()))
+                } else {
+                    (true, None)
+                }
+            }
+            provider_config::ProviderId::Ollama => {
+                if config.ollama.endpoint.is_empty() {
+                    (false, Some("Ollama endpoint not set".to_string()))
+                } else if config.ollama.model.is_empty() {
+                    (false, Some("Ollama model not selected".to_string()))
+                } else {
+                    (true, None)
+                }
+            }
+        };
+
+        Ok(ProviderReadiness { ready, reason, active_provider: active_str })
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 // ── First-run onboarding commands ────────────────────────────────────────────
 
 #[tauri::command]
@@ -751,6 +824,7 @@ pub fn run() {
             probe_automation_permission,
             probe_full_disk_access,
             open_system_settings_pane,
+            is_provider_ready,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

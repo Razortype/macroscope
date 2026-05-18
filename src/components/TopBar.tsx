@@ -9,6 +9,7 @@ interface TopBarProps {
   activeSnapshotId?: number | null;
   findingCount?: number | null;
   isAnalyzing?: boolean;
+  snapshotBlocked?: boolean;
   onTakeSnapshot?: () => void;
   onReAnalyze?: () => void;
 }
@@ -26,6 +27,7 @@ export default function TopBar({
   activeSnapshotId = null,
   findingCount = null,
   isAnalyzing = false,
+  snapshotBlocked = false,
   onTakeSnapshot,
   onReAnalyze,
 }: TopBarProps) {
@@ -108,17 +110,18 @@ export default function TopBar({
         {onTakeSnapshot && (
           <button
             onClick={onTakeSnapshot}
-            disabled={isAnalyzing}
+            disabled={isAnalyzing || snapshotBlocked}
+            title={snapshotBlocked ? "Configure an AI provider first" : undefined}
             style={{
-              background: isAnalyzing ? "var(--color-text-muted)" : "var(--color-accent)",
-              color: isAnalyzing ? "var(--color-text-disabled)" : "#1a1a26",
+              background: (isAnalyzing || snapshotBlocked) ? "var(--color-text-muted)" : "var(--color-accent)",
+              color: (isAnalyzing || snapshotBlocked) ? "var(--color-text-disabled)" : "#1a1a26",
               border: "none",
               borderRadius: "6px",
               padding: "6px 14px",
               fontFamily: "var(--font-sans)",
               fontSize: "12px",
               fontWeight: 500,
-              cursor: isAnalyzing ? "not-allowed" : "pointer",
+              cursor: (isAnalyzing || snapshotBlocked) ? "not-allowed" : "pointer",
             }}
           >
             {isAnalyzing ? "Analyzing…" : "Take snapshot"}

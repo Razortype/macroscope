@@ -1,7 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useState, useEffect, useRef, useCallback } from "react";
+import { Link } from "react-router-dom";
 import { toast } from "sonner";
+import { AlertTriangle } from "lucide-react";
 import type { Finding } from "../types/finding";
 import type { AuditTokenUsage, PersistenceEntry, Snapshot } from "../types/snapshot";
 import type { ProviderConfig } from "../types/provider";
@@ -103,6 +106,43 @@ export default function Dashboard() {
       .catch(() => {});
   }, []);
 
+  const [providerReady, setProviderReady] = useState<{
+    ready: boolean;
+    reason: string | null;
+    active_provider: string;
+  } | null>(null);
+
+  function checkProviderReady() {
+    invoke<{ ready: boolean; reason: string | null; active_provider: string }>(
+      "is_provider_ready"
+    )
+      .then(setProviderReady)
+      .catch(() => {});
+  }
+
+  useEffect(() => {
+    checkProviderReady();
+  }, []);
+
+  // Re-check readiness whenever the window regains focus (user may have updated Settings).
+  useEffect(() => {
+    let unlisten: (() => void) | null = null;
+    let cancelled = false;
+    getCurrentWindow()
+      .onFocusChanged(({ payload: focused }) => {
+        if (focused && !cancelled) checkProviderReady();
+      })
+      .then((fn) => {
+        if (cancelled) fn();
+        else unlisten = fn;
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
+  }, []);
+
   const latestIdQuery = useQuery<number | null>({
     queryKey: ["latest_snapshot_id"],
     queryFn: () => invoke<number | null>("latest_snapshot_id"),
@@ -187,11 +227,19 @@ export default function Dashboard() {
 
   const hasRunAutoSnapshot = useRef(false);
   useEffect(() => {
-    if (!hasRunAutoSnapshot.current && sessionStorage.getItem("mscope_auto_snapshot") === "1") {
-      hasRunAutoSnapshot.current = true;
-      sessionStorage.removeItem("mscope_auto_snapshot");
-      runFullScan.mutate();
-    }
+    if (hasRunAutoSnapshot.current) return;
+    const flag = sessionStorage.getItem("mscope_auto_snapshot");
+    sessionStorage.removeItem("mscope_auto_snapshot");
+    if (!flag) return;
+    const ts = parseInt(flag, 10);
+    if (Number.isNaN(ts) || Date.now() - ts > 5000) return;
+    invoke<{ ready: boolean }>("is_provider_ready")
+      .then(({ ready }) => {
+        if (!ready) return;
+        hasRunAutoSnapshot.current = true;
+        runFullScan.mutate();
+      })
+      .catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -339,9 +387,61 @@ export default function Dashboard() {
         activeSnapshotId={activeSnapshotId}
         findingCount={findings?.length ?? null}
         isAnalyzing={isAnalyzing}
+        snapshotBlocked={providerReady !== null && !providerReady.ready}
         onTakeSnapshot={() => runFullScan.mutate()}
         onReAnalyze={() => reAnalyze.mutate()}
       />
+      {providerReady !== null && !providerReady.ready && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "10px",
+            padding: "8px 20px",
+            background: "var(--color-severity-medium-bg)",
+            borderBottom: "1px solid var(--color-border-divider)",
+            flexShrink: 0,
+          }}
+        >
+          <AlertTriangle size={14} style={{ color: "var(--color-severity-medium-fg)", flexShrink: 0 }} />
+          <span
+            style={{
+              flex: 1,
+              fontSize: "var(--text-xs)",
+              fontFamily: "var(--font-mono)",
+              color: "var(--color-severity-medium-fg)",
+            }}
+          >
+            {providerReady.reason}
+            <span
+              style={{
+                color: "var(--color-text-muted)",
+                marginLeft: "8px",
+                fontFamily: "var(--font-sans)",
+              }}
+            >
+              Configure in Settings to enable analysis.
+            </span>
+          </span>
+          <Link
+            to="/settings"
+            style={{
+              fontSize: "var(--text-xs)",
+              fontFamily: "var(--font-sans)",
+              fontWeight: 500,
+              color: "var(--color-accent)",
+              textDecoration: "none",
+              padding: "3px 10px",
+              background: "var(--color-accent-glow)",
+              borderRadius: "var(--radius-sm)",
+              border: "1px solid var(--color-accent-muted)",
+              flexShrink: 0,
+            }}
+          >
+            Configure
+          </Link>
+        </div>
+      )}
       <TabBar
         active={active}
         onChange={setActive}

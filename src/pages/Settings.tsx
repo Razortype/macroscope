@@ -335,6 +335,7 @@ function SectionDeveloper() {
   async function handleReset() {
     setResetting(true);
     try {
+      sessionStorage.removeItem("mscope_auto_snapshot");
       await invoke("reset_app_state");
       toast.success("App state reset");
       navigate("/");

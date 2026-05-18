@@ -434,7 +434,10 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   }
 
   async function completeWithSnapshot() {
-    sessionStorage.setItem("mscope_auto_snapshot", "1");
+    const readiness = await invoke<{ ready: boolean }>("is_provider_ready").catch(() => ({ ready: false }));
+    if (readiness.ready) {
+      sessionStorage.setItem("mscope_auto_snapshot", String(Date.now()));
+    }
     await complete();
   }
 
