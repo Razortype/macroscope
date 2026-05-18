@@ -52,8 +52,6 @@ const ALLOWED_PREFIXES: &[&str] = &[
     "~/Desktop/",
     "~/Downloads/",
     "~/Movies/",
-    "~/Music/",
-    "~/Pictures/",
 ];
 
 // Static glob patterns not tied to any project root.

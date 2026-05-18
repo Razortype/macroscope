@@ -104,7 +104,7 @@ pub async fn probe() -> LargeFilesSnapshot {
         None => return LargeFilesSnapshot::default(),
     };
 
-    let scope_subdirs = ["Desktop", "Downloads", "Documents", "Movies", "Music", "Pictures"];
+    let scope_subdirs = ["Desktop", "Downloads", "Documents", "Movies"];
     let scopes: Vec<PathBuf> = scope_subdirs.iter().map(|s| home.join(s)).collect();
 
     let scopes_for_blocking = scopes.clone();
