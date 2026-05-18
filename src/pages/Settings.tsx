@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useForm, useFormContext } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
@@ -7,10 +7,22 @@ import {
   ArrowLeft, Activity, ExternalLink, X, Plus,
   Terminal, Cpu, Sparkles, Zap, Server,
   Eye, EyeOff, Check, AlertCircle, Loader2,
+  RotateCcw,
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage, FormDescription } from "../components/ui/form";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "../components/ui/alert-dialog";
 import { Input } from "../components/ui/input";
 import { Checkbox } from "../components/ui/checkbox";
 import { Separator } from "../components/ui/separator";
@@ -1088,6 +1100,88 @@ function SectionAbout() {
   );
 }
 
+// ── Section: Developer ────────────────────────────────────────────────────────
+
+function SectionDeveloper() {
+  const navigate = useNavigate();
+  const [resetting, setResetting] = useState(false);
+
+  async function handleReset() {
+    setResetting(true);
+    try {
+      await invoke("reset_app_state");
+      toast.success("App state reset");
+      navigate("/");
+    } catch (e) {
+      toast.error(`Reset failed: ${String(e)}`);
+    } finally {
+      setResetting(false);
+    }
+  }
+
+  return (
+    <Section title="Developer">
+      <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+        <p
+          style={{
+            margin: 0,
+            fontSize: "var(--text-xs)",
+            color: "var(--color-text-muted)",
+          }}
+        >
+          Reset all app state for testing the first-run flow. Snapshots and API keys are preserved.
+        </p>
+        <div>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <button
+                type="button"
+                disabled={resetting}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  background: "var(--color-severity-high-bg)",
+                  border: "1px solid var(--color-severity-high)",
+                  borderRadius: "var(--radius-md)",
+                  padding: "7px 14px",
+                  color: "var(--color-severity-high-fg)",
+                  fontSize: "var(--text-sm)",
+                  fontFamily: "var(--font-sans)",
+                  fontWeight: 500,
+                  cursor: resetting ? "not-allowed" : "pointer",
+                  opacity: resetting ? 0.6 : 1,
+                }}
+              >
+                <RotateCcw size={13} />
+                {resetting ? "Resetting…" : "Reset app state"}
+              </button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Reset app state?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This resets onboarding, clears project roots, and resets the AI provider.
+                  Snapshots and API keys are preserved. Continue?
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={handleReset}
+                  className="bg-[var(--color-severity-high)] text-white hover:opacity-90 transition-opacity"
+                >
+                  Reset
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
+      </div>
+    </Section>
+  );
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function Settings() {
@@ -1187,6 +1281,7 @@ export default function Settings() {
             <SectionProjectRoots onChanged={() => setRootsVersion((v) => v + 1)} />
             <SectionSafety refreshKey={rootsVersion} />
             <SectionAbout />
+            <SectionDeveloper />
           </form>
         </Form>
       </div>

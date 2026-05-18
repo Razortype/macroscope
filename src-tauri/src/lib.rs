@@ -500,6 +500,46 @@ fn read_bytes_freed_from_audit_log() -> u64 {
     total
 }
 
+// ── First-run onboarding commands ────────────────────────────────────────────
+
+#[tauri::command]
+async fn get_first_run_state(db: State<'_, Db>) -> Result<bool, String> {
+    let db = db.inner().clone();
+    let value = tokio::task::spawn_blocking(move || {
+        db.get_setting(db::settings_keys::FIRST_RUN_COMPLETED)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+    .map_err(Into::<String>::into)?;
+    Ok(value.as_deref() == Some("true"))
+}
+
+#[tauri::command]
+async fn set_first_run_state(completed: bool, db: State<'_, Db>) -> Result<(), String> {
+    let db = db.inner().clone();
+    let value = if completed { "true" } else { "false" };
+    tokio::task::spawn_blocking(move || {
+        db.set_setting(db::settings_keys::FIRST_RUN_COMPLETED, value)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+    .map_err(Into::into)
+}
+
+#[tauri::command]
+async fn reset_app_state(db: State<'_, Db>) -> Result<(), String> {
+    let db = db.inner().clone();
+    tokio::task::spawn_blocking(move || -> Result<(), crate::error::AppError> {
+        db.set_setting(db::settings_keys::FIRST_RUN_COMPLETED, "false")?;
+        db.set_setting("project_roots", "[]")?;
+        provider_config::ProviderConfig::default().save(&db)?;
+        Ok(())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+    .map_err(Into::into)
+}
+
 // ── System utility commands ───────────────────────────────────────────────────
 
 #[tauri::command]
@@ -596,6 +636,9 @@ pub fn run() {
             execute_previewed,
             patch_snapshot_actions,
             patch_snapshot_persistence,
+            get_first_run_state,
+            set_first_run_state,
+            reset_app_state,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -12,6 +12,7 @@ pub mod settings_keys {
     pub const SNAPSHOT_RETENTION: &str = "snapshot_retention";
     pub const HOTKEY_COMBO: &str = "hotkey_combo";
     pub const HOTKEY_ENABLED: &str = "hotkey_enabled";
+    pub const FIRST_RUN_COMPLETED: &str = "first_run_completed";
 }
 
 // Migrations applied in order. Index i is migration version i+1.
@@ -38,6 +39,10 @@ const MIGRATIONS: &[&str] = &[
        UNIQUE(snapshot_id, preset)
      );
      CREATE INDEX idx_analysis_results_snapshot ON analysis_results(snapshot_id);",
+    // v3: first-run onboarding flag; mark existing installs as completed so they skip the wizard
+    "INSERT OR IGNORE INTO settings (key, value)
+     SELECT 'first_run_completed', 'true'
+     WHERE (SELECT COUNT(*) FROM snapshots) > 0;",
 ];
 
 #[derive(Clone)]

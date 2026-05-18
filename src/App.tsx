@@ -1,7 +1,10 @@
+import { useEffect, useState } from "react";
 import { useNavigate, useLocation, Routes, Route } from "react-router-dom";
 import { Toaster } from "sonner";
+import { invoke } from "@tauri-apps/api/core";
 import Dashboard from "./pages/Dashboard";
 import Settings from "./pages/Settings";
+import Onboarding from "./pages/Onboarding";
 import { useAnalysisRun } from "./context/AnalysisRunContext";
 import type { RunState } from "./context/AnalysisRunContext";
 
@@ -93,6 +96,21 @@ function AnalysisIndicatorBar() {
 // ── App ───────────────────────────────────────────────────────────────────────
 
 export default function App() {
+  const [firstRunChecked, setFirstRunChecked] = useState(false);
+  const [firstRunCompleted, setFirstRunCompleted] = useState(false);
+
+  useEffect(() => {
+    invoke<boolean>("get_first_run_state")
+      .then((completed) => {
+        setFirstRunCompleted(completed);
+        setFirstRunChecked(true);
+      })
+      .catch(() => {
+        setFirstRunCompleted(true);
+        setFirstRunChecked(true);
+      });
+  }, []);
+
   return (
     <div
       style={{
@@ -102,13 +120,21 @@ export default function App() {
         overflow: "hidden",
       }}
     >
-      <AnalysisIndicatorBar />
-      <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
-        <Routes>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/settings" element={<Settings />} />
-        </Routes>
-      </div>
+      {firstRunChecked && (
+        firstRunCompleted ? (
+          <>
+            <AnalysisIndicatorBar />
+            <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+              <Routes>
+                <Route path="/" element={<Dashboard />} />
+                <Route path="/settings" element={<Settings />} />
+              </Routes>
+            </div>
+          </>
+        ) : (
+          <Onboarding onComplete={() => setFirstRunCompleted(true)} />
+        )
+      )}
       <Toaster theme="dark" position="bottom-right" richColors />
     </div>
   );
