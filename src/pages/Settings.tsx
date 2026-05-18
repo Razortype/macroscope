@@ -1129,7 +1129,8 @@ function SectionDeveloper() {
             color: "var(--color-text-muted)",
           }}
         >
-          Reset all app state for testing the first-run flow. Snapshots and API keys are preserved.
+          Deletes all snapshots and analysis results, resets all settings, and triggers the
+          first-run wizard on next launch. API keys in macOS Keychain are preserved.
         </p>
         <div>
           <AlertDialog>
@@ -1161,8 +1162,9 @@ function SectionDeveloper() {
               <AlertDialogHeader>
                 <AlertDialogTitle>Reset app state?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  This resets onboarding, clears project roots, and resets the AI provider.
-                  Snapshots and API keys are preserved. Continue?
+                  This deletes all snapshots, clears project roots, resets the AI provider,
+                  and triggers onboarding on next launch. API keys in macOS Keychain are
+                  preserved. This cannot be undone. Continue?
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>

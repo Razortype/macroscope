@@ -284,6 +284,20 @@ impl Db {
             .collect::<Result<Vec<_>, _>>()?;
         Ok(rows)
     }
+
+    /// Wipe all mutable user data. Deletes every snapshot (analysis_results cascade),
+    /// and every settings row. Leaves the schema and schema_version intact.
+    /// Keychain items are NOT touched — caller is responsible for that if needed.
+    pub fn factory_reset(&self) -> Result<(), AppError> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute_batch(
+            "BEGIN;
+             DELETE FROM snapshots;
+             DELETE FROM settings;
+             COMMIT;",
+        )?;
+        Ok(())
+    }
 }
 
 fn db_path() -> Result<PathBuf, AppError> {

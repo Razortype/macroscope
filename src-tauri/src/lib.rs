@@ -529,15 +529,10 @@ async fn set_first_run_state(completed: bool, db: State<'_, Db>) -> Result<(), S
 #[tauri::command]
 async fn reset_app_state(db: State<'_, Db>) -> Result<(), String> {
     let db = db.inner().clone();
-    tokio::task::spawn_blocking(move || -> Result<(), crate::error::AppError> {
-        db.set_setting(db::settings_keys::FIRST_RUN_COMPLETED, "false")?;
-        db.set_setting("project_roots", "[]")?;
-        provider_config::ProviderConfig::default().save(&db)?;
-        Ok(())
-    })
-    .await
-    .map_err(|e| e.to_string())?
-    .map_err(Into::into)
+    tokio::task::spawn_blocking(move || db.factory_reset())
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(Into::into)
 }
 
 // ── System utility commands ───────────────────────────────────────────────────
