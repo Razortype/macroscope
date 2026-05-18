@@ -435,8 +435,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
 
   async function completeWithSnapshot() {
     sessionStorage.setItem("mscope_auto_snapshot", "1");
-    await invoke("set_first_run_state", { completed: true }).catch(() => {});
-    onComplete();
+    await complete();
   }
 
   const continueLabel =

@@ -441,77 +441,91 @@ export default function Settings() {
   const isDirty = form.formState.isDirty;
 
   return (
-    <div style={{ flex: 1, overflowY: "auto", minHeight: 0, background: "var(--color-bg-base)" }}>
-      <div style={{ maxWidth: "720px", margin: "0 auto", padding: "24px" }}>
-        {/* Header */}
-        <header
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "12px",
-            paddingBottom: "16px",
-            borderBottom: "1px solid var(--color-border-divider)",
-            marginBottom: "20px",
-          }}
-        >
-          <Link
-            to="/"
+    <div
+      style={{
+        flex: 1,
+        display: "flex",
+        flexDirection: "column",
+        minHeight: 0,
+        overflow: "hidden",
+        background: "var(--color-bg-base)",
+      }}
+    >
+      {/* Sticky header — outside the scroll region so it stays pinned */}
+      <div style={{ flexShrink: 0, padding: "24px 24px 0", background: "var(--color-bg-base)" }}>
+        <div style={{ maxWidth: "720px", margin: "0 auto" }}>
+          <header
             style={{
               display: "flex",
               alignItems: "center",
-              color: "var(--color-text-muted)",
-              textDecoration: "none",
-              padding: "4px",
-              borderRadius: "var(--radius-sm)",
+              gap: "12px",
+              paddingBottom: "16px",
+              borderBottom: "1px solid var(--color-border-divider)",
             }}
           >
-            <ArrowLeft size={16} />
-          </Link>
-          <span
-            style={{
-              fontSize: "var(--text-xl)",
-              fontWeight: 500,
-              color: "var(--color-text-primary)",
-              flex: 1,
-            }}
-          >
-            Settings
-          </span>
-          <button
-            onClick={onSubmit}
-            disabled={!isDirty || saving}
-            style={{
-              background: isDirty && !saving ? "var(--color-accent)" : "var(--color-accent-muted)",
-              color: "var(--color-accent-on)",
-              border: "none",
-              borderRadius: "var(--radius-md)",
-              padding: "7px 16px",
-              fontFamily: "var(--font-sans)",
-              fontSize: "var(--text-sm)",
-              fontWeight: 500,
-              cursor: isDirty && !saving ? "pointer" : "not-allowed",
-              opacity: isDirty && !saving ? 1 : 0.6,
-            }}
-          >
-            {saving ? "Saving…" : "Save"}
-          </button>
-        </header>
+            <Link
+              to="/"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                color: "var(--color-text-muted)",
+                textDecoration: "none",
+                padding: "4px",
+                borderRadius: "var(--radius-sm)",
+              }}
+            >
+              <ArrowLeft size={16} />
+            </Link>
+            <span
+              style={{
+                fontSize: "var(--text-xl)",
+                fontWeight: 500,
+                color: "var(--color-text-primary)",
+                flex: 1,
+              }}
+            >
+              Settings
+            </span>
+            <button
+              onClick={onSubmit}
+              disabled={!isDirty || saving}
+              style={{
+                background: isDirty && !saving ? "var(--color-accent)" : "var(--color-accent-muted)",
+                color: "var(--color-accent-on)",
+                border: "none",
+                borderRadius: "var(--radius-md)",
+                padding: "7px 16px",
+                fontFamily: "var(--font-sans)",
+                fontSize: "var(--text-sm)",
+                fontWeight: 500,
+                cursor: isDirty && !saving ? "pointer" : "not-allowed",
+                opacity: isDirty && !saving ? 1 : 0.6,
+              }}
+            >
+              {saving ? "Saving…" : "Save"}
+            </button>
+          </header>
+        </div>
+      </div>
 
-        {/* Form */}
-        <Form {...form}>
-          <form
-            onSubmit={onSubmit}
-            style={{ display: "flex", flexDirection: "column", gap: "16px" }}
-          >
-            <SectionGeneral />
-            <SectionAIProvider />
-            <SectionHotkey />
-            <SectionProjectRoots onChanged={() => setRootsVersion((v) => v + 1)} />
-            <SectionSafety refreshKey={rootsVersion} />
-            <SectionAbout />
-            <SectionDeveloper />
-          </form>
-        </Form>
+      {/* Scrollable form content */}
+      <div style={{ flex: 1, overflowY: "auto", minHeight: 0 }}>
+        <div style={{ maxWidth: "720px", margin: "0 auto", padding: "20px 24px 24px" }}>
+          <Form {...form}>
+            <form
+              onSubmit={onSubmit}
+              style={{ display: "flex", flexDirection: "column", gap: "16px" }}
+            >
+              <SectionGeneral />
+              <SectionAIProvider />
+              <SectionHotkey />
+              <SectionProjectRoots onChanged={() => setRootsVersion((v) => v + 1)} />
+              <SectionSafety refreshKey={rootsVersion} />
+              <SectionAbout />
+              <SectionDeveloper />
+            </form>
+          </Form>
+        </div>
       </div>
     </div>
   );

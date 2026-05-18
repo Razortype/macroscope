@@ -88,6 +88,8 @@
 }
 
 html, body, #root {
+  height: 100%;
+  overflow: hidden;
   background: var(--color-bg-base);
   color: var(--color-text-primary);
   font-family: var(--font-sans);

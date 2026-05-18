@@ -124,7 +124,7 @@ export default function App() {
         firstRunCompleted ? (
           <>
             <AnalysisIndicatorBar />
-            <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+            <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column", minHeight: 0 }}>
               <Routes>
                 <Route path="/" element={<Dashboard />} />
                 <Route path="/settings" element={<Settings />} />

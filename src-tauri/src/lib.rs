@@ -130,12 +130,6 @@ async fn set_provider_config(config: ProviderConfig, db: State<'_, Db>) -> Resul
         .map_err(Into::into)
 }
 
-// Keychain accounts that store API keys — used for bulk cleanup on reset.
-const KEY_PROVIDER_ACCOUNTS: &[&str] = &[
-    keychain::ACCOUNT_ANTHROPIC,
-    keychain::ACCOUNT_OPENAI,
-    keychain::ACCOUNT_GEMINI,
-];
 
 #[tauri::command]
 async fn set_provider_secret(
@@ -555,19 +549,10 @@ async fn set_first_run_state(completed: bool, db: State<'_, Db>) -> Result<(), S
 #[tauri::command]
 async fn reset_app_state(db: State<'_, Db>) -> Result<(), String> {
     let db = db.inner().clone();
-    tokio::task::spawn_blocking(move || -> Result<(), crate::error::AppError> {
-        db.factory_reset()?;
-        // Best-effort keychain cleanup — DB is the source of truth for UI;
-        // orphaned keychain entries without flags are invisible, but clean
-        // state feels right for a dev factory reset.
-        for account in KEY_PROVIDER_ACCOUNTS {
-            let _ = keychain::keychain_delete(account);
-        }
-        Ok(())
-    })
-    .await
-    .map_err(|e| e.to_string())?
-    .map_err(Into::into)
+    tokio::task::spawn_blocking(move || db.factory_reset())
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(Into::into)
 }
 
 // ── System utility commands ───────────────────────────────────────────────────
