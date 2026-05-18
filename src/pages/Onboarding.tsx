@@ -21,7 +21,6 @@ import { ProjectRootsContent } from "../components/settings/ProjectRootsSection"
 import {
   PermissionsStep,
   type PermMode,
-  type PermStatus,
 } from "../components/onboarding/PermissionsStep";
 import { PROVIDER_LABELS } from "../types/provider";
 import type { ProviderConfig } from "../types/provider";
@@ -210,13 +209,11 @@ function StepAIProvider() {
 function StepPermissions({
   mode,
   onModeChange,
-  statuses,
-  onStatusChange,
+  onGrantedCountChange,
 }: {
   mode: PermMode;
   onModeChange: (m: PermMode) => void;
-  statuses: Record<string, PermStatus>;
-  onStatusChange: (id: string, s: PermStatus) => void;
+  onGrantedCountChange: (count: number) => void;
 }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
@@ -235,8 +232,7 @@ function StepPermissions({
       <PermissionsStep
         mode={mode}
         onModeChange={onModeChange}
-        statuses={statuses}
-        onStatusChange={onStatusChange}
+        onGrantedCountChange={onGrantedCountChange}
       />
     </div>
   );
@@ -421,13 +417,7 @@ interface OnboardingProps {
 export default function Onboarding({ onComplete }: OnboardingProps) {
   const [step, setStep] = useState(1);
   const [permMode, setPermMode] = useState<PermMode>("granular");
-  const [permStatuses, setPermStatuses] = useState<Record<string, PermStatus>>({});
-
-  const grantedCount = Object.values(permStatuses).filter((s) => s === "granted").length;
-
-  function handleStatusChange(id: string, status: PermStatus) {
-    setPermStatuses((prev) => ({ ...prev, [id]: status }));
-  }
+  const [permGrantedCount, setPermGrantedCount] = useState(0);
 
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
@@ -464,15 +454,14 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
         <StepPermissions
           mode={permMode}
           onModeChange={setPermMode}
-          statuses={permStatuses}
-          onStatusChange={handleStatusChange}
+          onGrantedCountChange={setPermGrantedCount}
         />
       );
       case 4: return <StepProjectRoots />;
       case 5: return (
         <StepDone
           permMode={permMode}
-          grantedCount={grantedCount}
+          grantedCount={permGrantedCount}
           onSkip={complete}
         />
       );

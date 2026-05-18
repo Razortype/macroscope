@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { FolderOpen, Settings2, Shield, ExternalLink } from "lucide-react";
-import { Checkbox } from "../ui/checkbox";
+import { Button } from "../ui/button";
 
 export type PermMode = "granular" | "fda";
-export type PermStatus = "pending" | "granted" | "denied";
 
 interface PermConfig {
   id: string;
@@ -53,30 +53,18 @@ const FDA_PERM: PermConfig = {
   pane: "AllFiles",
 };
 
-function StatusPill({ status }: { status: PermStatus }) {
-  const cfg: Record<PermStatus, { bg: string; fg: string; label: string }> = {
-    pending: {
-      bg: "var(--color-severity-medium-bg)",
-      fg: "var(--color-severity-medium-fg)",
-      label: "PENDING",
-    },
-    granted: {
-      bg: "var(--color-severity-low-bg)",
-      fg: "var(--color-severity-low-fg)",
-      label: "GRANTED",
-    },
-    denied: {
-      bg: "var(--color-severity-high-bg)",
-      fg: "var(--color-severity-high-fg)",
-      label: "DENIED",
-    },
-  };
-  const { bg, fg, label } = cfg[status];
+// ── Status pill ───────────────────────────────────────────────────────────────
+
+function StatusPill({ granted }: { granted: boolean }) {
   return (
     <span
       style={{
-        background: bg,
-        color: fg,
+        background: granted
+          ? "var(--color-severity-low-bg)"
+          : "var(--color-severity-medium-bg)",
+        color: granted
+          ? "var(--color-severity-low-fg)"
+          : "var(--color-severity-medium-fg)",
         fontFamily: "var(--font-mono)",
         fontSize: "10px",
         fontWeight: 600,
@@ -88,29 +76,22 @@ function StatusPill({ status }: { status: PermStatus }) {
         flexShrink: 0,
       }}
     >
-      {label}
+      {granted ? "GRANTED" : "PENDING"}
     </span>
   );
 }
 
+// ── Permission row ────────────────────────────────────────────────────────────
+
 function PermRow({
   perm,
-  status,
-  onStatusChange,
+  granted,
 }: {
   perm: PermConfig;
-  status: PermStatus;
-  onStatusChange: (id: string, s: PermStatus) => void;
+  granted: boolean;
 }) {
-  const [opened, setOpened] = useState(false);
-
   async function openSettings() {
-    try {
-      await invoke("open_system_settings_pane", { pane: perm.pane });
-    } catch {
-      // silently ignore — the pane may still open
-    }
-    setOpened(true);
+    await invoke("open_system_settings_pane", { pane: perm.pane }).catch(() => {});
   }
 
   return (
@@ -150,65 +131,27 @@ function PermRow({
         </div>
       </div>
 
-      {opened ? (
-        <label
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "6px",
-            cursor: "pointer",
-            flexShrink: 0,
-          }}
-        >
-          <Checkbox
-            checked={status === "granted"}
-            onCheckedChange={(checked) =>
-              onStatusChange(perm.id, checked ? "granted" : "pending")
-            }
-          />
-          <span
-            style={{
-              fontSize: "var(--text-xs)",
-              color: "var(--color-text-secondary)",
-              whiteSpace: "nowrap",
-            }}
-          >
-            I've granted this
-          </span>
-        </label>
-      ) : (
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "8px",
-            flexShrink: 0,
-          }}
-        >
-          <StatusPill status={status} />
-          <button
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "8px",
+          flexShrink: 0,
+        }}
+      >
+        <StatusPill granted={granted} />
+        {!granted && (
+          <Button
             type="button"
+            variant="default"
+            size="sm"
             onClick={openSettings}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "4px",
-              background: "none",
-              border: "1px solid var(--color-border-subtle)",
-              borderRadius: "var(--radius-sm)",
-              padding: "3px 8px",
-              color: "var(--color-text-secondary)",
-              fontSize: "var(--text-xs)",
-              fontFamily: "var(--font-sans)",
-              cursor: "pointer",
-              whiteSpace: "nowrap",
-            }}
           >
-            <ExternalLink size={11} />
             Open Settings
-          </button>
-        </div>
-      )}
+            <ExternalLink size={11} />
+          </Button>
+        )}
+      </div>
     </div>
   );
 }
@@ -218,16 +161,81 @@ function PermRow({
 export interface PermissionsStepProps {
   mode: PermMode;
   onModeChange: (mode: PermMode) => void;
-  statuses: Record<string, PermStatus>;
-  onStatusChange: (id: string, status: PermStatus) => void;
+  onGrantedCountChange: (count: number) => void;
 }
 
 export function PermissionsStep({
   mode,
   onModeChange,
-  statuses,
-  onStatusChange,
+  onGrantedCountChange,
 }: PermissionsStepProps) {
+  const [statuses, setStatuses] = useState({
+    automation: false,
+    desktop: false,
+    downloads: false,
+    documents: false,
+    fda: false,
+  });
+
+  const modeRef = useRef(mode);
+  useEffect(() => { modeRef.current = mode; }, [mode]);
+
+  const onGrantedCountChangeRef = useRef(onGrantedCountChange);
+  useEffect(() => { onGrantedCountChangeRef.current = onGrantedCountChange; }, [onGrantedCountChange]);
+
+  async function probeAll(currentMode: PermMode) {
+    const [automation, desktop, downloads, documents, fda] = await Promise.all([
+      invoke<{ granted: boolean }>("probe_automation_permission").catch(() => ({ granted: false })),
+      invoke<{ granted: boolean }>("probe_folder_access", { path: "~/Desktop" }).catch(() => ({ granted: false })),
+      invoke<{ granted: boolean }>("probe_folder_access", { path: "~/Downloads" }).catch(() => ({ granted: false })),
+      invoke<{ granted: boolean }>("probe_folder_access", { path: "~/Documents" }).catch(() => ({ granted: false })),
+      invoke<{ granted: boolean }>("probe_full_disk_access").catch(() => ({ granted: false })),
+    ]);
+
+    const next = {
+      automation: automation.granted,
+      desktop: desktop.granted,
+      downloads: downloads.granted,
+      documents: documents.granted,
+      fda: fda.granted,
+    };
+    setStatuses(next);
+
+    const count =
+      currentMode === "fda"
+        ? (next.fda ? 1 : 0)
+        : [next.automation, next.desktop, next.downloads, next.documents].filter(Boolean).length;
+    onGrantedCountChangeRef.current(count);
+  }
+
+  // Run probes on mount and whenever mode changes
+  useEffect(() => {
+    probeAll(mode);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode]);
+
+  // Re-probe on window focus (user may have toggled in System Settings)
+  useEffect(() => {
+    let unlisten: (() => void) | null = null;
+    let cancelled = false;
+
+    getCurrentWindow()
+      .onFocusChanged(({ payload: focused }) => {
+        if (focused && !cancelled) probeAll(modeRef.current);
+      })
+      .then((fn) => {
+        if (cancelled) fn();
+        else unlisten = fn;
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const perms = mode === "granular" ? GRANULAR_PERMS : [FDA_PERM];
 
   const helperText =
@@ -293,8 +301,7 @@ export function PermissionsStep({
           <PermRow
             key={perm.id}
             perm={perm}
-            status={statuses[perm.id] ?? "pending"}
-            onStatusChange={onStatusChange}
+            granted={statuses[perm.id as keyof typeof statuses]}
           />
         ))}
       </div>

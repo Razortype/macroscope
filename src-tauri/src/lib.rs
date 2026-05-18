@@ -537,6 +537,58 @@ async fn reset_app_state(db: State<'_, Db>) -> Result<(), String> {
 
 // ── System utility commands ───────────────────────────────────────────────────
 
+// ── Permission probe commands ─────────────────────────────────────────────────
+
+#[derive(serde::Serialize)]
+struct PermProbeResult {
+    granted: bool,
+}
+
+#[tauri::command]
+async fn probe_folder_access(path: String) -> Result<PermProbeResult, String> {
+    let expanded = analyzer::expand_tilde(&path);
+    match tokio::fs::read_dir(&expanded).await {
+        Ok(_) => Ok(PermProbeResult { granted: true }),
+        Err(e) if e.kind() == std::io::ErrorKind::PermissionDenied => {
+            Ok(PermProbeResult { granted: false })
+        }
+        // NotFound means the folder doesn't exist — not a TCC block.
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            Ok(PermProbeResult { granted: true })
+        }
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+#[tauri::command]
+async fn probe_automation_permission() -> Result<PermProbeResult, String> {
+    let output = tokio::process::Command::new("osascript")
+        .args(["-e", r#"tell application "System Events" to return name of first process"#])
+        .output()
+        .await
+        .map_err(|e| e.to_string())?;
+    if output.status.success() {
+        return Ok(PermProbeResult { granted: true });
+    }
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    // -1743 = errAEEventNotPermitted; "Not authorized" / "not allowed" in
+    // some locales — all indicate TCC denial.
+    let denied = stderr.contains("1743")
+        || stderr.contains("Not authorized")
+        || stderr.contains("not allowed");
+    Ok(PermProbeResult { granted: !denied })
+}
+
+#[tauri::command]
+async fn probe_full_disk_access() -> Result<PermProbeResult, String> {
+    // ~/Library/Mail is the canonical FDA probe; only readable with FDA.
+    let expanded = analyzer::expand_tilde("~/Library/Mail");
+    match tokio::fs::read_dir(&expanded).await {
+        Ok(_) => Ok(PermProbeResult { granted: true }),
+        Err(_) => Ok(PermProbeResult { granted: false }),
+    }
+}
+
 #[tauri::command]
 async fn open_system_settings_pane(pane: String) -> Result<(), String> {
     const ALLOWED: &[&str] = &[
@@ -545,9 +597,33 @@ async fn open_system_settings_pane(pane: String) -> Result<(), String> {
     if !ALLOWED.contains(&pane.as_str()) {
         return Err(format!("unknown settings pane: {pane}"));
     }
-    let url = format!("x-apple.systempreferences:com.apple.preference.security?Privacy_{pane}");
+    // Desktop/Downloads/Documents all map to the unified Files & Folders pane
+    // (individual per-folder panes were removed in macOS 13 Ventura).
+    let target = match pane.as_str() {
+        "Automation" => "Privacy_Automation",
+        "DesktopFolder" | "DownloadsFolder" | "DocumentsFolder" => "Privacy_FilesAndFolders",
+        "AllFiles" => "Privacy_AllFiles",
+        _ => unreachable!(),
+    };
+    // macOS 13+ (System Settings) format
+    let modern = format!(
+        "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?{target}"
+    );
+    let ok = tokio::process::Command::new("open")
+        .arg(&modern)
+        .status()
+        .await
+        .map(|s| s.success())
+        .unwrap_or(false);
+    if ok {
+        return Ok(());
+    }
+    // Fallback for macOS 12 and earlier
+    let legacy = format!(
+        "x-apple.systempreferences:com.apple.preference.security?{target}"
+    );
     tokio::process::Command::new("open")
-        .arg(&url)
+        .arg(&legacy)
         .status()
         .await
         .map_err(|e| e.to_string())?;
@@ -651,6 +727,9 @@ pub fn run() {
             get_first_run_state,
             set_first_run_state,
             reset_app_state,
+            probe_folder_access,
+            probe_automation_permission,
+            probe_full_disk_access,
             open_system_settings_pane,
         ])
         .run(tauri::generate_context!())
