@@ -538,6 +538,23 @@ async fn reset_app_state(db: State<'_, Db>) -> Result<(), String> {
 // ── System utility commands ───────────────────────────────────────────────────
 
 #[tauri::command]
+async fn open_system_settings_pane(pane: String) -> Result<(), String> {
+    const ALLOWED: &[&str] = &[
+        "Automation", "DesktopFolder", "DownloadsFolder", "DocumentsFolder", "AllFiles",
+    ];
+    if !ALLOWED.contains(&pane.as_str()) {
+        return Err(format!("unknown settings pane: {pane}"));
+    }
+    let url = format!("x-apple.systempreferences:com.apple.preference.security?Privacy_{pane}");
+    tokio::process::Command::new("open")
+        .arg(&url)
+        .status()
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
 async fn reveal_in_finder(path: String) -> Result<(), String> {
     let expanded = analyzer::expand_tilde(&path);
     tokio::process::Command::new("open")
@@ -634,6 +651,7 @@ pub fn run() {
             get_first_run_state,
             set_first_run_state,
             reset_app_state,
+            open_system_settings_pane,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

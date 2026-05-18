@@ -185,6 +185,16 @@ export default function Dashboard() {
     onError: (err) => { deactivateRun(); setAnalyzeError(err); },
   });
 
+  const hasRunAutoSnapshot = useRef(false);
+  useEffect(() => {
+    if (!hasRunAutoSnapshot.current && sessionStorage.getItem("mscope_auto_snapshot") === "1") {
+      hasRunAutoSnapshot.current = true;
+      sessionStorage.removeItem("mscope_auto_snapshot");
+      runFullScan.mutate();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const isAnalyzing = runFullScan.isPending || reAnalyze.isPending;
   const showingProgress = run.active || isAnalyzing;
   const deleteableFindings = findings?.filter((f) => f.suggested_action === "delete_paths") ?? [];
