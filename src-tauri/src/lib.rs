@@ -29,8 +29,8 @@ use libc;
 // ── Snapshot commands ────────────────────────────────────────────────────────
 
 #[tauri::command]
-async fn take_snapshot(app: tauri::AppHandle) -> Result<Snapshot, String> {
-    Ok(snapshot::take_snapshot(&app).await)
+async fn take_snapshot(app: tauri::AppHandle, db: State<'_, Db>) -> Result<Snapshot, String> {
+    Ok(snapshot::take_snapshot(&app, db.inner()).await)
 }
 
 #[tauri::command]

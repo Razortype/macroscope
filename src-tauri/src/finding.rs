@@ -19,6 +19,7 @@ pub enum Category {
     Process,
     Apps,
     Files,
+    ProjectArtifacts,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

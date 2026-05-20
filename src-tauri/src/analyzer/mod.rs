@@ -41,6 +41,7 @@ const DISK_AUDIT_PROMPT: &str = include_str!("../../prompts/disk-audit.md");
 const SECURITY_AUDIT_PROMPT: &str = include_str!("../../prompts/security-audit.md");
 const APP_LIFECYCLE_AUDIT_PROMPT: &str = include_str!("../../prompts/app-lifecycle-audit.md");
 const FILE_INVENTORY_AUDIT_PROMPT: &str = include_str!("../../prompts/file-inventory-audit.md");
+const PROJECT_ARTIFACTS_AUDIT_PROMPT: &str = include_str!("../../prompts/project-artifacts-audit.md");
 
 // ── Trait types ───────────────────────────────────────────────────────────────
 
@@ -118,6 +119,18 @@ pub fn filter_snapshot_for_preset(
         }));
     }
 
+    if preset == "project-artifacts-audit" {
+        let summary = snapshot
+            .project_artifacts
+            .as_ref()
+            .map(crate::snapshot::project_artifacts::summarize_for_analyzer)
+            .unwrap_or_else(|| serde_json::json!({ "group_count": 0, "groups": [] }));
+        return Ok(serde_json::json!({
+            "created_at": snapshot.created_at,
+            "project_artifacts": summary,
+        }));
+    }
+
     let keys: &[&str] = match preset {
         "disk-audit" => &["created_at", "disk", "processes"],
         "security-audit" => &[
@@ -158,6 +171,7 @@ pub fn load_prompt(preset: &str) -> Result<String, AppError> {
         "security-audit" => Ok(SECURITY_AUDIT_PROMPT.to_string()),
         "app-lifecycle-audit" => Ok(APP_LIFECYCLE_AUDIT_PROMPT.to_string()),
         "file-inventory-audit" => Ok(FILE_INVENTORY_AUDIT_PROMPT.to_string()),
+        "project-artifacts-audit" => Ok(PROJECT_ARTIFACTS_AUDIT_PROMPT.to_string()),
         other => Err(AppError::Config(format!("unknown preset: {other}"))),
     }
 }
@@ -176,6 +190,7 @@ pub fn copy_default_prompts() -> Result<(), AppError> {
         ("security-audit", SECURITY_AUDIT_PROMPT),
         ("app-lifecycle-audit", APP_LIFECYCLE_AUDIT_PROMPT),
         ("file-inventory-audit", FILE_INVENTORY_AUDIT_PROMPT),
+        ("project-artifacts-audit", PROJECT_ARTIFACTS_AUDIT_PROMPT),
     ] {
         let dest = dir.join(format!("{name}.md"));
         if !dest.exists() {
@@ -362,6 +377,9 @@ fn validate_findings(findings: &mut Vec<Finding>, preset: &str) {
         }
         if preset == "file-inventory-audit" {
             f.category = Category::Files;
+        }
+        if preset == "project-artifacts-audit" {
+            f.category = Category::ProjectArtifacts;
         }
         if f.suggested_action != SuggestedAction::DeletePaths {
             f.paths_to_remove = None;
