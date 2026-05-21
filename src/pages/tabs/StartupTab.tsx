@@ -9,7 +9,7 @@ import { classifyPersistence } from "../../lib/persistence";
 type FilterKey = "all" | "flagged" | "known" | "disabled";
 type EntryStatus = "flagged" | "known" | "disabled" | "normal";
 
-interface SecurityTabProps {
+interface StartupTabProps {
   snapshot: Snapshot | null;
   findings: Finding[];
   onTogglePersistence: (entry: PersistenceEntry, action: "disable" | "enable") => Promise<void>;
@@ -351,7 +351,7 @@ function FilterChip({
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function SecurityTab({ snapshot, findings, onTogglePersistence }: SecurityTabProps) {
+export default function StartupTab({ snapshot, findings, onTogglePersistence }: StartupTabProps) {
   const [filter, setFilter] = useState<FilterKey>("all");
   const [pendingLabels, setPendingLabels] = useState<Set<string>>(new Set());
 

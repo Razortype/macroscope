@@ -17,7 +17,7 @@ import OverviewTab, { type LastAnalysisSummary, type LastAnalysisTokenTotals } f
 import FindingsTab from "./tabs/FindingsTab";
 import AppsTab from "./tabs/AppsTab";
 import FilesTab from "./tabs/FilesTab";
-import SecurityTab from "./tabs/SecurityTab";
+import StartupTab from "./tabs/StartupTab";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -525,8 +525,8 @@ export default function Dashboard() {
             onExecute={handleFilesExecute}
           />
         )}
-        {active === "security" && (
-          <SecurityTab
+        {active === "startup" && (
+          <StartupTab
             snapshot={activeSnapshot}
             findings={findings ?? []}
             onTogglePersistence={handleTogglePersistence}
