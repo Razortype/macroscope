@@ -111,6 +111,93 @@ function SectionHotkey() {
   );
 }
 
+// ── Section: Project Artifacts ────────────────────────────────────────────────
+
+function SectionProjectArtifacts() {
+  const form = useFormContext<SettingsValues>();
+  return (
+    <Section
+      title="Project artifacts"
+      description="Controls how build artifacts (node_modules, target/, .venv, etc.) are classified during analysis."
+    >
+      <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+        <FormField
+          control={form.control}
+          name="artifact_active_days"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Active threshold (days)</FormLabel>
+              <FormControl>
+                <Input
+                  type="number"
+                  min={1}
+                  max={365}
+                  step={1}
+                  style={{ width: "88px" }}
+                  {...field}
+                  onChange={(e) => field.onChange(Number(e.target.value))}
+                />
+              </FormControl>
+              <FormDescription>
+                Projects touched within this many days are considered active (low severity).
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="artifact_stale_days"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Stale threshold (days)</FormLabel>
+              <FormControl>
+                <Input
+                  type="number"
+                  min={1}
+                  max={1000}
+                  step={1}
+                  style={{ width: "88px" }}
+                  {...field}
+                  onChange={(e) => field.onChange(Number(e.target.value))}
+                />
+              </FormControl>
+              <FormDescription>
+                Projects untouched beyond this many days are considered stale (high severity). Between active and stale thresholds is idle (medium).
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="artifact_min_size_mb"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Minimum size (MB)</FormLabel>
+              <FormControl>
+                <Input
+                  type="number"
+                  min={1}
+                  max={10000}
+                  step={1}
+                  style={{ width: "88px" }}
+                  {...field}
+                  onChange={(e) => field.onChange(Number(e.target.value))}
+                />
+              </FormControl>
+              <FormDescription>
+                Artifact groups smaller than this are not surfaced as findings.
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+      </div>
+    </Section>
+  );
+}
+
 // ── Section: Safety ───────────────────────────────────────────────────────────
 
 function PathList({ paths, globs }: { paths: string[]; globs?: string[] }) {
@@ -521,6 +608,7 @@ export default function Settings() {
               <SectionAIProvider />
               <SectionHotkey />
               <SectionProjectRoots onChanged={() => setRootsVersion((v) => v + 1)} />
+              <SectionProjectArtifacts />
               <SectionSafety refreshKey={rootsVersion} />
               <SectionAbout />
               <SectionDeveloper />
