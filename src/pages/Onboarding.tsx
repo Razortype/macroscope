@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import {
   ChevronLeft, ChevronRight, CheckCircle2,
-  Cpu, Folder, Sparkles,
+  Cpu, Folder, Sparkles, Shield,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -24,8 +24,9 @@ import {
 } from "../components/onboarding/PermissionsStep";
 import { PROVIDER_LABELS } from "../types/provider";
 import type { ProviderConfig } from "../types/provider";
+import { SYSTEM_PROBE_REGISTRY } from "../lib/system-probes";
 
-const TOTAL_STEPS = 5;
+const TOTAL_STEPS = 6;
 
 // ── Step header (mono uppercase, matches section headers in Settings) ─────────
 
@@ -52,18 +53,24 @@ function StepHeader({ children }: { children: React.ReactNode }) {
 const FEATURE_ROWS = [
   {
     num: 1,
+    title: "See what gets scanned",
+    desc: "Learn which macOS locations Macroscope always audits",
+    Icon: Shield,
+  },
+  {
+    num: 2,
     title: "Pick an AI provider",
     desc: "Choose Gemini, Claude, OpenAI, or run locally with Ollama",
     Icon: Cpu,
   },
   {
-    num: 2,
+    num: 3,
     title: "Grant permissions",
     desc: "macOS will ask for access to specific folders",
     Icon: Folder,
   },
   {
-    num: 3,
+    num: 4,
     title: "Confirm project locations",
     desc: "Tell Macroscope where your code lives",
     Icon: Sparkles,
@@ -102,7 +109,7 @@ function StepWelcome() {
             color: "var(--color-text-secondary)",
           }}
         >
-          Let&apos;s get you set up in 3 quick steps.
+          Let&apos;s get you set up in 4 quick steps.
         </p>
       </div>
 
@@ -182,7 +189,94 @@ function StepWelcome() {
   );
 }
 
-// ── Step 2: AI Provider ───────────────────────────────────────────────────────
+// ── Step 2: What Macroscope Scans ─────────────────────────────────────────────
+
+function StepScanScope() {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+        <StepHeader>What Macroscope Scans</StepHeader>
+        <p
+          style={{
+            margin: 0,
+            fontSize: "var(--text-xs)",
+            color: "var(--color-text-muted)",
+          }}
+        >
+          These macOS locations are audited on every snapshot — this is fixed
+          by design and cannot be disabled.
+        </p>
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+        {SYSTEM_PROBE_REGISTRY.map((probe) => (
+          <div
+            key={probe.key}
+            style={{
+              display: "flex",
+              alignItems: "flex-start",
+              gap: "10px",
+              padding: "10px 12px",
+              background: "var(--color-bg-elev-2)",
+              borderRadius: "var(--radius-sm)",
+              border: "1px solid var(--color-border-subtle)",
+            }}
+          >
+            <Shield
+              size={12}
+              style={{
+                color: "var(--color-accent)",
+                flexShrink: 0,
+                marginTop: "2px",
+              }}
+            />
+            <div style={{ display: "flex", flexDirection: "column", gap: "2px", minWidth: 0 }}>
+              <span
+                style={{
+                  fontSize: "var(--text-xs)",
+                  fontWeight: 600,
+                  color: "var(--color-text-primary)",
+                }}
+              >
+                {probe.label}
+              </span>
+              <span
+                style={{
+                  fontSize: "var(--text-xs)",
+                  color: "var(--color-text-muted)",
+                  lineHeight: "var(--leading-snug)",
+                }}
+              >
+                {probe.description}
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div
+        style={{
+          padding: "10px 12px",
+          background: "var(--color-accent-glow)",
+          borderRadius: "var(--radius-sm)",
+          border: "1px solid var(--color-accent-muted)",
+        }}
+      >
+        <p style={{ margin: 0, fontSize: "var(--text-xs)", color: "var(--color-text-secondary)" }}>
+          <strong style={{ color: "var(--color-text-primary)" }}>Also optional:</strong>{" "}
+          In a later step you can add directories where your projects live.
+          Macroscope will then surface large build artifacts (
+          <span style={{ fontFamily: "var(--font-mono)" }}>node_modules</span>,{" "}
+          <span style={{ fontFamily: "var(--font-mono)"}}>.venv</span>,{" "}
+          <span style={{ fontFamily: "var(--font-mono)"}}>target/</span>
+          ) inside them.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ── Step 3: AI Provider ───────────────────────────────────────────────────────
 
 function StepAIProvider() {
   return (
@@ -204,7 +298,7 @@ function StepAIProvider() {
   );
 }
 
-// ── Step 3: Permissions ───────────────────────────────────────────────────────
+// ── Step 4: Permissions ───────────────────────────────────────────────────────
 
 function StepPermissions({
   mode,
@@ -238,7 +332,7 @@ function StepPermissions({
   );
 }
 
-// ── Step 4: Project Roots ─────────────────────────────────────────────────────
+// ── Step 5: Project Roots ─────────────────────────────────────────────────────
 
 function StepProjectRoots() {
   return (
@@ -260,7 +354,7 @@ function StepProjectRoots() {
   );
 }
 
-// ── Step 5: Done ──────────────────────────────────────────────────────────────
+// ── Step 6: Done ──────────────────────────────────────────────────────────────
 
 function StepDone({
   permMode,
@@ -446,21 +540,22 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
     step === TOTAL_STEPS ? "Take first snapshot" :
     "Continue";
 
-  const cardMaxWidth = step === 2 || step === 4 ? "600px" : "520px";
+  const cardMaxWidth = step === 2 || step === 3 || step === 5 ? "600px" : "520px";
 
   function renderStep() {
     switch (step) {
       case 1: return <StepWelcome />;
-      case 2: return <StepAIProvider />;
-      case 3: return (
+      case 2: return <StepScanScope />;
+      case 3: return <StepAIProvider />;
+      case 4: return (
         <StepPermissions
           mode={permMode}
           onModeChange={setPermMode}
           onGrantedCountChange={setPermGrantedCount}
         />
       );
-      case 4: return <StepProjectRoots />;
-      case 5: return (
+      case 5: return <StepProjectRoots />;
+      case 6: return (
         <StepDone
           permMode={permMode}
           grantedCount={permGrantedCount}
