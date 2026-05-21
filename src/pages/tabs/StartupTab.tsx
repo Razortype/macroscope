@@ -7,7 +7,7 @@ import { classifyPersistence } from "../../lib/persistence";
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type EntryStatus = "flagged" | "known" | "disabled" | "normal";
-type SectionKey = "unknown" | "known" | "disabled" | "system";
+type SectionKey = "unknown" | "known" | "system";
 
 interface StartupTabProps {
   snapshot: Snapshot | null;
@@ -32,13 +32,21 @@ function kindLabel(kind: PersistenceEntry["kind"]): string {
   }
 }
 
-// Disabled takes priority; system_daemon/agent goes to "system" unless disabled;
-// flagged and normal both land in "unknown" (suspicious or unrecognised publisher).
-function sectionFor(entry: PersistenceEntry, status: EntryStatus): SectionKey {
-  if (status === "disabled") return "disabled";
+// Bucket assignment ignores entry.disabled — disabled is a sort key, not a bucket.
+// System daemons/agents always go to "system"; all others split on publisher recognition.
+function sectionFor(entry: PersistenceEntry, flaggedLabels: Set<string>): SectionKey {
   if (entry.kind === "system_daemon" || entry.kind === "system_agent") return "system";
-  if (status === "known") return "known";
-  return "unknown";
+  // Proxy with disabled=false so classifyPersistence skips the disabled early-return.
+  const status = classifyPersistence({ ...entry, disabled: false }, flaggedLabels);
+  return status === "known" ? "known" : "unknown";
+}
+
+// Badge display: flagged takes precedence over disabled.
+// An entry that is both flagged and disabled shows FLAGGED — it still needs attention.
+function badgeStatusFor(entry: PersistenceEntry, flaggedLabels: Set<string>): EntryStatus {
+  if (flaggedLabels.has(entry.label)) return "flagged";
+  if (entry.disabled) return "disabled";
+  return classifyPersistence(entry, flaggedLabels) as EntryStatus;
 }
 
 // ── Toggle switch ─────────────────────────────────────────────────────────────
@@ -241,7 +249,8 @@ function PersistenceRow({
   pending: boolean;
   onToggle: () => void;
 }) {
-  const isDimmed = status === "disabled";
+  // Dim by disabled state directly — a flagged+disabled row is dimmed but shows FLAGGED badge.
+  const isDimmed = entry.disabled;
 
   const rowBg =
     status === "flagged"
@@ -496,41 +505,52 @@ export default function StartupTab({ snapshot, findings, onTogglePersistence }: 
     return set;
   }, [snapshotKey, findings]); // snapshotKey (not liveEntries) keeps this stable across toggles
 
-  // Bucket assignment — computed once per snapshot from frozen entry state.
-  // A toggle within this snapshot view will never move a row between buckets;
-  // only a fresh snapshot triggers re-classification.
-  const frozenBucketMap = useMemo(() => {
-    const m = new Map<string, SectionKey>();
+  // Frozen ordered sections — bucket + sort established once per snapshot.
+  // Disabled is a sort key (bottom of bucket), not a separate bucket.
+  // Sort within each bucket: flagged+enabled → enabled → disabled; stable by label.
+  // Disabled always sorts to the bottom even when also flagged (dealt-with signal).
+  const frozenOrderedSections = useMemo((): Record<SectionKey, string[]> => {
+    type Item = { key: string; flagged: boolean; disabled: boolean; label: string };
+    const raw: Record<SectionKey, Item[]> = { unknown: [], known: [], system: [] };
+
     for (const entry of frozenEntriesRef.current) {
-      const status = classifyPersistence(entry, flaggedLabels) as EntryStatus;
-      m.set(entry.label + entry.path, sectionFor(entry, status));
+      const key = entry.label + entry.path;
+      raw[sectionFor(entry, flaggedLabels)].push({
+        key,
+        flagged: flaggedLabels.has(entry.label),
+        disabled: entry.disabled,
+        label: entry.label,
+      });
     }
-    return m;
-  }, [snapshotKey, flaggedLabels]); // depends on snapshotKey, never liveEntries
+
+    const sortItems = (items: Item[]): string[] =>
+      items
+        .sort((a, b) => {
+          const pa = a.disabled ? 2 : a.flagged ? 0 : 1;
+          const pb = b.disabled ? 2 : b.flagged ? 0 : 1;
+          if (pa !== pb) return pa - pb;
+          return a.label.localeCompare(b.label);
+        })
+        .map((x) => x.key);
+
+    return {
+      unknown: sortItems(raw.unknown),
+      known: sortItems(raw.known),
+      system: sortItems(raw.system),
+    };
+  }, [snapshotKey, flaggedLabels]); // stable within snapshot, never depends on liveEntries
 
   const sections = useMemo(() => {
-    const buckets: Record<SectionKey, SectionEntry[]> = {
-      unknown: [],
-      known: [],
-      disabled: [],
-      system: [],
-    };
-    for (const frozenEntry of frozenEntriesRef.current) {
-      const key = frozenEntry.label + frozenEntry.path;
-      const section = frozenBucketMap.get(key) ?? "unknown";
-      // Render with live entry so toggle position and status badge reflect current state.
-      const liveEntry = liveEntryMap.get(key) ?? frozenEntry;
-      const liveStatus = classifyPersistence(liveEntry, flaggedLabels) as EntryStatus;
-      buckets[section].push({ entry: liveEntry, status: liveStatus });
+    const buckets: Record<SectionKey, SectionEntry[]> = { unknown: [], known: [], system: [] };
+    for (const [sec, orderedKeys] of Object.entries(frozenOrderedSections) as [SectionKey, string[]][]) {
+      for (const key of orderedKeys) {
+        const liveEntry = liveEntryMap.get(key);
+        if (!liveEntry) continue;
+        buckets[sec].push({ entry: liveEntry, status: badgeStatusFor(liveEntry, flaggedLabels) });
+      }
     }
-    // Flagged entries surface first within the unknown section.
-    buckets.unknown.sort((a, b) => {
-      if (a.status === "flagged" && b.status !== "flagged") return -1;
-      if (b.status === "flagged" && a.status !== "flagged") return 1;
-      return 0;
-    });
     return buckets;
-  }, [frozenBucketMap, liveEntryMap, flaggedLabels]);
+  }, [frozenOrderedSections, liveEntryMap, flaggedLabels]);
 
   const hasAnyEntries = frozenEntriesRef.current.length > 0;
 
@@ -621,15 +641,6 @@ export default function StartupTab({ snapshot, findings, onTogglePersistence }: 
             <PersistenceSection
               label="known publisher"
               entries={sections.known}
-              pendingLabels={pendingLabels}
-              onToggle={handleToggle}
-            />
-          )}
-
-          {sections.disabled.length > 0 && (
-            <PersistenceSection
-              label="disabled"
-              entries={sections.disabled}
               pendingLabels={pendingLabels}
               onToggle={handleToggle}
             />
