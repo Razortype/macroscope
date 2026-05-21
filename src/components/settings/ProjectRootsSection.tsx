@@ -39,7 +39,7 @@ export function ProjectRootsContent({ onChanged }: { onChanged: () => void }) {
   }
 
   async function addRoot() {
-    const selected = await openDialog({ directory: true, multiple: false, title: "Select project directory" });
+    const selected = await openDialog({ directory: true, multiple: false, title: t("project_roots.select_directory_dialog") });
     if (!selected || typeof selected !== "string") return;
     if (roots.includes(selected)) return;
     await persistRoots([...roots, selected]);

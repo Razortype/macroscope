@@ -75,6 +75,7 @@
     "description": "Macroscope cleans build artifacts (node_modules, target, .venv, .gradle, etc.) from these directories. Auto-detected on first launch — edit anytime.",
     "empty": "No project directories configured. Add one to enable build artifact cleanup.",
     "add_directory": "Add directory…",
+    "select_directory_dialog": "Select project directory",
     "remove_aria": "Remove {{path}}"
   },
   "ai_provider": {

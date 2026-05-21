@@ -75,6 +75,7 @@
     "description": "Macroscope bu dizinlerdeki build artifact'larını (node_modules, target, .venv, .gradle, vb.) temizler. İlk başlatmada otomatik algılanır — istediğin zaman düzenleyebilirsin.",
     "empty": "Yapılandırılmış proje dizini yok. Build artifact temizliğini etkinleştirmek için bir tane ekle.",
     "add_directory": "Dizin ekle…",
+    "select_directory_dialog": "Proje dizinini seç",
     "remove_aria": "{{path}} kaldır"
   },
   "ai_provider": {
