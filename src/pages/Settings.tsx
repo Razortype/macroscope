@@ -25,6 +25,7 @@ import { loadSettings, saveSettings } from "../lib/settings";
 import { Section } from "../components/settings/SectionWrapper";
 import { SectionAIProvider } from "../components/settings/AIProviderSection";
 import { SectionProjectRoots } from "../components/settings/ProjectRootsSection";
+import { SectionSystemAudit } from "../components/settings/SystemAuditSection";
 
 // ── Section: General ──────────────────────────────────────────────────────────
 
@@ -520,6 +521,7 @@ export default function Settings() {
               <SectionGeneral />
               <SectionAIProvider />
               <SectionHotkey />
+              <SectionSystemAudit />
               <SectionProjectRoots onChanged={() => setRootsVersion((v) => v + 1)} />
               <SectionSafety refreshKey={rootsVersion} />
               <SectionAbout />
