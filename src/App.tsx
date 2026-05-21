@@ -7,6 +7,7 @@ import Settings from "./pages/Settings";
 import Onboarding from "./pages/Onboarding";
 import { useAnalysisRun } from "./context/AnalysisRunContext";
 import type { RunState } from "./context/AnalysisRunContext";
+import { TooltipProvider } from "./components/ui/tooltip";
 
 // ── Indicator helpers ─────────────────────────────────────────────────────────
 
@@ -112,6 +113,7 @@ export default function App() {
   }, []);
 
   return (
+    <TooltipProvider delayDuration={400}>
     <div
       style={{
         display: "flex",
@@ -137,5 +139,6 @@ export default function App() {
       )}
       <Toaster theme="dark" position="bottom-right" richColors />
     </div>
+    </TooltipProvider>
   );
 }

@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { X, CircleCheck, CircleAlert, OctagonX, Loader2 } from "lucide-react";
 import type { Finding } from "../types/finding";
 import type { ResolvedTarget, ActionClass } from "../types/snapshot";
+import RowActions from "./RowActions";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -76,7 +77,7 @@ function TargetRow({
     <div
       style={{
         display: "grid",
-        gridTemplateColumns: "20px 20px minmax(0,1fr) 72px 80px",
+        gridTemplateColumns: "20px 20px minmax(0,1fr) 72px 80px 28px",
         gap: "8px",
         padding: "7px 12px",
         borderBottom: "1px solid var(--color-border-divider)",
@@ -133,6 +134,10 @@ function TargetRow({
       {/* Chip */}
       <div>
         <span style={chipStyle(target.action_class)}>{chipLabel(target.action_class)}</span>
+      </div>
+      {/* Row actions */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <RowActions path={target.path} />
       </div>
     </div>
   );
