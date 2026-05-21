@@ -513,6 +513,20 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   const [permMode, setPermMode] = useState<PermMode>("granular");
   const [permGrantedCount, setPermGrantedCount] = useState(0);
 
+  // On first launch, detect macOS system locale and seed the locale setting
+  // if it has not been written yet. Runs once — subsequent launches already
+  // have a locale stored and skip the detection call.
+  useEffect(() => {
+    invoke<string | null>("get_setting", { key: "locale" })
+      .then((existing) => {
+        if (existing != null) return;
+        return invoke<string>("get_system_locale").then((detected) =>
+          invoke("set_setting", { key: "locale", value: detected })
+        );
+      })
+      .catch(() => {});
+  }, []);
+
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
       if (e.key === "ArrowRight" && step < TOTAL_STEPS) setStep((s) => s + 1);

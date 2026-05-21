@@ -7,6 +7,7 @@ export const settingsSchema = z.object({
   artifact_active_days: z.coerce.number().int().min(1).max(365).default(14),
   artifact_stale_days: z.coerce.number().int().min(1).max(1000).default(90),
   artifact_min_size_mb: z.coerce.number().int().min(1).max(10000).default(100),
+  locale: z.enum(["en", "tr"]).default("en"),
 });
 
 export type SettingsValues = z.infer<typeof settingsSchema>;
@@ -18,4 +19,5 @@ export const SETTINGS_KEYS = {
   ARTIFACT_ACTIVE_DAYS: "artifact_active_days",
   ARTIFACT_STALE_DAYS: "artifact_stale_days",
   ARTIFACT_MIN_SIZE_MB: "artifact_min_size_mb",
+  LOCALE: "locale",
 } as const;
