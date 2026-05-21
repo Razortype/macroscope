@@ -1,1 +1,148 @@
-{}
+{
+  "page_title": "Settings",
+  "general": {
+    "title": "General",
+    "language": {
+      "title": "Language",
+      "en": "English",
+      "tr": "Türkçe"
+    },
+    "snapshot_retention": {
+      "label": "Snapshot retention",
+      "description": "Older snapshots are pruned automatically when this limit is reached."
+    }
+  },
+  "hotkey": {
+    "title": "Hotkey",
+    "description": "Global hotkey to summon Macroscope from anywhere. Activation arrives in a future update.",
+    "enable_label": "Enable global hotkey",
+    "combo_label": "Hotkey combination",
+    "inactive_note": "Currently inactive — values saved but not registered with the system."
+  },
+  "project_artifacts": {
+    "title": "Project artifacts",
+    "description": "Controls how build artifacts (node_modules, target/, .venv, etc.) are classified during analysis.",
+    "active_threshold_label": "Active threshold (days)",
+    "active_threshold_description": "Projects touched within this many days are considered active (low severity).",
+    "stale_threshold_label": "Stale threshold (days)",
+    "stale_threshold_description": "Projects untouched beyond this many days are considered stale (high severity). Between active and stale thresholds is idle (medium).",
+    "min_size_label": "Minimum size (MB)",
+    "min_size_description": "Artifact groups smaller than this are not surfaced as findings."
+  },
+  "safety": {
+    "title": "Safety",
+    "allowed_paths_label": "Allowed paths",
+    "allowed_paths_description": "Macroscope can only move items to Trash from these locations. This list updates automatically based on your Project Roots above.",
+    "denied_paths_label": "Denied paths (always blocked)",
+    "denied_paths_description": "These locations are never touched, regardless of any other rule.",
+    "audit_log_label": "Audit log",
+    "audit_log_description": "Every move-to-Trash operation is recorded for review.",
+    "glob_label": "(glob)"
+  },
+  "about": {
+    "title": "About",
+    "snapshots_taken": "Snapshots taken",
+    "findings_discovered": "Findings discovered",
+    "space_freed": "Space freed",
+    "build_info": "Macroscope v{{version}} · Built for macOS (Apple Silicon)"
+  },
+  "updates": {
+    "title": "Updates",
+    "version": "Macroscope v{{version}}",
+    "never": "Never",
+    "unknown": "Unknown",
+    "last_checked": "Last checked: {{time}}",
+    "available_toast": "Macroscope v{{version}} is available.",
+    "up_to_date_toast": "Macroscope is up to date.",
+    "check_failed_toast": "Update check failed: {{detail}}"
+  },
+  "developer": {
+    "title": "Developer",
+    "description": "Deletes all snapshots and analysis results, resets all settings, and triggers the first-run wizard on next launch. API keys in macOS Keychain are preserved.",
+    "reset_btn": "Reset app state",
+    "reset_dialog_title": "Reset app state?",
+    "reset_dialog_description": "This deletes all snapshots, clears project roots, resets the AI provider, and triggers onboarding on next launch. API keys in macOS Keychain are preserved. This cannot be undone. Continue?",
+    "reset_confirm": "Reset",
+    "reset_success_toast": "App state reset",
+    "reset_failed_toast": "Reset failed: {{detail}}"
+  },
+  "always_scanned": {
+    "title": "Always-scanned locations",
+    "description": "Macroscope audits these locations on every snapshot. This list is fixed — per-probe toggles are out of scope by design."
+  },
+  "project_roots": {
+    "title": "Project Roots",
+    "description": "Macroscope cleans build artifacts (node_modules, target, .venv, .gradle, etc.) from these directories. Auto-detected on first launch — edit anytime.",
+    "empty": "No project directories configured. Add one to enable build artifact cleanup.",
+    "add_directory": "Add directory…",
+    "remove_aria": "Remove {{path}}"
+  },
+  "ai_provider": {
+    "title": "AI Provider",
+    "api_key_label": "API key",
+    "api_key_placeholder_set": "••••••••  Key set — replace",
+    "api_key_placeholder_empty": "Paste API key…",
+    "api_key_stored": "Key stored in macOS Keychain · enter a new value to replace",
+    "cli_path_label": "CLI path override",
+    "cli_path_placeholder": "Auto-detected",
+    "cli_path_hint": "Auto-detection order: /opt/homebrew/bin/claude, ~/.local/bin/claude, /usr/local/bin/claude, ~/.claude/local/claude",
+    "model_label": "Model",
+    "model_custom": "Custom…",
+    "endpoint_label": "Endpoint",
+    "models_installed_one": "{{count}} model installed locally",
+    "models_installed_other": "{{count}} models installed locally",
+    "test_connection_btn": "Test connection",
+    "fetch_models_btn": "Fetch",
+    "fetch_models_empty": "Fetch models first",
+    "connected": "Connected · {{model}}",
+    "api_key_saved_toast": "API key saved to Keychain",
+    "api_key_save_failed_toast": "Could not save key: {{detail}}",
+    "provider_save_failed_toast": "Could not save provider config: {{detail}}",
+    "models_found_toast_one": "{{count}} model found",
+    "models_found_toast_other": "{{count}} models found",
+    "models_fetch_failed_toast": "Could not fetch models: {{detail}}",
+    "providers": {
+      "gemini": { "label": "Gemini", "sublabel": "API key" },
+      "claude_cli": { "label": "Claude CLI", "sublabel": "subscription" },
+      "anthropic_api": { "label": "Anthropic API", "sublabel": "API key" },
+      "open_ai": { "label": "OpenAI", "sublabel": "API key" },
+      "ollama": { "label": "Ollama", "sublabel": "local" }
+    }
+  },
+  "save_success_toast": "Settings saved",
+  "save_failed_toast": "Could not save: {{detail}}",
+  "probes": {
+    "disk": {
+      "label": "Disk & storage",
+      "description": "Volume capacity for / and the total size of well-known cache and data locations. Size totals only; per-file detail comes from Large files."
+    },
+    "processes": {
+      "label": "Running processes",
+      "description": "All processes currently consuming significant memory (≥ 10 MB RSS)."
+    },
+    "network": {
+      "label": "Network listeners",
+      "description": "All ports accepting inbound connections and active outbound TCP sessions."
+    },
+    "persistence": {
+      "label": "Persistence & login items",
+      "description": "Programs configured to run automatically at login or system boot."
+    },
+    "users": {
+      "label": "User accounts",
+      "description": "Local macOS user accounts registered with the system."
+    },
+    "kernel": {
+      "label": "Kernel extensions",
+      "description": "Third-party kernel extensions currently loaded into the kernel."
+    },
+    "apps": {
+      "label": "Installed apps & leftovers",
+      "description": "Installed .app bundles and leftover data in ~/Library from uninstalled apps. Cache directories overlap with Disk — Disk shows totals, this lists orphaned leftovers."
+    },
+    "large_files": {
+      "label": "Large files",
+      "description": "Files ≥ 50 MB in common home folders, grouped by type and recency."
+    }
+  }
+}

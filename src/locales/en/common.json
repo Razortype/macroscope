@@ -12,7 +12,8 @@
     "reveal_in_finder": "Reveal in Finder",
     "copy_path": "Copy path",
     "select_all": "select all",
-    "deselect_all": "deselect all"
+    "deselect_all": "deselect all",
+    "check_for_updates": "Check for updates"
   },
   "status": {
     "loading": "Loading…",

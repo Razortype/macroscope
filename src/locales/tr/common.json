@@ -12,7 +12,8 @@
     "reveal_in_finder": "Finder'da Göster",
     "copy_path": "Yolu Kopyala",
     "select_all": "tümünü seç",
-    "deselect_all": "seçimi kaldır"
+    "deselect_all": "seçimi kaldır",
+    "check_for_updates": "Güncellemeleri Kontrol Et"
   },
   "status": {
     "loading": "Yükleniyor…",

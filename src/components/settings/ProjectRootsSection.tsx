@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { X, Plus } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { invoke } from "@tauri-apps/api/core";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { Section } from "./SectionWrapper";
@@ -7,6 +8,7 @@ import { Section } from "./SectionWrapper";
 // ── ProjectRootsContent (inner; no Section wrapper) ───────────────────────────
 
 export function ProjectRootsContent({ onChanged }: { onChanged: () => void }) {
+  const { t } = useTranslation("settings");
   const [roots, setRoots] = useState<string[]>([]);
 
   useEffect(() => {
@@ -54,7 +56,7 @@ export function ProjectRootsContent({ onChanged }: { onChanged: () => void }) {
             fontStyle: "italic",
           }}
         >
-          No project directories configured. Add one to enable build artifact cleanup.
+          {t("project_roots.empty")}
         </p>
       ) : (
         <div
@@ -105,7 +107,7 @@ export function ProjectRootsContent({ onChanged }: { onChanged: () => void }) {
                   color: "var(--color-text-disabled)",
                   flexShrink: 0,
                 }}
-                aria-label={`Remove ${root}`}
+                aria-label={t("project_roots.remove_aria", { path: root })}
               >
                 <X size={12} />
               </button>
@@ -132,7 +134,7 @@ export function ProjectRootsContent({ onChanged }: { onChanged: () => void }) {
         }}
       >
         <Plus size={12} />
-        Add directory…
+        {t("project_roots.add_directory")}
       </button>
     </div>
   );
@@ -141,10 +143,11 @@ export function ProjectRootsContent({ onChanged }: { onChanged: () => void }) {
 // ── SectionProjectRoots (with Section wrapper; used in Settings) ──────────────
 
 export function SectionProjectRoots({ onChanged }: { onChanged: () => void }) {
+  const { t } = useTranslation("settings");
   return (
     <Section
-      title="Project Roots"
-      description="Macroscope cleans build artifacts (node_modules, target, .venv, .gradle, etc.) from these directories. Auto-detected on first launch — edit anytime."
+      title={t("project_roots.title")}
+      description={t("project_roots.description")}
     >
       <ProjectRootsContent onChanged={onChanged} />
     </Section>

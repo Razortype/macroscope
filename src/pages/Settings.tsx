@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { useForm, useFormContext } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
@@ -31,15 +33,16 @@ import { SectionSystemAudit } from "../components/settings/SystemAuditSection";
 // ── Section: General ──────────────────────────────────────────────────────────
 
 function SectionGeneral() {
+  const { t } = useTranslation("settings");
   const form = useFormContext<SettingsValues>();
   return (
-    <Section title="General">
+    <Section title={t("general.title")}>
       <FormField
         control={form.control}
         name="snapshot_retention"
         render={({ field }) => (
           <FormItem>
-            <FormLabel>Snapshot retention</FormLabel>
+            <FormLabel>{t("general.snapshot_retention.label")}</FormLabel>
             <FormControl>
               <Input
                 type="number"
@@ -52,7 +55,7 @@ function SectionGeneral() {
               />
             </FormControl>
             <FormDescription>
-              Older snapshots are pruned automatically when this limit is reached.
+              {t("general.snapshot_retention.description")}
             </FormDescription>
             <FormMessage />
           </FormItem>
@@ -65,11 +68,12 @@ function SectionGeneral() {
 // ── Section: Hotkey ───────────────────────────────────────────────────────────
 
 function SectionHotkey() {
+  const { t } = useTranslation("settings");
   const form = useFormContext<SettingsValues>();
   return (
     <Section
-      title="Hotkey"
-      description="Global hotkey to summon Macroscope from anywhere. Activation arrives in a future update."
+      title={t("hotkey.title")}
+      description={t("hotkey.description")}
     >
       <div style={{ opacity: 0.75, display: "flex", flexDirection: "column", gap: "16px" }}>
         <FormField
@@ -85,7 +89,7 @@ function SectionHotkey() {
                   />
                 </FormControl>
                 <FormLabel style={{ cursor: "pointer", margin: 0 }}>
-                  Enable global hotkey
+                  {t("hotkey.enable_label")}
                 </FormLabel>
               </div>
             </FormItem>
@@ -97,7 +101,7 @@ function SectionHotkey() {
           name="hotkey_combo"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Hotkey combination</FormLabel>
+              <FormLabel>{t("hotkey.combo_label")}</FormLabel>
               <FormControl>
                 <Input readOnly style={{ width: "160px", cursor: "default" }} {...field} />
               </FormControl>
@@ -106,7 +110,7 @@ function SectionHotkey() {
         />
 
         <p style={{ margin: 0, fontSize: "var(--text-xs)", color: "var(--color-text-disabled)", fontStyle: "italic" }}>
-          Currently inactive — values saved but not registered with the system.
+          {t("hotkey.inactive_note")}
         </p>
       </div>
     </Section>
@@ -116,11 +120,12 @@ function SectionHotkey() {
 // ── Section: Project Artifacts ────────────────────────────────────────────────
 
 function SectionProjectArtifacts() {
+  const { t } = useTranslation("settings");
   const form = useFormContext<SettingsValues>();
   return (
     <Section
-      title="Project artifacts"
-      description="Controls how build artifacts (node_modules, target/, .venv, etc.) are classified during analysis."
+      title={t("project_artifacts.title")}
+      description={t("project_artifacts.description")}
     >
       <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
         <FormField
@@ -128,7 +133,7 @@ function SectionProjectArtifacts() {
           name="artifact_active_days"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Active threshold (days)</FormLabel>
+              <FormLabel>{t("project_artifacts.active_threshold_label")}</FormLabel>
               <FormControl>
                 <Input
                   type="number"
@@ -141,7 +146,7 @@ function SectionProjectArtifacts() {
                 />
               </FormControl>
               <FormDescription>
-                Projects touched within this many days are considered active (low severity).
+                {t("project_artifacts.active_threshold_description")}
               </FormDescription>
               <FormMessage />
             </FormItem>
@@ -152,7 +157,7 @@ function SectionProjectArtifacts() {
           name="artifact_stale_days"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Stale threshold (days)</FormLabel>
+              <FormLabel>{t("project_artifacts.stale_threshold_label")}</FormLabel>
               <FormControl>
                 <Input
                   type="number"
@@ -165,7 +170,7 @@ function SectionProjectArtifacts() {
                 />
               </FormControl>
               <FormDescription>
-                Projects untouched beyond this many days are considered stale (high severity). Between active and stale thresholds is idle (medium).
+                {t("project_artifacts.stale_threshold_description")}
               </FormDescription>
               <FormMessage />
             </FormItem>
@@ -176,7 +181,7 @@ function SectionProjectArtifacts() {
           name="artifact_min_size_mb"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Minimum size (MB)</FormLabel>
+              <FormLabel>{t("project_artifacts.min_size_label")}</FormLabel>
               <FormControl>
                 <Input
                   type="number"
@@ -189,7 +194,7 @@ function SectionProjectArtifacts() {
                 />
               </FormControl>
               <FormDescription>
-                Artifact groups smaller than this are not surfaced as findings.
+                {t("project_artifacts.min_size_description")}
               </FormDescription>
               <FormMessage />
             </FormItem>
@@ -203,6 +208,7 @@ function SectionProjectArtifacts() {
 // ── Section: Safety ───────────────────────────────────────────────────────────
 
 function PathList({ paths, globs }: { paths: string[]; globs?: string[] }) {
+  const { t } = useTranslation("settings");
   return (
     <div
       style={{
@@ -230,7 +236,7 @@ function PathList({ paths, globs }: { paths: string[]; globs?: string[] }) {
       {globs?.map((g) => (
         <span key={g} style={{ fontFamily: "var(--font-mono)", fontSize: "var(--text-xs)" }}>
           <span style={{ color: "var(--color-text-secondary)" }}>{g}</span>
-          <span style={{ color: "var(--color-text-disabled)", marginLeft: "6px" }}>(glob)</span>
+          <span style={{ color: "var(--color-text-disabled)", marginLeft: "6px" }}>{t("safety.glob_label")}</span>
         </span>
       ))}
     </div>
@@ -238,6 +244,7 @@ function PathList({ paths, globs }: { paths: string[]; globs?: string[] }) {
 }
 
 function SectionSafety({ refreshKey }: { refreshKey: number }) {
+  const { t } = useTranslation("settings");
   const [allowedPrefixes, setAllowedPrefixes] = useState<string[]>([]);
   const [allowedGlobs, setAllowedGlobs] = useState<string[]>([]);
   const [deniedPrefixes, setDeniedPrefixes] = useState<string[]>([]);
@@ -260,21 +267,20 @@ function SectionSafety({ refreshKey }: { refreshKey: number }) {
 
   async function revealAuditLog() {
     await invoke("reveal_in_finder", { path: auditLogPath }).catch((e) => {
-      toast.error(`Could not open Finder: ${String(e)}`);
+      toast.error(t("common:errors.could_not_open_finder", { detail: String(e) }));
     });
   }
 
   return (
-    <Section title="Safety">
+    <Section title={t("safety.title")}>
       <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
         {/* Allowed paths */}
         <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
           <p style={{ margin: 0, fontSize: "var(--text-xs)", fontWeight: 600, color: "var(--color-text-muted)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
-            Allowed paths
+            {t("safety.allowed_paths_label")}
           </p>
           <p style={{ margin: 0, fontSize: "var(--text-xs)", color: "var(--color-text-muted)" }}>
-            Macroscope can only move items to Trash from these locations. This list updates
-            automatically based on your Project Roots above.
+            {t("safety.allowed_paths_description")}
           </p>
           <PathList paths={allowedPrefixes} globs={allowedGlobs} />
         </div>
@@ -284,10 +290,10 @@ function SectionSafety({ refreshKey }: { refreshKey: number }) {
         {/* Denied paths */}
         <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
           <p style={{ margin: 0, fontSize: "var(--text-xs)", fontWeight: 600, color: "var(--color-text-muted)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
-            Denied paths (always blocked)
+            {t("safety.denied_paths_label")}
           </p>
           <p style={{ margin: 0, fontSize: "var(--text-xs)", color: "var(--color-text-muted)" }}>
-            These locations are never touched, regardless of any other rule.
+            {t("safety.denied_paths_description")}
           </p>
           <PathList paths={[...deniedExact, ...deniedPrefixes]} />
         </div>
@@ -297,10 +303,10 @@ function SectionSafety({ refreshKey }: { refreshKey: number }) {
         {/* Audit log */}
         <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
           <p style={{ margin: 0, fontSize: "var(--text-xs)", fontWeight: 600, color: "var(--color-text-muted)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
-            Audit log
+            {t("safety.audit_log_label")}
           </p>
           <p style={{ margin: 0, fontSize: "var(--text-xs)", color: "var(--color-text-muted)" }}>
-            Every move-to-Trash operation is recorded for review.
+            {t("safety.audit_log_description")}
           </p>
           <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
             <span style={{ fontFamily: "var(--font-mono)", fontSize: "var(--text-xs)", color: "var(--color-text-muted)" }}>
@@ -325,7 +331,7 @@ function SectionSafety({ refreshKey }: { refreshKey: number }) {
               }}
             >
               <ExternalLink size={12} />
-              Reveal in Finder
+              {t("common:actions.reveal_in_finder")}
             </button>
           </div>
         </div>
@@ -350,6 +356,7 @@ function formatBytes(bytes: number): string {
 }
 
 function SectionAbout() {
+  const { t } = useTranslation("settings");
   const [appVersion, setAppVersion] = useState<string>("…");
   const [stats, setStats] = useState<LifetimeStats | null>(null);
 
@@ -359,13 +366,13 @@ function SectionAbout() {
   }, []);
 
   const statCards = [
-    { label: "Snapshots taken", value: stats ? String(stats.snapshots) : "—" },
-    { label: "Findings discovered", value: stats ? String(stats.findings) : "—" },
-    { label: "Space freed", value: stats ? formatBytes(stats.bytes_freed) : "—" },
+    { label: t("about.snapshots_taken"), value: stats ? String(stats.snapshots) : "—" },
+    { label: t("about.findings_discovered"), value: stats ? String(stats.findings) : "—" },
+    { label: t("about.space_freed"), value: stats ? formatBytes(stats.bytes_freed) : "—" },
   ];
 
   return (
-    <Section title="About">
+    <Section title={t("about.title")}>
       <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
         {/* Stat cards */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "12px" }}>
@@ -407,8 +414,7 @@ function SectionAbout() {
             fontFamily: "var(--font-mono)",
           }}
         >
-          Macroscope v{appVersion}
-          {" · Built for macOS (Apple Silicon)"}
+          {t("about.build_info", { version: appVersion })}
         </p>
       </div>
     </Section>
@@ -424,16 +430,18 @@ type UpdateCheckResult =
 
 const UPDATE_LAST_CHECKED_KEY = "update_last_checked";
 
-function formatCheckedAt(iso: string | null): string {
-  if (!iso) return "Never";
+function formatCheckedAt(iso: string | null, t: TFunction): string {
+  if (!iso) return t("settings:updates.never");
   try {
+    // i18n-deferred: formatDistanceToNow — replace with Intl.RelativeTimeFormat keyed off locale
     return formatDistanceToNow(new Date(iso), { addSuffix: true });
   } catch {
-    return "Unknown";
+    return t("settings:updates.unknown");
   }
 }
 
 function SectionUpdates() {
+  const { t } = useTranslation("settings");
   const [appVersion, setAppVersion] = useState<string>("…");
   const [lastChecked, setLastChecked] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
@@ -453,21 +461,21 @@ function SectionUpdates() {
       await invoke("set_setting", { key: UPDATE_LAST_CHECKED_KEY, value: now });
       setLastChecked(now);
       if (result.kind === "available") {
-        toast.success(`Macroscope v${result.version} is available.`);
+        toast.success(t("updates.available_toast", { version: result.version }));
       } else if (result.kind === "up_to_date") {
-        toast.success("Macroscope is up to date.");
+        toast.success(t("updates.up_to_date_toast"));
       } else {
-        toast.error(`Update check failed: ${result.message}`);
+        toast.error(t("updates.check_failed_toast", { detail: result.message }));
       }
     } catch (e) {
-      toast.error(`Update check failed: ${String(e)}`);
+      toast.error(t("updates.check_failed_toast", { detail: String(e) }));
     } finally {
       setChecking(false);
     }
   }
 
   return (
-    <Section title="Updates">
+    <Section title={t("updates.title")}>
       <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
         <p
           style={{
@@ -477,7 +485,7 @@ function SectionUpdates() {
             fontFamily: "var(--font-mono)",
           }}
         >
-          Macroscope v{appVersion}
+          {t("updates.version", { version: appVersion })}
         </p>
         <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
           <button
@@ -500,7 +508,7 @@ function SectionUpdates() {
               opacity: checking ? 0.6 : 1,
             }}
           >
-            {checking ? "Checking…" : "Check for updates"}
+            {checking ? t("common:status.checking") : t("common:actions.check_for_updates")}
           </button>
           <span
             style={{
@@ -509,7 +517,7 @@ function SectionUpdates() {
               fontFamily: "var(--font-mono)",
             }}
           >
-            Last checked: {formatCheckedAt(lastChecked)}
+            {t("updates.last_checked", { time: formatCheckedAt(lastChecked, t) })}
           </span>
         </div>
       </div>
@@ -520,6 +528,7 @@ function SectionUpdates() {
 // ── Section: Developer ────────────────────────────────────────────────────────
 
 function SectionDeveloper() {
+  const { t } = useTranslation("settings");
   const navigate = useNavigate();
   const [resetting, setResetting] = useState(false);
 
@@ -528,17 +537,17 @@ function SectionDeveloper() {
     try {
       sessionStorage.removeItem("mscope_auto_snapshot");
       await invoke("reset_app_state");
-      toast.success("App state reset");
+      toast.success(t("developer.reset_success_toast"));
       navigate("/");
     } catch (e) {
-      toast.error(`Reset failed: ${String(e)}`);
+      toast.error(t("developer.reset_failed_toast", { detail: String(e) }));
     } finally {
       setResetting(false);
     }
   }
 
   return (
-    <Section title="Developer">
+    <Section title={t("developer.title")}>
       <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
         <p
           style={{
@@ -547,8 +556,7 @@ function SectionDeveloper() {
             color: "var(--color-text-muted)",
           }}
         >
-          Deletes all snapshots and analysis results, resets all settings, and triggers the
-          first-run wizard on next launch. API keys in macOS Keychain are preserved.
+          {t("developer.description")}
         </p>
         <div>
           <AlertDialog>
@@ -573,25 +581,23 @@ function SectionDeveloper() {
                 }}
               >
                 <RotateCcw size={13} />
-                {resetting ? "Resetting…" : "Reset app state"}
+                {resetting ? t("common:status.resetting") : t("developer.reset_btn")}
               </button>
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>Reset app state?</AlertDialogTitle>
+                <AlertDialogTitle>{t("developer.reset_dialog_title")}</AlertDialogTitle>
                 <AlertDialogDescription>
-                  This deletes all snapshots, clears project roots, resets the AI provider,
-                  and triggers onboarding on next launch. API keys in macOS Keychain are
-                  preserved. This cannot be undone. Continue?
+                  {t("developer.reset_dialog_description")}
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogCancel>{t("common:actions.cancel")}</AlertDialogCancel>
                 <AlertDialogAction
                   onClick={handleReset}
                   className="bg-[var(--color-severity-high)] text-white hover:opacity-90 transition-opacity"
                 >
-                  Reset
+                  {t("developer.reset_confirm")}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
@@ -605,6 +611,7 @@ function SectionDeveloper() {
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function Settings() {
+  const { t } = useTranslation("settings");
   const [saving, setSaving] = useState(false);
   const [rootsVersion, setRootsVersion] = useState(0);
 
@@ -621,10 +628,10 @@ export default function Settings() {
     setSaving(true);
     try {
       await saveSettings(values);
-      toast.success("Settings saved");
+      toast.success(t("save_success_toast"));
       form.reset(values);
     } catch (e) {
-      toast.error(`Could not save: ${String(e)}`);
+      toast.error(t("save_failed_toast", { detail: String(e) }));
     } finally {
       setSaving(false);
     }
@@ -676,7 +683,7 @@ export default function Settings() {
                 flex: 1,
               }}
             >
-              Settings
+              {t("page_title")}
             </span>
             <button
               onClick={onSubmit}
@@ -694,7 +701,7 @@ export default function Settings() {
                 opacity: isDirty && !saving ? 1 : 0.6,
               }}
             >
-              {saving ? "Saving…" : "Save"}
+              {saving ? t("common:status.saving") : t("common:actions.save")}
             </button>
           </header>
         </div>

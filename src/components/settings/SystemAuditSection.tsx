@@ -1,11 +1,13 @@
+import { useTranslation } from "react-i18next";
 import { Section } from "./SectionWrapper";
 import { SYSTEM_PROBE_REGISTRY } from "../../lib/system-probes";
 
 export function SectionSystemAudit() {
+  const { t } = useTranslation("settings");
   return (
     <Section
-      title="Always-scanned locations"
-      description="Macroscope audits these locations on every snapshot. This list is fixed — per-probe toggles are out of scope by design."
+      title={t("always_scanned.title")}
+      description={t("always_scanned.description")}
     >
       <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
         {SYSTEM_PROBE_REGISTRY.map((probe) => (
@@ -28,7 +30,7 @@ export function SectionSystemAudit() {
                 color: "var(--color-text-primary)",
               }}
             >
-              {probe.label}
+              {t(`probes.${probe.key}.label`)}
             </span>
             <span
               style={{
@@ -37,7 +39,7 @@ export function SectionSystemAudit() {
                 lineHeight: "var(--leading-snug)",
               }}
             >
-              {probe.description}
+              {t(`probes.${probe.key}.description`)}
             </span>
             <div
               style={{
