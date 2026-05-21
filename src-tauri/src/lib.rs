@@ -739,6 +739,38 @@ fn get_app_version() -> String {
     env!("CARGO_PKG_VERSION").to_string()
 }
 
+// ── Updater command ──────────────────────────────────────────────────────────
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "snake_case", tag = "kind")]
+enum UpdateCheckResult {
+    Available { version: String, notes: String },
+    UpToDate,
+    Error { message: String },
+}
+
+#[tauri::command]
+async fn check_for_update(app: tauri::AppHandle) -> UpdateCheckResult {
+    use tauri_plugin_updater::UpdaterExt;
+    match app.updater() {
+        Ok(updater) => match updater.check().await {
+            Ok(Some(update)) => UpdateCheckResult::Available {
+                version: update.version.clone(),
+                notes: update.body.clone().unwrap_or_default(),
+            },
+            Ok(None) => UpdateCheckResult::UpToDate,
+            Err(e) => {
+                eprintln!("[macroscope] update check failed: {e}");
+                UpdateCheckResult::Error { message: e.to_string() }
+            }
+        },
+        Err(e) => {
+            eprintln!("[macroscope] updater unavailable: {e}");
+            UpdateCheckResult::Error { message: e.to_string() }
+        }
+    }
+}
+
 // ── App setup ────────────────────────────────────────────────────────────────
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -826,6 +858,7 @@ pub fn run() {
             probe_full_disk_access,
             open_system_settings_pane,
             is_provider_ready,
+            check_for_update,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
