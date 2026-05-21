@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import i18next from "../i18n";
 import { invoke } from "@tauri-apps/api/core";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { check as checkUpdate, type Update } from "@tauri-apps/plugin-updater";
@@ -239,7 +240,7 @@ export default function Dashboard() {
       setActiveSnapshot(snap);
       setActiveSnapshotId(id);
       qc.invalidateQueries({ queryKey: ["latest_snapshot_id"] });
-      return invoke<Finding[]>("analyze_snapshot", { snapshotId: id, presets: ALL_PRESETS });
+      return invoke<Finding[]>("analyze_snapshot", { snapshotId: id, presets: ALL_PRESETS, locale: i18next.language });
     },
     onSuccess: (data) => {
       const tokenUsage = Object.fromEntries(
@@ -265,7 +266,7 @@ export default function Dashboard() {
     },
     mutationFn: async () => {
       if (activeSnapshotId == null) throw new Error(t("dashboard.no_snapshot_error"));
-      return invoke<Finding[]>("analyze_snapshot", { snapshotId: activeSnapshotId, presets: ALL_PRESETS });
+      return invoke<Finding[]>("analyze_snapshot", { snapshotId: activeSnapshotId, presets: ALL_PRESETS, locale: i18next.language });
     },
     onSuccess: (data) => {
       const tokenUsage = Object.fromEntries(
