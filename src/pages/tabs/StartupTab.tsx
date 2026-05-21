@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useRef } from "react";
 import { AlertTriangle, Check, CircleMinus, Shield } from "lucide-react";
 import type { Finding } from "../../types/finding";
 import type { PersistenceEntry, Snapshot } from "../../types/snapshot";
@@ -450,20 +450,43 @@ function ColumnHeaders() {
 export default function StartupTab({ snapshot, findings, onTogglePersistence }: StartupTabProps) {
   const [pendingLabels, setPendingLabels] = useState<Set<string>>(new Set());
 
-  const persistenceEntries = snapshot?.persistence?.entries ?? [];
+  // snapshotKey changes only when a genuinely new snapshot is loaded.
+  // Toggles within a snapshot update entry.disabled but leave created_at unchanged.
+  const snapshotKey = snapshot?.created_at ?? null;
+
+  // Synchronously capture entries the moment a new snapshot arrives.
+  // Reading frozenEntriesRef.current inside memos below is safe because every
+  // memo that uses it also lists snapshotKey as a dependency.
+  const prevKeyRef = useRef<string | null>(null);
+  const frozenEntriesRef = useRef<PersistenceEntry[]>([]);
+  if (snapshotKey !== prevKeyRef.current) {
+    prevKeyRef.current = snapshotKey;
+    frozenEntriesRef.current = snapshot?.persistence?.entries ?? [];
+  }
+
+  // Live entries — updated when the user toggles within the current snapshot.
+  const liveEntries = snapshot?.persistence?.entries ?? [];
+
+  // Fast lookup for live entry state (disabled, etc.) keyed by label+path.
+  const liveEntryMap = useMemo(() => {
+    const m = new Map<string, PersistenceEntry>();
+    for (const e of liveEntries) m.set(e.label + e.path, e);
+    return m;
+  }, [liveEntries]);
 
   const networkFindings = useMemo(
     () => findings.filter((f) => ["network", "security", "process"].includes(f.category)),
     [findings]
   );
 
+  // Cross-reference findings against frozen entries — stable across toggles.
   const flaggedLabels = useMemo(() => {
     const set = new Set<string>();
-    const relevantFindings = findings.filter((f) =>
+    const relevant = findings.filter((f) =>
       ["security", "persistence", "network", "process"].includes(f.category)
     );
-    for (const entry of persistenceEntries) {
-      for (const f of relevantFindings) {
+    for (const entry of frozenEntriesRef.current) {
+      for (const f of relevant) {
         if (f.title.includes(entry.label) || f.description.includes(entry.label)) {
           set.add(entry.label);
           break;
@@ -471,7 +494,19 @@ export default function StartupTab({ snapshot, findings, onTogglePersistence }: 
       }
     }
     return set;
-  }, [findings, persistenceEntries]);
+  }, [snapshotKey, findings]); // snapshotKey (not liveEntries) keeps this stable across toggles
+
+  // Bucket assignment — computed once per snapshot from frozen entry state.
+  // A toggle within this snapshot view will never move a row between buckets;
+  // only a fresh snapshot triggers re-classification.
+  const frozenBucketMap = useMemo(() => {
+    const m = new Map<string, SectionKey>();
+    for (const entry of frozenEntriesRef.current) {
+      const status = classifyPersistence(entry, flaggedLabels) as EntryStatus;
+      m.set(entry.label + entry.path, sectionFor(entry, status));
+    }
+    return m;
+  }, [snapshotKey, flaggedLabels]); // depends on snapshotKey, never liveEntries
 
   const sections = useMemo(() => {
     const buckets: Record<SectionKey, SectionEntry[]> = {
@@ -480,20 +515,24 @@ export default function StartupTab({ snapshot, findings, onTogglePersistence }: 
       disabled: [],
       system: [],
     };
-    for (const entry of persistenceEntries) {
-      const status = classifyPersistence(entry, flaggedLabels) as EntryStatus;
-      buckets[sectionFor(entry, status)].push({ entry, status });
+    for (const frozenEntry of frozenEntriesRef.current) {
+      const key = frozenEntry.label + frozenEntry.path;
+      const section = frozenBucketMap.get(key) ?? "unknown";
+      // Render with live entry so toggle position and status badge reflect current state.
+      const liveEntry = liveEntryMap.get(key) ?? frozenEntry;
+      const liveStatus = classifyPersistence(liveEntry, flaggedLabels) as EntryStatus;
+      buckets[section].push({ entry: liveEntry, status: liveStatus });
     }
-    // Within "unknown", flagged entries sort to the top.
+    // Flagged entries surface first within the unknown section.
     buckets.unknown.sort((a, b) => {
       if (a.status === "flagged" && b.status !== "flagged") return -1;
       if (b.status === "flagged" && a.status !== "flagged") return 1;
       return 0;
     });
     return buckets;
-  }, [persistenceEntries, flaggedLabels]);
+  }, [frozenBucketMap, liveEntryMap, flaggedLabels]);
 
-  const hasAnyEntries = persistenceEntries.length > 0;
+  const hasAnyEntries = frozenEntriesRef.current.length > 0;
 
   const handleToggle = useCallback(
     async (entry: PersistenceEntry) => {
