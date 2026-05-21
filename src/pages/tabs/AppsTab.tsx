@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Check, Package, FolderX, FolderCheck, HelpCircle, Settings2 } from "lucide-react";
 import type { AppsSnapshot, InstalledApp, ClassifiedLeftover } from "../../types/snapshot";
+import RowActions from "../../components/RowActions";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -113,7 +114,7 @@ function SelfBadge() {
 
 // ── Row layout ────────────────────────────────────────────────────────────────
 
-const GRID = "50px minmax(0, 1fr) 110px 100px 110px 80px";
+const GRID = "50px minmax(0, 1fr) 110px 100px 110px 28px 80px";
 const ROW_STYLE: React.CSSProperties = {
   display: "grid", gridTemplateColumns: GRID, padding: "10px 20px",
   borderBottom: "1px solid rgba(255,255,255,0.04)", alignItems: "center",
@@ -177,6 +178,7 @@ function InstalledRow({ row }: { row: AppRow & { kind: "installed" } }) {
       <div>
         <StatusBadge label={appStatus} semantic={appStatus === "stale" ? "info" : "low"} />
       </div>
+      <div />
       <div />
     </div>
   );
@@ -259,6 +261,9 @@ function LeftoverRow({
         {formatBytes(leftover.size_bytes)}
       </div>
       <div>{badge}</div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <RowActions path={leftover.path} />
+      </div>
       <div>
         {!isExecuted && (
           <CleanButton
@@ -386,7 +391,7 @@ export default function AppsTab({ apps, executedPaths, partialPaths, onCleanLeft
         borderBottom: "1px solid var(--color-border-divider)", fontFamily: "var(--font-mono)",
         fontSize: "10px", color: "var(--color-text-muted)", textTransform: "uppercase", letterSpacing: "0.06em",
       }}>
-        <div /><div>name</div><div>last opened</div><div>size</div><div>status</div><div />
+        <div /><div>name</div><div>last opened</div><div>size</div><div>status</div><div /><div />
       </div>
 
       {/* Rows */}
