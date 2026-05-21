@@ -8,6 +8,7 @@
     "opener:default",
     "window-state:default",
     "dialog:default",
-    "updater:default"
+    "updater:default",
+    "process:allow-restart"
   ]
 }
