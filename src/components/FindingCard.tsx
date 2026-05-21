@@ -1,4 +1,6 @@
+import { useState } from "react";
 import type { Finding, Severity } from "../types/finding";
+import RowActions from "./RowActions";
 
 function formatBytes(bytes: number): string {
   if (bytes >= 1e9) return `${(bytes / 1e9).toFixed(1)} GB`;
@@ -20,6 +22,39 @@ interface Props {
   executed?: boolean;
   partial?: boolean;
   identityHint?: "companion" | "ambiguous";
+}
+
+function PathRow({ path }: { path: string }) {
+  const [hovered, setHovered] = useState(false);
+  return (
+    <div
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "4px",
+      }}
+    >
+      <span
+        style={{
+          fontFamily: "var(--font-mono)",
+          fontSize: "var(--text-xs)",
+          color: "var(--color-text-secondary)",
+          flex: 1,
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+          minWidth: 0,
+        }}
+      >
+        → {path}
+      </span>
+      <span style={{ opacity: hovered ? 1 : 0.35, transition: "opacity 120ms", flexShrink: 0 }}>
+        <RowActions path={path} />
+      </span>
+    </div>
+  );
 }
 
 export default function FindingCard({ finding: f, selected, onSelectChange, executed = false, partial = false, identityHint }: Props) {
@@ -205,16 +240,7 @@ export default function FindingCard({ finding: f, selected, onSelectChange, exec
             }}
           >
             {f.paths_to_remove.map((p) => (
-              <span
-                key={p}
-                style={{
-                  fontFamily: "var(--font-mono)",
-                  fontSize: "var(--text-xs)",
-                  color: "var(--color-text-secondary)",
-                }}
-              >
-                → {p}
-              </span>
+              <PathRow key={p} path={p} />
             ))}
             {f.estimated_bytes_freed != null && (
               <span
