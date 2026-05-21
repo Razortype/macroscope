@@ -6,13 +6,18 @@ import { classifyPersistence } from "../../lib/persistence";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type FilterKey = "all" | "flagged" | "known" | "disabled";
 type EntryStatus = "flagged" | "known" | "disabled" | "normal";
+type SectionKey = "unknown" | "known" | "disabled" | "system";
 
 interface StartupTabProps {
   snapshot: Snapshot | null;
   findings: Finding[];
   onTogglePersistence: (entry: PersistenceEntry, action: "disable" | "enable") => Promise<void>;
+}
+
+interface SectionEntry {
+  entry: PersistenceEntry;
+  status: EntryStatus;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -25,6 +30,15 @@ function kindLabel(kind: PersistenceEntry["kind"]): string {
     case "system_agent": return "root agent";
     case "login_item": return "login item";
   }
+}
+
+// Disabled takes priority; system_daemon/agent goes to "system" unless disabled;
+// flagged and normal both land in "unknown" (suspicious or unrecognised publisher).
+function sectionFor(entry: PersistenceEntry, status: EntryStatus): SectionKey {
+  if (status === "disabled") return "disabled";
+  if (entry.kind === "system_daemon" || entry.kind === "system_agent") return "system";
+  if (status === "known") return "known";
+  return "unknown";
 }
 
 // ── Toggle switch ─────────────────────────────────────────────────────────────
@@ -250,12 +264,10 @@ function PersistenceRow({
         opacity: isDimmed ? 0.55 : 1,
       }}
     >
-      {/* Status icon */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
         <StatusIcon status={status} />
       </div>
 
-      {/* Label + path */}
       <div style={{ minWidth: 0 }}>
         <div
           style={{
@@ -285,7 +297,6 @@ function PersistenceRow({
         </div>
       </div>
 
-      {/* Kind */}
       <div
         style={{
           fontSize: "10px",
@@ -297,12 +308,11 @@ function PersistenceRow({
         {kindLabel(entry.kind)}
       </div>
 
-      {/* Status badge */}
       <div>
         <StatusBadge status={status} />
       </div>
 
-      {/* Toggle — login_items can't be toggled via launchctl */}
+      {/* login_item entries can't be toggled via launchctl */}
       <div style={{ display: "flex", justifyContent: "flex-end" }}>
         {entry.kind !== "login_item" && (
           <ToggleSwitch
@@ -316,43 +326,124 @@ function PersistenceRow({
   );
 }
 
-// ── Filter chip ───────────────────────────────────────────────────────────────
+// ── Persistence section ───────────────────────────────────────────────────────
 
-function FilterChip({
+function PersistenceSection({
   label,
-  count,
-  active,
-  onClick,
+  entries,
+  pendingLabels,
+  onToggle,
+  collapsible = false,
 }: {
   label: string;
-  count: number;
-  active: boolean;
-  onClick: () => void;
+  entries: SectionEntry[];
+  pendingLabels: Set<string>;
+  onToggle: (entry: PersistenceEntry) => void;
+  collapsible?: boolean;
 }) {
-  return (
-    <button
-      onClick={onClick}
+  const [expanded, setExpanded] = useState(!collapsible);
+
+  const headerText = (
+    <span
       style={{
-        background: active ? "var(--color-accent)" : "var(--color-bg-elev-2)",
-        color: active ? "var(--color-accent-on)" : "var(--color-text-secondary)",
-        border: "none",
-        borderRadius: "var(--radius-sm)",
-        padding: "3px 9px",
+        fontSize: "10px",
+        fontWeight: 600,
+        letterSpacing: "0.08em",
+        textTransform: "uppercase" as const,
+        color: "var(--color-text-muted)",
         fontFamily: "var(--font-mono)",
-        fontSize: "11px",
-        cursor: "pointer",
-        whiteSpace: "nowrap",
       }}
     >
-      {label} {count}
-    </button>
+      {label} · {entries.length}
+    </span>
+  );
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+      {collapsible ? (
+        <button
+          onClick={() => setExpanded((prev) => !prev)}
+          aria-expanded={expanded}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "5px",
+            background: "none",
+            border: "none",
+            padding: 0,
+            cursor: "pointer",
+          }}
+        >
+          <span
+            style={{
+              fontSize: "9px",
+              color: "var(--color-text-muted)",
+              userSelect: "none",
+              lineHeight: 1,
+            }}
+          >
+            {expanded ? "▾" : "▸"}
+          </span>
+          {headerText}
+        </button>
+      ) : (
+        <div style={{ display: "flex", alignItems: "center" }}>{headerText}</div>
+      )}
+
+      {expanded && (
+        <div
+          style={{
+            background: "var(--color-bg-elev-1)",
+            border: "1px solid var(--color-border-subtle)",
+            borderRadius: "var(--radius-lg)",
+            overflow: "hidden",
+          }}
+        >
+          {entries.map(({ entry, status }) => (
+            <PersistenceRow
+              key={entry.label + entry.path}
+              entry={entry}
+              status={status}
+              pending={pendingLabels.has(entry.label)}
+              onToggle={() => onToggle(entry)}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Column headers ────────────────────────────────────────────────────────────
+
+function ColumnHeaders() {
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: GRID,
+        gap: "8px",
+        padding: "0 12px",
+        fontFamily: "var(--font-mono)",
+        fontSize: "10px",
+        fontWeight: 600,
+        letterSpacing: "0.08em",
+        textTransform: "uppercase",
+        color: "var(--color-text-muted)",
+      }}
+    >
+      <div />
+      <div>label · path</div>
+      <div style={{ textAlign: "center" }}>kind</div>
+      <div>status</div>
+      <div style={{ textAlign: "right" }}>enabled</div>
+    </div>
   );
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function StartupTab({ snapshot, findings, onTogglePersistence }: StartupTabProps) {
-  const [filter, setFilter] = useState<FilterKey>("all");
   const [pendingLabels, setPendingLabels] = useState<Set<string>>(new Set());
 
   const persistenceEntries = snapshot?.persistence?.entries ?? [];
@@ -378,34 +469,27 @@ export default function StartupTab({ snapshot, findings, onTogglePersistence }: 
     return set;
   }, [findings, persistenceEntries]);
 
-  const classified = useMemo(
-    () =>
-      persistenceEntries.map((entry) => ({
-        entry,
-        status: classifyPersistence(entry, flaggedLabels) as EntryStatus,
-      })),
-    [persistenceEntries, flaggedLabels]
-  );
+  const sections = useMemo(() => {
+    const buckets: Record<SectionKey, SectionEntry[]> = {
+      unknown: [],
+      known: [],
+      disabled: [],
+      system: [],
+    };
+    for (const entry of persistenceEntries) {
+      const status = classifyPersistence(entry, flaggedLabels) as EntryStatus;
+      buckets[sectionFor(entry, status)].push({ entry, status });
+    }
+    // Within "unknown", flagged entries sort to the top.
+    buckets.unknown.sort((a, b) => {
+      if (a.status === "flagged" && b.status !== "flagged") return -1;
+      if (b.status === "flagged" && a.status !== "flagged") return 1;
+      return 0;
+    });
+    return buckets;
+  }, [persistenceEntries, flaggedLabels]);
 
-  const counts = useMemo(
-    () => ({
-      all: classified.length,
-      flagged: classified.filter((c) => c.status === "flagged").length,
-      known: classified.filter((c) => c.status === "known").length,
-      disabled: classified.filter((c) => c.status === "disabled").length,
-    }),
-    [classified]
-  );
-
-  const filtered = useMemo(
-    () => (filter === "all" ? classified : classified.filter((c) => c.status === filter)),
-    [classified, filter]
-  );
-
-  const sorted = useMemo(() => {
-    const order: Record<EntryStatus, number> = { flagged: 0, known: 1, normal: 2, disabled: 3 };
-    return [...filtered].sort((a, b) => order[a.status] - order[b.status]);
-  }, [filtered]);
+  const hasAnyEntries = persistenceEntries.length > 0;
 
   const handleToggle = useCallback(
     async (entry: PersistenceEntry) => {
@@ -476,85 +560,63 @@ export default function StartupTab({ snapshot, findings, onTogglePersistence }: 
         </div>
       )}
 
-      {/* Section 2 — Persistence inventory */}
-      <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-        {/* Header */}
-        <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-          <div
-            style={{
-              fontSize: "10px",
-              fontWeight: 600,
-              letterSpacing: "0.08em",
-              textTransform: "uppercase",
-              color: "var(--color-text-muted)",
-              fontFamily: "var(--font-mono)",
-              marginRight: "4px",
-            }}
-          >
-            persistence
-          </div>
-          <FilterChip label="all" count={counts.all} active={filter === "all"} onClick={() => setFilter("all")} />
-          <FilterChip label="flagged" count={counts.flagged} active={filter === "flagged"} onClick={() => setFilter("flagged")} />
-          <FilterChip label="known" count={counts.known} active={filter === "known"} onClick={() => setFilter("known")} />
-          <FilterChip label="disabled" count={counts.disabled} active={filter === "disabled"} onClick={() => setFilter("disabled")} />
-        </div>
+      {/* Section 2 — Persistence inventory (grouped) */}
+      {hasAnyEntries ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+          <ColumnHeaders />
 
-        {/* Column headers */}
+          {sections.unknown.length > 0 && (
+            <PersistenceSection
+              label="unknown publisher"
+              entries={sections.unknown}
+              pendingLabels={pendingLabels}
+              onToggle={handleToggle}
+            />
+          )}
+
+          {sections.known.length > 0 && (
+            <PersistenceSection
+              label="known publisher"
+              entries={sections.known}
+              pendingLabels={pendingLabels}
+              onToggle={handleToggle}
+            />
+          )}
+
+          {sections.disabled.length > 0 && (
+            <PersistenceSection
+              label="disabled"
+              entries={sections.disabled}
+              pendingLabels={pendingLabels}
+              onToggle={handleToggle}
+            />
+          )}
+
+          {sections.system.length > 0 && (
+            <PersistenceSection
+              label="system-managed (macOS controls these)"
+              entries={sections.system}
+              pendingLabels={pendingLabels}
+              onToggle={handleToggle}
+              collapsible
+            />
+          )}
+        </div>
+      ) : (
         <div
           style={{
-            display: "grid",
-            gridTemplateColumns: GRID,
-            gap: "8px",
-            padding: "0 12px",
-            fontFamily: "var(--font-mono)",
-            fontSize: "10px",
-            fontWeight: 600,
-            letterSpacing: "0.08em",
-            textTransform: "uppercase",
+            padding: "20px",
+            textAlign: "center",
+            fontSize: "var(--text-sm)",
             color: "var(--color-text-muted)",
           }}
         >
-          <div />
-          <div>label · path</div>
-          <div style={{ textAlign: "center" }}>kind</div>
-          <div>status</div>
-          <div style={{ textAlign: "right" }}>enabled</div>
+          No entries
         </div>
+      )}
 
-        {/* Rows */}
-        {sorted.length === 0 ? (
-          <div
-            style={{
-              padding: "20px",
-              textAlign: "center",
-              fontSize: "var(--text-sm)",
-              color: "var(--color-text-muted)",
-            }}
-          >
-            No {filter === "all" ? "" : filter + " "}entries
-          </div>
-        ) : (
-          <div
-            style={{
-              background: "var(--color-bg-elev-1)",
-              border: "1px solid var(--color-border-subtle)",
-              borderRadius: "var(--radius-lg)",
-              overflow: "hidden",
-            }}
-          >
-            {sorted.map(({ entry, status }) => (
-              <PersistenceRow
-                key={entry.label + entry.path}
-                entry={entry}
-                status={status}
-                pending={pendingLabels.has(entry.label)}
-                onToggle={() => handleToggle(entry)}
-              />
-            ))}
-          </div>
-        )}
-
-        {/* Footer hint */}
+      {/* Footer hint */}
+      {hasAnyEntries && (
         <div
           style={{
             textAlign: "center",
@@ -566,7 +628,7 @@ export default function StartupTab({ snapshot, findings, onTogglePersistence }: 
         >
           toggling a switch runs launchctl disable/enable · sudo prompt for root daemons
         </div>
-      </div>
+      )}
     </div>
   );
 }
