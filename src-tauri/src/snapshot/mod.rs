@@ -5,6 +5,7 @@ pub mod large_files;
 pub mod network;
 pub mod persistence;
 pub mod processes;
+pub mod project_artifacts;
 pub mod users;
 
 use std::time::Instant;
@@ -20,7 +21,9 @@ use self::large_files::LargeFilesSnapshot;
 use self::network::NetworkReport;
 use self::persistence::PersistenceReport;
 use self::processes::ProcessInfo;
+use self::project_artifacts::ProjectArtifactsSnapshot;
 use self::users::UserAccount;
+use crate::db::Db;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SnapshotMeta {
@@ -48,6 +51,8 @@ pub struct AuditTokenUsage {
 pub struct Snapshot {
     pub created_at: DateTime<Utc>,
     pub disk: Option<DiskReport>,
+    #[serde(default)]
+    pub project_artifacts: Option<ProjectArtifactsSnapshot>,
     pub processes: Option<Vec<ProcessInfo>>,
     pub network: Option<NetworkReport>,
     pub persistence: Option<PersistenceReport>,
@@ -108,13 +113,14 @@ async fn probe_timed_infallible<T>(
     result
 }
 
-pub async fn take_snapshot(app: &AppHandle) -> Snapshot {
+pub async fn take_snapshot(app: &AppHandle, db: &Db) -> Snapshot {
     let mut partial_failures = Vec::new();
 
     // Probes invoked here must be mirrored in
     // src/lib/system-probes.ts — keep the read-only Settings
     // panel and onboarding step in sync when adding/removing.
-    let (disk_res, procs_res, net_res, persist_res, users_res, kernel_res, apps_res, large_files_snap) =
+    let artifact_config = project_artifacts::load_probe_config(db);
+    let (disk_res, procs_res, net_res, persist_res, users_res, kernel_res, apps_res, large_files_snap, artifact_snap) =
         tokio::join!(
             probe_timed(app, "disk", disk::probe()),
             probe_timed(app, "processes", processes::probe()),
@@ -124,6 +130,7 @@ pub async fn take_snapshot(app: &AppHandle) -> Snapshot {
             probe_timed(app, "kernel", kernel::probe()),
             probe_timed(app, "apps", apps::probe()),
             probe_timed_infallible(app, "large_files", large_files::probe()),
+            probe_timed_infallible(app, "project_artifacts", project_artifacts::probe(artifact_config)),
         );
 
     macro_rules! unwrap_probe {
@@ -163,6 +170,7 @@ pub async fn take_snapshot(app: &AppHandle) -> Snapshot {
         kernel,
         apps,
         large_files: Some(large_files_snap),
+        project_artifacts: Some(artifact_snap),
         partial_failures,
         executed_paths: Vec::new(),
         partial_paths: Vec::new(),

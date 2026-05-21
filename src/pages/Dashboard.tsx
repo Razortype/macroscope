@@ -27,7 +27,7 @@ function formatBytes(bytes: number): string {
   return `${(bytes / 1e3).toFixed(0)} KB`;
 }
 
-const ALL_PRESETS = ["disk-audit", "security-audit", "app-lifecycle-audit", "file-inventory-audit"];
+const ALL_PRESETS = ["disk-audit", "security-audit", "app-lifecycle-audit", "file-inventory-audit", "project-artifacts-audit"];
 
 function sumTokenUsage(usage: Record<string, AuditTokenUsage>): LastAnalysisTokenTotals | undefined {
   const entries = Object.values(usage);
@@ -56,6 +56,7 @@ function buildLastAnalysis(
       { preset: "security-audit", label: "security", findingCount: data.filter((f) => ["security", "persistence", "network"].includes(f.category)).length },
       { preset: "app-lifecycle-audit", label: "apps", findingCount: data.filter((f) => f.category === "apps").length },
       { preset: "file-inventory-audit", label: "files", findingCount: data.filter((f) => f.category === "files").length },
+      { preset: "project-artifacts-audit", label: "artifacts", findingCount: data.filter((f) => f.category === "project_artifacts").length },
     ],
     tokenTotals,
   };
