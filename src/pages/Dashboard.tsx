@@ -89,6 +89,7 @@ export default function Dashboard() {
   const [analyzeError, setAnalyzeError] = useState<string | null>(null);
   const [lastAnalysis, setLastAnalysis] = useState<LastAnalysisSummary | null>(null);
   const [providerLabel, setProviderLabel] = useState<string>("claude code cli");
+  const [rootCount, setRootCount] = useState<number>(0);
   const analysisStartedAtRef = useRef<number | null>(null);
 
   const runAuditsRef = useRef(run.audits);
@@ -104,6 +105,17 @@ export default function Dashboard() {
     };
     invoke<ProviderConfig>("get_provider_config")
       .then((cfg) => setProviderLabel(LABEL_MAP[cfg.active_provider] ?? cfg.active_provider))
+      .catch(() => {});
+
+    invoke<[string, string][]>("list_settings")
+      .then((rows) => {
+        const map = Object.fromEntries(rows);
+        try {
+          setRootCount(JSON.parse(map["project_roots"] ?? "[]").length);
+        } catch {
+          setRootCount(0);
+        }
+      })
       .catch(() => {});
   }, []);
 
@@ -457,7 +469,7 @@ export default function Dashboard() {
       <div style={{ flex: 1, overflow: "auto", overflowX: "hidden" }}>
         {showingProgress && (
           <div style={{ padding: "20px 20px 0" }}>
-            <AnalysisProgress providerLabel={providerLabel} />
+            <AnalysisProgress providerLabel={providerLabel} rootCount={rootCount} />
           </div>
         )}
         {analyzeError && (

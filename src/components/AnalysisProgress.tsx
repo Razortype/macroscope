@@ -317,7 +317,13 @@ function ClaudeSection({
 
 // ── AnalysisProgress ──────────────────────────────────────────────────────────
 
-export default function AnalysisProgress({ providerLabel }: { providerLabel?: string }) {
+export default function AnalysisProgress({
+  providerLabel,
+  rootCount = 0,
+}: {
+  providerLabel?: string;
+  rootCount?: number;
+}) {
   const { run } = useAnalysisRun();
 
   const allProbesComplete = run.probes.every(
@@ -390,7 +396,10 @@ export default function AnalysisProgress({ providerLabel }: { providerLabel?: st
 
       {/* Subtitle */}
       <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.4)", marginTop: "-6px" }}>
-        running three AI audits in parallel · disk + security + apps
+        {rootCount > 0
+          ? `scanning system locations + ${rootCount} project ${rootCount === 1 ? "directory" : "directories"}`
+          : "scanning system locations"}
+        {" · disk + security + apps"}
       </div>
 
       {/* Step 1 */}
