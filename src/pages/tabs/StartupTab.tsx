@@ -52,32 +52,36 @@ function ToggleSwitch({
   pending: boolean;
   onChange: () => void;
 }) {
+  const [hovered, setHovered] = useState(false);
   return (
     <button
       onClick={onChange}
       disabled={pending}
       title={on ? "click to disable" : "click to enable"}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
       style={{
-        width: "32px",
-        height: "18px",
-        borderRadius: "9px",
-        background: on ? "var(--color-severity-low-fg)" : "var(--color-bg-elev-3)",
+        width: "24px",
+        height: "14px",
+        borderRadius: "7px",
+        background: on ? "rgba(120, 120, 140, 0.85)" : "var(--color-bg-elev-3)",
         border: on ? "none" : "1px solid var(--color-border-subtle)",
         position: "relative",
         cursor: pending ? "wait" : "pointer",
-        transition: "background 0.15s ease",
+        transition: "background 0.15s ease, box-shadow 0.12s ease",
         flexShrink: 0,
         opacity: pending ? 0.6 : 1,
         padding: 0,
+        boxShadow: hovered && !pending ? "0 0 0 2px rgba(255,255,255,0.10)" : "none",
       }}
     >
       <div
         style={{
           position: "absolute",
           top: "2px",
-          left: on ? "calc(100% - 16px)" : "2px",
-          width: "14px",
-          height: "14px",
+          left: on ? "calc(100% - 12px)" : "2px",
+          width: "10px",
+          height: "10px",
           borderRadius: "50%",
           background: "white",
           transition: "left 0.15s ease",
