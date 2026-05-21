@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useForm, useFormContext } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
+import { formatDistanceToNow } from "date-fns";
 import { ArrowLeft, ExternalLink, RotateCcw } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage, FormDescription } from "../components/ui/form";
@@ -414,6 +415,108 @@ function SectionAbout() {
   );
 }
 
+// ── Section: Updates ──────────────────────────────────────────────────────────
+
+type UpdateCheckResult =
+  | { kind: "available"; version: string; notes: string }
+  | { kind: "up_to_date" }
+  | { kind: "error"; message: string };
+
+const UPDATE_LAST_CHECKED_KEY = "update_last_checked";
+
+function formatCheckedAt(iso: string | null): string {
+  if (!iso) return "Never";
+  try {
+    return formatDistanceToNow(new Date(iso), { addSuffix: true });
+  } catch {
+    return "Unknown";
+  }
+}
+
+function SectionUpdates() {
+  const [appVersion, setAppVersion] = useState<string>("…");
+  const [lastChecked, setLastChecked] = useState<string | null>(null);
+  const [checking, setChecking] = useState(false);
+
+  useEffect(() => {
+    invoke<string>("get_app_version").then(setAppVersion).catch(() => {});
+    invoke<string | null>("get_setting", { key: UPDATE_LAST_CHECKED_KEY })
+      .then(setLastChecked)
+      .catch(() => {});
+  }, []);
+
+  async function handleCheckNow() {
+    setChecking(true);
+    const now = new Date().toISOString();
+    try {
+      const result = await invoke<UpdateCheckResult>("check_for_update");
+      await invoke("set_setting", { key: UPDATE_LAST_CHECKED_KEY, value: now });
+      setLastChecked(now);
+      if (result.kind === "available") {
+        toast.success(`Macroscope v${result.version} is available.`);
+      } else if (result.kind === "up_to_date") {
+        toast.success("Macroscope is up to date.");
+      } else {
+        toast.error(`Update check failed: ${result.message}`);
+      }
+    } catch (e) {
+      toast.error(`Update check failed: ${String(e)}`);
+    } finally {
+      setChecking(false);
+    }
+  }
+
+  return (
+    <Section title="Updates">
+      <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+        <p
+          style={{
+            margin: 0,
+            fontSize: "var(--text-xs)",
+            color: "var(--color-text-disabled)",
+            fontFamily: "var(--font-mono)",
+          }}
+        >
+          Macroscope v{appVersion}
+        </p>
+        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+          <button
+            type="button"
+            onClick={handleCheckNow}
+            disabled={checking}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px",
+              background: "var(--color-bg-elev-2)",
+              border: "1px solid var(--color-border-subtle)",
+              borderRadius: "var(--radius-md)",
+              padding: "7px 14px",
+              color: checking ? "var(--color-text-disabled)" : "var(--color-text-secondary)",
+              fontSize: "var(--text-sm)",
+              fontFamily: "var(--font-sans)",
+              fontWeight: 500,
+              cursor: checking ? "not-allowed" : "pointer",
+              opacity: checking ? 0.6 : 1,
+            }}
+          >
+            {checking ? "Checking…" : "Check for updates"}
+          </button>
+          <span
+            style={{
+              fontSize: "var(--text-xs)",
+              color: "var(--color-text-disabled)",
+              fontFamily: "var(--font-mono)",
+            }}
+          >
+            Last checked: {formatCheckedAt(lastChecked)}
+          </span>
+        </div>
+      </div>
+    </Section>
+  );
+}
+
 // ── Section: Developer ────────────────────────────────────────────────────────
 
 function SectionDeveloper() {
@@ -613,6 +716,7 @@ export default function Settings() {
               <SectionProjectArtifacts />
               <SectionSafety refreshKey={rootsVersion} />
               <SectionAbout />
+              <SectionUpdates />
               <SectionDeveloper />
             </form>
           </Form>
