@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useRef } from "react";
 import { AlertTriangle, Check, CircleMinus, Shield } from "lucide-react";
 import type { Finding } from "../../types/finding";
 import type { PersistenceEntry, Snapshot } from "../../types/snapshot";
@@ -6,13 +6,18 @@ import { classifyPersistence } from "../../lib/persistence";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type FilterKey = "all" | "flagged" | "known" | "disabled";
 type EntryStatus = "flagged" | "known" | "disabled" | "normal";
+type SectionKey = "unknown" | "known" | "system";
 
-interface SecurityTabProps {
+interface StartupTabProps {
   snapshot: Snapshot | null;
   findings: Finding[];
   onTogglePersistence: (entry: PersistenceEntry, action: "disable" | "enable") => Promise<void>;
+}
+
+interface SectionEntry {
+  entry: PersistenceEntry;
+  status: EntryStatus;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -27,6 +32,23 @@ function kindLabel(kind: PersistenceEntry["kind"]): string {
   }
 }
 
+// Bucket assignment ignores entry.disabled — disabled is a sort key, not a bucket.
+// System daemons/agents always go to "system"; all others split on publisher recognition.
+function sectionFor(entry: PersistenceEntry, flaggedLabels: Set<string>): SectionKey {
+  if (entry.kind === "system_daemon" || entry.kind === "system_agent") return "system";
+  // Proxy with disabled=false so classifyPersistence skips the disabled early-return.
+  const status = classifyPersistence({ ...entry, disabled: false }, flaggedLabels);
+  return status === "known" ? "known" : "unknown";
+}
+
+// Badge display: flagged takes precedence over disabled.
+// An entry that is both flagged and disabled shows FLAGGED — it still needs attention.
+function badgeStatusFor(entry: PersistenceEntry, flaggedLabels: Set<string>): EntryStatus {
+  if (flaggedLabels.has(entry.label)) return "flagged";
+  if (entry.disabled) return "disabled";
+  return classifyPersistence(entry, flaggedLabels) as EntryStatus;
+}
+
 // ── Toggle switch ─────────────────────────────────────────────────────────────
 
 function ToggleSwitch({
@@ -38,32 +60,36 @@ function ToggleSwitch({
   pending: boolean;
   onChange: () => void;
 }) {
+  const [hovered, setHovered] = useState(false);
   return (
     <button
       onClick={onChange}
       disabled={pending}
       title={on ? "click to disable" : "click to enable"}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
       style={{
-        width: "32px",
-        height: "18px",
-        borderRadius: "9px",
-        background: on ? "var(--color-severity-low-fg)" : "var(--color-bg-elev-3)",
+        width: "24px",
+        height: "14px",
+        borderRadius: "7px",
+        background: on ? "rgba(120, 120, 140, 0.85)" : "var(--color-bg-elev-3)",
         border: on ? "none" : "1px solid var(--color-border-subtle)",
         position: "relative",
         cursor: pending ? "wait" : "pointer",
-        transition: "background 0.15s ease",
+        transition: "background 0.15s ease, box-shadow 0.12s ease",
         flexShrink: 0,
         opacity: pending ? 0.6 : 1,
         padding: 0,
+        boxShadow: hovered && !pending ? "0 0 0 2px rgba(255,255,255,0.10)" : "none",
       }}
     >
       <div
         style={{
           position: "absolute",
           top: "2px",
-          left: on ? "calc(100% - 16px)" : "2px",
-          width: "14px",
-          height: "14px",
+          left: on ? "calc(100% - 12px)" : "2px",
+          width: "10px",
+          height: "10px",
           borderRadius: "50%",
           background: "white",
           transition: "left 0.15s ease",
@@ -223,7 +249,8 @@ function PersistenceRow({
   pending: boolean;
   onToggle: () => void;
 }) {
-  const isDimmed = status === "disabled";
+  // Dim by disabled state directly — a flagged+disabled row is dimmed but shows FLAGGED badge.
+  const isDimmed = entry.disabled;
 
   const rowBg =
     status === "flagged"
@@ -250,12 +277,10 @@ function PersistenceRow({
         opacity: isDimmed ? 0.55 : 1,
       }}
     >
-      {/* Status icon */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
         <StatusIcon status={status} />
       </div>
 
-      {/* Label + path */}
       <div style={{ minWidth: 0 }}>
         <div
           style={{
@@ -285,7 +310,6 @@ function PersistenceRow({
         </div>
       </div>
 
-      {/* Kind */}
       <div
         style={{
           fontSize: "10px",
@@ -297,12 +321,11 @@ function PersistenceRow({
         {kindLabel(entry.kind)}
       </div>
 
-      {/* Status badge */}
       <div>
         <StatusBadge status={status} />
       </div>
 
-      {/* Toggle — login_items can't be toggled via launchctl */}
+      {/* login_item entries can't be toggled via launchctl */}
       <div style={{ display: "flex", justifyContent: "flex-end" }}>
         {entry.kind !== "login_item" && (
           <ToggleSwitch
@@ -316,59 +339,163 @@ function PersistenceRow({
   );
 }
 
-// ── Filter chip ───────────────────────────────────────────────────────────────
+// ── Persistence section ───────────────────────────────────────────────────────
 
-function FilterChip({
+function PersistenceSection({
   label,
-  count,
-  active,
-  onClick,
+  entries,
+  pendingLabels,
+  onToggle,
+  collapsible = false,
 }: {
   label: string;
-  count: number;
-  active: boolean;
-  onClick: () => void;
+  entries: SectionEntry[];
+  pendingLabels: Set<string>;
+  onToggle: (entry: PersistenceEntry) => void;
+  collapsible?: boolean;
 }) {
-  return (
-    <button
-      onClick={onClick}
+  const [expanded, setExpanded] = useState(!collapsible);
+
+  const headerText = (
+    <span
       style={{
-        background: active ? "var(--color-accent)" : "var(--color-bg-elev-2)",
-        color: active ? "var(--color-accent-on)" : "var(--color-text-secondary)",
-        border: "none",
-        borderRadius: "var(--radius-sm)",
-        padding: "3px 9px",
+        fontSize: "10px",
+        fontWeight: 600,
+        letterSpacing: "0.08em",
+        textTransform: "uppercase" as const,
+        color: "var(--color-text-muted)",
         fontFamily: "var(--font-mono)",
-        fontSize: "11px",
-        cursor: "pointer",
-        whiteSpace: "nowrap",
       }}
     >
-      {label} {count}
-    </button>
+      {label} · {entries.length}
+    </span>
+  );
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+      {collapsible ? (
+        <button
+          onClick={() => setExpanded((prev) => !prev)}
+          aria-expanded={expanded}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "5px",
+            background: "none",
+            border: "none",
+            padding: 0,
+            cursor: "pointer",
+          }}
+        >
+          <span
+            style={{
+              fontSize: "9px",
+              color: "var(--color-text-muted)",
+              userSelect: "none",
+              lineHeight: 1,
+            }}
+          >
+            {expanded ? "▾" : "▸"}
+          </span>
+          {headerText}
+        </button>
+      ) : (
+        <div style={{ display: "flex", alignItems: "center" }}>{headerText}</div>
+      )}
+
+      {expanded && (
+        <div
+          style={{
+            background: "var(--color-bg-elev-1)",
+            border: "1px solid var(--color-border-subtle)",
+            borderRadius: "var(--radius-lg)",
+            overflow: "hidden",
+          }}
+        >
+          {entries.map(({ entry, status }) => (
+            <PersistenceRow
+              key={entry.label + entry.path}
+              entry={entry}
+              status={status}
+              pending={pendingLabels.has(entry.label)}
+              onToggle={() => onToggle(entry)}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Column headers ────────────────────────────────────────────────────────────
+
+function ColumnHeaders() {
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: GRID,
+        gap: "8px",
+        padding: "0 12px",
+        fontFamily: "var(--font-mono)",
+        fontSize: "10px",
+        fontWeight: 600,
+        letterSpacing: "0.08em",
+        textTransform: "uppercase",
+        color: "var(--color-text-muted)",
+      }}
+    >
+      <div />
+      <div>label · path</div>
+      <div style={{ textAlign: "center" }}>kind</div>
+      <div>status</div>
+      <div style={{ textAlign: "right" }}>enabled</div>
+    </div>
   );
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function SecurityTab({ snapshot, findings, onTogglePersistence }: SecurityTabProps) {
-  const [filter, setFilter] = useState<FilterKey>("all");
+export default function StartupTab({ snapshot, findings, onTogglePersistence }: StartupTabProps) {
   const [pendingLabels, setPendingLabels] = useState<Set<string>>(new Set());
 
-  const persistenceEntries = snapshot?.persistence?.entries ?? [];
+  // snapshotKey changes only when a genuinely new snapshot is loaded.
+  // Toggles within a snapshot update entry.disabled but leave created_at unchanged.
+  const snapshotKey = snapshot?.created_at ?? null;
+
+  // Synchronously capture entries the moment a new snapshot arrives.
+  // Reading frozenEntriesRef.current inside memos below is safe because every
+  // memo that uses it also lists snapshotKey as a dependency.
+  const prevKeyRef = useRef<string | null>(null);
+  const frozenEntriesRef = useRef<PersistenceEntry[]>([]);
+  if (snapshotKey !== prevKeyRef.current) {
+    prevKeyRef.current = snapshotKey;
+    frozenEntriesRef.current = snapshot?.persistence?.entries ?? [];
+  }
+
+  // Live entries — updated when the user toggles within the current snapshot.
+  const liveEntries = snapshot?.persistence?.entries ?? [];
+
+  // Fast lookup for live entry state (disabled, etc.) keyed by label+path.
+  const liveEntryMap = useMemo(() => {
+    const m = new Map<string, PersistenceEntry>();
+    for (const e of liveEntries) m.set(e.label + e.path, e);
+    return m;
+  }, [liveEntries]);
 
   const networkFindings = useMemo(
     () => findings.filter((f) => ["network", "security", "process"].includes(f.category)),
     [findings]
   );
 
+  // Cross-reference findings against frozen entries — stable across toggles.
   const flaggedLabels = useMemo(() => {
     const set = new Set<string>();
-    const relevantFindings = findings.filter((f) =>
+    const relevant = findings.filter((f) =>
       ["security", "persistence", "network", "process"].includes(f.category)
     );
-    for (const entry of persistenceEntries) {
-      for (const f of relevantFindings) {
+    for (const entry of frozenEntriesRef.current) {
+      for (const f of relevant) {
         if (f.title.includes(entry.label) || f.description.includes(entry.label)) {
           set.add(entry.label);
           break;
@@ -376,36 +503,56 @@ export default function SecurityTab({ snapshot, findings, onTogglePersistence }:
       }
     }
     return set;
-  }, [findings, persistenceEntries]);
+  }, [snapshotKey, findings]); // snapshotKey (not liveEntries) keeps this stable across toggles
 
-  const classified = useMemo(
-    () =>
-      persistenceEntries.map((entry) => ({
-        entry,
-        status: classifyPersistence(entry, flaggedLabels) as EntryStatus,
-      })),
-    [persistenceEntries, flaggedLabels]
-  );
+  // Frozen ordered sections — bucket + sort established once per snapshot.
+  // Disabled is a sort key (bottom of bucket), not a separate bucket.
+  // Sort within each bucket: flagged+enabled → enabled → disabled; stable by label.
+  // Disabled always sorts to the bottom even when also flagged (dealt-with signal).
+  const frozenOrderedSections = useMemo((): Record<SectionKey, string[]> => {
+    type Item = { key: string; flagged: boolean; disabled: boolean; label: string };
+    const raw: Record<SectionKey, Item[]> = { unknown: [], known: [], system: [] };
 
-  const counts = useMemo(
-    () => ({
-      all: classified.length,
-      flagged: classified.filter((c) => c.status === "flagged").length,
-      known: classified.filter((c) => c.status === "known").length,
-      disabled: classified.filter((c) => c.status === "disabled").length,
-    }),
-    [classified]
-  );
+    for (const entry of frozenEntriesRef.current) {
+      const key = entry.label + entry.path;
+      raw[sectionFor(entry, flaggedLabels)].push({
+        key,
+        flagged: flaggedLabels.has(entry.label),
+        disabled: entry.disabled,
+        label: entry.label,
+      });
+    }
 
-  const filtered = useMemo(
-    () => (filter === "all" ? classified : classified.filter((c) => c.status === filter)),
-    [classified, filter]
-  );
+    const sortItems = (items: Item[]): string[] =>
+      items
+        .sort((a, b) => {
+          const pa = a.disabled ? 2 : a.flagged ? 0 : 1;
+          const pb = b.disabled ? 2 : b.flagged ? 0 : 1;
+          if (pa !== pb) return pa - pb;
+          return a.label.localeCompare(b.label);
+        })
+        .map((x) => x.key);
 
-  const sorted = useMemo(() => {
-    const order: Record<EntryStatus, number> = { flagged: 0, known: 1, normal: 2, disabled: 3 };
-    return [...filtered].sort((a, b) => order[a.status] - order[b.status]);
-  }, [filtered]);
+    return {
+      unknown: sortItems(raw.unknown),
+      known: sortItems(raw.known),
+      system: sortItems(raw.system),
+    };
+  }, [snapshotKey, flaggedLabels]); // stable within snapshot, never depends on liveEntries
+
+  const sections = useMemo(() => {
+    const buckets: Record<SectionKey, SectionEntry[]> = { unknown: [], known: [], system: [] };
+    for (const [sec, orderedKeys] of Object.entries(frozenOrderedSections) as [SectionKey, string[]][]) {
+      for (const key of orderedKeys) {
+        const liveEntry = liveEntryMap.get(key);
+        if (!liveEntry) continue;
+        buckets[sec].push({ entry: liveEntry, status: badgeStatusFor(liveEntry, flaggedLabels) });
+      }
+    }
+    return buckets;
+  }, [frozenOrderedSections, liveEntryMap, flaggedLabels]);
+
+  const hasAnyEntries = frozenEntriesRef.current.length > 0;
 
   const handleToggle = useCallback(
     async (entry: PersistenceEntry) => {
@@ -449,6 +596,12 @@ export default function SecurityTab({ snapshot, findings, onTogglePersistence }:
 
   return (
     <div style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: "16px" }}>
+      {/* Subtitle */}
+      <p style={{ margin: 0, fontSize: "12px", color: "var(--color-text-secondary)", lineHeight: 1.55 }}>
+        Programs that run automatically at login or in the background.
+        Macroscope flags suspicious entries and lists everything for review — manage them in macOS System Settings.
+      </p>
+
       {/* Section 1 — Network exposure findings */}
       {networkFindings.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
@@ -462,7 +615,7 @@ export default function SecurityTab({ snapshot, findings, onTogglePersistence }:
               fontFamily: "var(--font-mono)",
             }}
           >
-            network & security · {networkFindings.length} finding{networkFindings.length !== 1 ? "s" : ""}
+            network exposure · {networkFindings.length} finding{networkFindings.length !== 1 ? "s" : ""}
           </div>
           {networkFindings.map((f) => (
             <NetworkFindingCard key={f.id} finding={f} />
@@ -470,85 +623,54 @@ export default function SecurityTab({ snapshot, findings, onTogglePersistence }:
         </div>
       )}
 
-      {/* Section 2 — Persistence inventory */}
-      <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-        {/* Header */}
-        <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-          <div
-            style={{
-              fontSize: "10px",
-              fontWeight: 600,
-              letterSpacing: "0.08em",
-              textTransform: "uppercase",
-              color: "var(--color-text-muted)",
-              fontFamily: "var(--font-mono)",
-              marginRight: "4px",
-            }}
-          >
-            persistence
-          </div>
-          <FilterChip label="all" count={counts.all} active={filter === "all"} onClick={() => setFilter("all")} />
-          <FilterChip label="flagged" count={counts.flagged} active={filter === "flagged"} onClick={() => setFilter("flagged")} />
-          <FilterChip label="known" count={counts.known} active={filter === "known"} onClick={() => setFilter("known")} />
-          <FilterChip label="disabled" count={counts.disabled} active={filter === "disabled"} onClick={() => setFilter("disabled")} />
-        </div>
+      {/* Section 2 — Persistence inventory (grouped) */}
+      {hasAnyEntries ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+          <ColumnHeaders />
 
-        {/* Column headers */}
+          {sections.unknown.length > 0 && (
+            <PersistenceSection
+              label="unknown publisher"
+              entries={sections.unknown}
+              pendingLabels={pendingLabels}
+              onToggle={handleToggle}
+            />
+          )}
+
+          {sections.known.length > 0 && (
+            <PersistenceSection
+              label="known publisher"
+              entries={sections.known}
+              pendingLabels={pendingLabels}
+              onToggle={handleToggle}
+            />
+          )}
+
+          {sections.system.length > 0 && (
+            <PersistenceSection
+              label="system-managed (macOS controls these)"
+              entries={sections.system}
+              pendingLabels={pendingLabels}
+              onToggle={handleToggle}
+              collapsible
+            />
+          )}
+        </div>
+      ) : (
         <div
           style={{
-            display: "grid",
-            gridTemplateColumns: GRID,
-            gap: "8px",
-            padding: "0 12px",
-            fontFamily: "var(--font-mono)",
-            fontSize: "10px",
-            fontWeight: 600,
-            letterSpacing: "0.08em",
-            textTransform: "uppercase",
+            padding: "20px",
+            textAlign: "center",
+            fontSize: "var(--text-sm)",
             color: "var(--color-text-muted)",
           }}
         >
-          <div />
-          <div>label · path</div>
-          <div style={{ textAlign: "center" }}>kind</div>
-          <div>status</div>
-          <div style={{ textAlign: "right" }}>enabled</div>
+          No entries
         </div>
+      )}
 
-        {/* Rows */}
-        {sorted.length === 0 ? (
-          <div
-            style={{
-              padding: "20px",
-              textAlign: "center",
-              fontSize: "var(--text-sm)",
-              color: "var(--color-text-muted)",
-            }}
-          >
-            No {filter === "all" ? "" : filter + " "}entries
-          </div>
-        ) : (
-          <div
-            style={{
-              background: "var(--color-bg-elev-1)",
-              border: "1px solid var(--color-border-subtle)",
-              borderRadius: "var(--radius-lg)",
-              overflow: "hidden",
-            }}
-          >
-            {sorted.map(({ entry, status }) => (
-              <PersistenceRow
-                key={entry.label + entry.path}
-                entry={entry}
-                status={status}
-                pending={pendingLabels.has(entry.label)}
-                onToggle={() => handleToggle(entry)}
-              />
-            ))}
-          </div>
-        )}
-
-        {/* Footer hint */}
+      {/* Footer hint */}
+      {hasAnyEntries && (
         <div
           style={{
             textAlign: "center",
@@ -560,7 +682,7 @@ export default function SecurityTab({ snapshot, findings, onTogglePersistence }:
         >
           toggling a switch runs launchctl disable/enable · sudo prompt for root daemons
         </div>
-      </div>
+      )}
     </div>
   );
 }

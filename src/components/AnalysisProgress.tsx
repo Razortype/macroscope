@@ -132,7 +132,7 @@ function AuditRow({ preset, audit }: { preset: string; audit: AuditState }) {
 
   const labelMap: Record<string, string> = {
     "disk-audit": "disk audit",
-    "security-audit": "security audit",
+    "security-audit": "startup audit",
     "app-lifecycle-audit": "app lifecycle audit",
   };
   const label = labelMap[preset] ?? preset;
@@ -399,7 +399,7 @@ export default function AnalysisProgress({
         {rootCount > 0
           ? `scanning system locations + ${rootCount} project ${rootCount === 1 ? "directory" : "directories"}`
           : "scanning system locations"}
-        {" · disk + security + apps"}
+        {" · disk + startup + apps"}
       </div>
 
       {/* Step 1 */}

@@ -1,12 +1,12 @@
 import { useState, type ReactNode } from "react";
-import { LayoutGrid, CircleAlert, Grid3x3, FileText, Shield } from "lucide-react";
+import { LayoutGrid, CircleAlert, Grid3x3, FileText, Activity } from "lucide-react";
 
-export type TabId = "overview" | "findings" | "apps" | "files" | "security";
+export type TabId = "overview" | "findings" | "apps" | "files" | "startup";
 
 interface TabBarProps {
   active: TabId;
   onChange: (id: TabId) => void;
-  counts?: { findings?: number; apps?: number; files?: number; security?: number };
+  counts?: { findings?: number; apps?: number; files?: number; startup?: number };
 }
 
 const TABS: { id: TabId; label: string; icon: ReactNode }[] = [
@@ -14,7 +14,7 @@ const TABS: { id: TabId; label: string; icon: ReactNode }[] = [
   { id: "findings", label: "findings", icon: <CircleAlert size={13} /> },
   { id: "apps", label: "apps", icon: <Grid3x3 size={13} /> },
   { id: "files", label: "files", icon: <FileText size={13} /> },
-  { id: "security", label: "security", icon: <Shield size={13} /> },
+  { id: "startup", label: "startup & background", icon: <Activity size={13} /> },
 ];
 
 export default function TabBar({ active, onChange, counts = {} }: TabBarProps) {
