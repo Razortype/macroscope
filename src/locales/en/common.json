@@ -1,0 +1,31 @@
+{
+  "actions": {
+    "cancel": "Cancel",
+    "save": "Save",
+    "back": "Back",
+    "continue": "Continue",
+    "skip": "Skip",
+    "configure": "Configure",
+    "reset": "Reset",
+    "install_on_restart": "Install on restart",
+    "remind_me_later": "Remind me later",
+    "reveal_in_finder": "Reveal in Finder",
+    "copy_path": "Copy path",
+    "select_all": "select all",
+    "deselect_all": "deselect all"
+  },
+  "status": {
+    "loading": "Loading…",
+    "saving": "Saving…",
+    "checking": "Checking…",
+    "downloading": "Downloading…",
+    "testing": "Testing…",
+    "fetching": "Fetching…",
+    "resetting": "Resetting…",
+    "moving": "Moving…"
+  },
+  "errors": {
+    "could_not_open_finder": "Could not open Finder: {{detail}}",
+    "could_not_copy_path": "Could not copy path: {{detail}}"
+  }
+}
