@@ -26,7 +26,7 @@ Commit the version bump:
 ```sh
 git add src-tauri/tauri.conf.json package.json src-tauri/Cargo.toml
 git commit -m "chore: bump version to 0.3.0"
-git tag v0.3.0
+git push
 ```
 
 ### 2. Build the release bundle
@@ -36,6 +36,13 @@ npm run tauri build
 ```
 
 Output: `src-tauri/target/aarch64-apple-darwin/release/bundle/macos/Macroscope.app`
+
+If `Cargo.lock` was updated by the build, amend the version bump commit to include it:
+
+```sh
+git add src-tauri/Cargo.lock && git commit --amend --no-edit
+git push --force-with-lease
+```
 
 ### 3. Archive the .app bundle
 
