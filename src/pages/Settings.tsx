@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
+import i18next from "../i18n";
 import { useForm, useFormContext } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
@@ -35,32 +36,76 @@ import { SectionSystemAudit } from "../components/settings/SystemAuditSection";
 function SectionGeneral() {
   const { t } = useTranslation("settings");
   const form = useFormContext<SettingsValues>();
+
+  function handleLocaleChange(newLocale: "en" | "tr") {
+    form.setValue("locale", newLocale, { shouldDirty: true });
+    i18next.changeLanguage(newLocale);
+  }
+
+  const currentLocale = form.watch("locale");
+
   return (
     <Section title={t("general.title")}>
-      <FormField
-        control={form.control}
-        name="snapshot_retention"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>{t("general.snapshot_retention.label")}</FormLabel>
-            <FormControl>
-              <Input
-                type="number"
-                min={1}
-                max={100}
-                step={1}
-                style={{ width: "88px" }}
-                {...field}
-                onChange={(e) => field.onChange(Number(e.target.value))}
-              />
-            </FormControl>
-            <FormDescription>
-              {t("general.snapshot_retention.description")}
-            </FormDescription>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
+      <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+        {/* Language */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+          <label
+            style={{
+              fontSize: "var(--text-sm)",
+              fontWeight: 500,
+              color: "var(--color-text-secondary)",
+              display: "block",
+            }}
+          >
+            {t("general.language.title")}
+          </label>
+          <select
+            value={currentLocale}
+            onChange={(e) => handleLocaleChange(e.target.value as "en" | "tr")}
+            style={{
+              width: "180px",
+              background: "var(--color-bg-elev-2)",
+              border: "1px solid var(--color-border-subtle)",
+              borderRadius: "var(--radius-sm)",
+              padding: "5px 8px",
+              color: "var(--color-text-primary)",
+              fontFamily: "var(--font-sans)",
+              fontSize: "var(--text-sm)",
+              outline: "none",
+              cursor: "pointer",
+            }}
+          >
+            <option value="en">{t("general.language.en")}</option>
+            <option value="tr">{t("general.language.tr")}</option>
+          </select>
+        </div>
+
+        {/* Snapshot retention */}
+        <FormField
+          control={form.control}
+          name="snapshot_retention"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>{t("general.snapshot_retention.label")}</FormLabel>
+              <FormControl>
+                <Input
+                  type="number"
+                  min={1}
+                  max={100}
+                  step={1}
+                  style={{ width: "88px" }}
+                  {...field}
+                  onChange={(e) => field.onChange(Number(e.target.value))}
+                />
+              </FormControl>
+              <FormDescription>
+                {t("general.snapshot_retention.description")}
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+      </div>
     </Section>
   );
 }
