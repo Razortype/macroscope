@@ -252,7 +252,7 @@ function StepProjectRoots() {
             color: "var(--color-text-muted)",
           }}
         >
-          Macroscope will only scan these folders.
+          Add directories where your projects live. Macroscope surfaces large build artifacts (node_modules, .venv, target/) inside them.
         </p>
       </div>
       <ProjectRootsContent onChanged={() => {}} />
