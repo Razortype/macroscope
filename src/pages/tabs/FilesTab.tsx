@@ -1,6 +1,8 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { Check } from "lucide-react";
 import type { LargeFile } from "../../types/snapshot";
+import RowActions from "../../components/RowActions";
+import { Tooltip, TooltipTrigger, TooltipContent } from "../../components/ui/tooltip";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -188,7 +190,7 @@ export default function FilesTab({ files, executedPaths, partialPaths, onExecute
     return `${cat} ${s.count} · ${formatBytes(s.bytes)}`;
   };
 
-  const GRID = "32px minmax(0,1fr) 110px 100px 70px";
+  const GRID = "32px minmax(0,1fr) 110px 100px 70px 28px";
 
   return (
     <div style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: "12px" }}>
@@ -319,6 +321,7 @@ export default function FilesTab({ files, executedPaths, partialPaths, onExecute
         >
           cat
         </div>
+        <div />
       </div>
 
       {/* File rows */}
@@ -392,20 +395,28 @@ export default function FilesTab({ files, executedPaths, partialPaths, onExecute
                 >
                   {pathBasename(file.path)}
                 </div>
-                <div
-                  style={{
-                    fontSize: "10px",
-                    fontFamily: "var(--font-mono)",
-                    color: "var(--color-text-muted)",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                    textDecoration: isDimmed ? "line-through" : "none",
-                    opacity: isDimmed ? 0.4 : 1,
-                  }}
-                >
-                  {file.path}
-                </div>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div
+                      style={{
+                        fontSize: "10px",
+                        fontFamily: "var(--font-mono)",
+                        color: "var(--color-text-muted)",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                        textDecoration: isDimmed ? "line-through" : "none",
+                        opacity: isDimmed ? 0.4 : 1,
+                        cursor: "default",
+                      }}
+                    >
+                      {file.path}
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">
+                    <span style={{ fontFamily: "var(--font-mono)", fontSize: "11px" }}>{file.path}</span>
+                  </TooltipContent>
+                </Tooltip>
               </div>
 
               {/* Last modified */}
@@ -470,6 +481,11 @@ export default function FilesTab({ files, executedPaths, partialPaths, onExecute
                     PARTIAL
                   </span>
                 )}
+              </div>
+
+              {/* Row actions */}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <RowActions path={file.path} />
               </div>
             </div>
           );
