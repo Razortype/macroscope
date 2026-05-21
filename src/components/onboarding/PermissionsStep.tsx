@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { FolderOpen, Settings2, Shield, ExternalLink } from "lucide-react";
@@ -14,48 +15,24 @@ interface PermConfig {
   pane: string;
 }
 
-const GRANULAR_PERMS: PermConfig[] = [
-  {
-    id: "automation",
-    Icon: Settings2,
-    title: "System Events automation",
-    description: "Needed for app inventory via AppleScript",
-    pane: "Automation",
-  },
-  {
-    id: "desktop",
-    Icon: FolderOpen,
-    title: "Desktop folder",
-    description: "Access to files on your Desktop",
-    pane: "DesktopFolder",
-  },
-  {
-    id: "downloads",
-    Icon: FolderOpen,
-    title: "Downloads folder",
-    description: "Access to files in Downloads",
-    pane: "DownloadsFolder",
-  },
-  {
-    id: "documents",
-    Icon: FolderOpen,
-    title: "Documents folder",
-    description: "Access to files in Documents",
-    pane: "DocumentsFolder",
-  },
-];
+const GRANULAR_PERM_CONFIGS = [
+  { id: "automation", Icon: Settings2, pane: "Automation" },
+  { id: "desktop",    Icon: FolderOpen, pane: "DesktopFolder" },
+  { id: "downloads",  Icon: FolderOpen, pane: "DownloadsFolder" },
+  { id: "documents",  Icon: FolderOpen, pane: "DocumentsFolder" },
+] as const;
 
-const FDA_PERM: PermConfig = {
-  id: "fda",
-  Icon: Shield,
-  title: "Full Disk Access",
-  description: "Grants read access to your entire home directory",
-  pane: "AllFiles",
-};
+const FDA_PERM_CONFIG = { id: "fda", Icon: Shield, pane: "AllFiles" } as const;
+
+function OpenSettingsLabel() {
+  const { t } = useTranslation("onboarding");
+  return <>{t("steps.permissions.open_settings_btn")}</>;
+}
 
 // ── Status pill ───────────────────────────────────────────────────────────────
 
 function StatusPill({ granted }: { granted: boolean }) {
+  const { t } = useTranslation("onboarding");
   return (
     <span
       style={{
@@ -76,7 +53,7 @@ function StatusPill({ granted }: { granted: boolean }) {
         flexShrink: 0,
       }}
     >
-      {granted ? "GRANTED" : "PENDING"}
+      {granted ? t("steps.permissions.status_granted") : t("steps.permissions.status_pending")}
     </span>
   );
 }
@@ -147,7 +124,7 @@ function PermRow({
             size="sm"
             onClick={openSettings}
           >
-            Open Settings
+            <OpenSettingsLabel />
             <ExternalLink size={11} />
           </Button>
         )}
@@ -169,6 +146,7 @@ export function PermissionsStep({
   onModeChange,
   onGrantedCountChange,
 }: PermissionsStepProps) {
+  const { t } = useTranslation("onboarding");
   const [statuses, setStatuses] = useState({
     automation: false,
     desktop: false,
@@ -236,12 +214,19 @@ export function PermissionsStep({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const perms = mode === "granular" ? GRANULAR_PERMS : [FDA_PERM];
+  const permConfigs = mode === "granular" ? GRANULAR_PERM_CONFIGS : [FDA_PERM_CONFIG];
+  const perms: PermConfig[] = permConfigs.map((c) => ({
+    id: c.id,
+    Icon: c.Icon,
+    pane: c.pane,
+    title: t(`steps.permissions.perms.${c.id}.title`),
+    description: t(`steps.permissions.perms.${c.id}.description`),
+  }));
 
   const helperText =
     mode === "granular"
-      ? "Macroscope only requests the folders it needs."
-      : "One permission grants access to your entire home directory.";
+      ? t("steps.permissions.helper_granular")
+      : t("steps.permissions.helper_fda");
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
@@ -280,7 +265,7 @@ export function PermissionsStep({
                 cursor: "pointer",
               }}
             >
-              {m === "granular" ? "Granular" : "Full Disk Access"}
+              {m === "granular" ? t("steps.permissions.mode_granular") : t("steps.permissions.mode_fda")}
             </button>
           ))}
         </div>

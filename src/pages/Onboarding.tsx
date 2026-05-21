@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { invoke } from "@tauri-apps/api/core";
 import {
   ChevronLeft, ChevronRight, CheckCircle2,
@@ -50,34 +51,21 @@ function StepHeader({ children }: { children: React.ReactNode }) {
 
 // ── Step 1: Welcome ───────────────────────────────────────────────────────────
 
-const FEATURE_ROWS = [
-  {
-    num: 1,
-    title: "See what gets scanned",
-    desc: "Learn which macOS locations Macroscope always audits",
-    Icon: Shield,
-  },
-  {
-    num: 2,
-    title: "Pick an AI provider",
-    desc: "Choose Gemini, Claude, OpenAI, or run locally with Ollama",
-    Icon: Cpu,
-  },
-  {
-    num: 3,
-    title: "Grant permissions",
-    desc: "macOS will ask for access to specific folders",
-    Icon: Folder,
-  },
-  {
-    num: 4,
-    title: "Confirm project locations",
-    desc: "Tell Macroscope where your code lives",
-    Icon: Sparkles,
-  },
+const FEATURE_ROW_CONFIGS = [
+  { num: 1, key: "see_what_gets_scanned", Icon: Shield },
+  { num: 2, key: "pick_an_ai_provider",   Icon: Cpu },
+  { num: 3, key: "grant_permissions",     Icon: Folder },
+  { num: 4, key: "confirm_project_locations", Icon: Sparkles },
 ] as const;
 
 function StepWelcome() {
+  const { t } = useTranslation("onboarding");
+  const featureRows = FEATURE_ROW_CONFIGS.map(({ num, key, Icon }) => ({
+    num,
+    title: t(`steps.welcome.features.${key}.title`),
+    desc: t(`steps.welcome.features.${key}.desc`),
+    Icon,
+  }));
   return (
     <div
       style={{
@@ -100,7 +88,7 @@ function StepWelcome() {
             fontFamily: "var(--font-sans)",
           }}
         >
-          Welcome to Macroscope
+          {t("steps.welcome.title")}
         </h1>
         <p
           style={{
@@ -109,7 +97,7 @@ function StepWelcome() {
             color: "var(--color-text-secondary)",
           }}
         >
-          Let&apos;s get you set up in 4 quick steps.
+          {t("steps.welcome.subtitle")}
         </p>
       </div>
 
@@ -121,7 +109,7 @@ function StepWelcome() {
           width: "100%",
         }}
       >
-        {FEATURE_ROWS.map(({ num, title, desc, Icon }) => (
+        {featureRows.map(({ num, title, desc, Icon }) => (
           <div
             key={num}
             style={{
@@ -192,10 +180,11 @@ function StepWelcome() {
 // ── Step 2: What Macroscope Scans ─────────────────────────────────────────────
 
 function StepScanScope() {
+  const { t } = useTranslation(["onboarding", "settings"]);
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
       <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-        <StepHeader>What Macroscope Scans</StepHeader>
+        <StepHeader>{t("onboarding:steps.scan_scope.header")}</StepHeader>
         <p
           style={{
             margin: 0,
@@ -203,8 +192,7 @@ function StepScanScope() {
             color: "var(--color-text-muted)",
           }}
         >
-          These macOS locations are audited on every snapshot — this is fixed
-          by design and cannot be disabled.
+          {t("onboarding:steps.scan_scope.fixed_note")}
         </p>
       </div>
 
@@ -238,7 +226,7 @@ function StepScanScope() {
                   color: "var(--color-text-primary)",
                 }}
               >
-                {probe.label}
+                {t(`settings:probes.${probe.key}.label`)}
               </span>
               <span
                 style={{
@@ -247,7 +235,7 @@ function StepScanScope() {
                   lineHeight: "var(--leading-snug)",
                 }}
               >
-                {probe.description}
+                {t(`settings:probes.${probe.key}.description`)}
               </span>
             </div>
           </div>
@@ -263,13 +251,7 @@ function StepScanScope() {
         }}
       >
         <p style={{ margin: 0, fontSize: "var(--text-xs)", color: "var(--color-text-secondary)" }}>
-          <strong style={{ color: "var(--color-text-primary)" }}>Also optional:</strong>{" "}
-          In a later step you can add directories where your projects live.
-          Macroscope will then surface large build artifacts (
-          <span style={{ fontFamily: "var(--font-mono)" }}>node_modules</span>,{" "}
-          <span style={{ fontFamily: "var(--font-mono)"}}>.venv</span>,{" "}
-          <span style={{ fontFamily: "var(--font-mono)"}}>target/</span>
-          ) inside them.
+          {t("onboarding:steps.scan_scope.optional_note")}
         </p>
       </div>
     </div>
@@ -279,10 +261,11 @@ function StepScanScope() {
 // ── Step 3: AI Provider ───────────────────────────────────────────────────────
 
 function StepAIProvider() {
+  const { t } = useTranslation("onboarding");
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
       <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-        <StepHeader>AI Provider</StepHeader>
+        <StepHeader>{t("steps.ai_provider.header")}</StepHeader>
         <p
           style={{
             margin: 0,
@@ -290,7 +273,7 @@ function StepAIProvider() {
             color: "var(--color-text-muted)",
           }}
         >
-          You can change this later in Settings.
+          {t("steps.ai_provider.hint")}
         </p>
       </div>
       <AIProviderContent />
@@ -309,10 +292,11 @@ function StepPermissions({
   onModeChange: (m: PermMode) => void;
   onGrantedCountChange: (count: number) => void;
 }) {
+  const { t } = useTranslation("onboarding");
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
       <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-        <StepHeader>Permissions</StepHeader>
+        <StepHeader>{t("steps.permissions.header")}</StepHeader>
         <p
           style={{
             margin: 0,
@@ -320,7 +304,7 @@ function StepPermissions({
             color: "var(--color-text-muted)",
           }}
         >
-          You can grant these later — Macroscope will prompt when needed.
+          {t("steps.permissions.hint")}
         </p>
       </div>
       <PermissionsStep
@@ -335,10 +319,11 @@ function StepPermissions({
 // ── Step 5: Project Roots ─────────────────────────────────────────────────────
 
 function StepProjectRoots() {
+  const { t } = useTranslation("onboarding");
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
       <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-        <StepHeader>Project Roots</StepHeader>
+        <StepHeader>{t("steps.project_roots.header")}</StepHeader>
         <p
           style={{
             margin: 0,
@@ -346,7 +331,7 @@ function StepProjectRoots() {
             color: "var(--color-text-muted)",
           }}
         >
-          Add directories where your projects live. Macroscope surfaces large build artifacts (node_modules, .venv, target/) inside them.
+          {t("steps.project_roots.hint")}
         </p>
       </div>
       <ProjectRootsContent onChanged={() => {}} />
@@ -365,6 +350,7 @@ function StepDone({
   grantedCount: number;
   onSkip: () => void;
 }) {
+  const { t } = useTranslation("onboarding");
   const [providerName, setProviderName] = useState<string>("—");
   const [rootCount, setRootCount] = useState<number>(0);
 
@@ -387,13 +373,13 @@ function StepDone({
 
   const permText =
     permMode === "fda"
-      ? "Full Disk Access"
-      : `${grantedCount} / 4 granted`;
+      ? t("steps.done.permissions_fda")
+      : t("steps.done.permissions_granular", { count: grantedCount });
 
   const stats = [
-    { label: "AI Provider", value: providerName },
-    { label: "Permissions", value: permText },
-    { label: "Project Roots", value: `${rootCount} folder${rootCount !== 1 ? "s" : ""}` },
+    { label: t("steps.done.stat_ai_provider"), value: providerName },
+    { label: t("steps.done.stat_permissions"), value: permText },
+    { label: t("steps.done.stat_project_roots"), value: t("steps.done.project_roots", { count: rootCount }) },
   ];
 
   return (
@@ -421,7 +407,7 @@ function StepDone({
             fontFamily: "var(--font-sans)",
           }}
         >
-          You&apos;re all set
+          {t("steps.done.title")}
         </h2>
         <p
           style={{
@@ -430,7 +416,7 @@ function StepDone({
             color: "var(--color-text-secondary)",
           }}
         >
-          Macroscope is ready to take your first snapshot.
+          {t("steps.done.subtitle")}
         </p>
       </div>
 
@@ -496,7 +482,7 @@ function StepDone({
           padding: "4px",
         }}
       >
-        Skip and go to Dashboard
+        {t("nav.skip_to_dashboard")}
       </button>
     </div>
   );
@@ -509,6 +495,7 @@ interface OnboardingProps {
 }
 
 export default function Onboarding({ onComplete }: OnboardingProps) {
+  const { t } = useTranslation("onboarding");
   const [step, setStep] = useState(1);
   const [permMode, setPermMode] = useState<PermMode>("granular");
   const [permGrantedCount, setPermGrantedCount] = useState(0);
@@ -550,9 +537,9 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   }
 
   const continueLabel =
-    step === 1 ? "Get started" :
-    step === TOTAL_STEPS ? "Take first snapshot" :
-    "Continue";
+    step === 1 ? t("nav.get_started") :
+    step === TOTAL_STEPS ? t("nav.take_first_snapshot") :
+    t("common:actions.continue");
 
   const cardMaxWidth = step === 2 || step === 3 || step === 5 ? "600px" : "520px";
 
@@ -611,7 +598,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
               color: "var(--color-text-primary)",
             }}
           >
-            Macroscope
+            {t("topbar.app_name")}
           </span>
         </div>
 
@@ -630,19 +617,19 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                 borderRadius: "var(--radius-sm)",
               }}
             >
-              Skip setup
+              {t("topbar.skip_setup")}
             </button>
           </AlertDialogTrigger>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Skip setup?</AlertDialogTitle>
+              <AlertDialogTitle>{t("skip_dialog.title")}</AlertDialogTitle>
               <AlertDialogDescription>
-                You can complete setup at any time from Settings. Some features may not work until configured.
+                {t("skip_dialog.description")}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={complete}>Skip anyway</AlertDialogAction>
+              <AlertDialogCancel>{t("common:actions.cancel")}</AlertDialogCancel>
+              <AlertDialogAction onClick={complete}>{t("skip_dialog.confirm")}</AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
@@ -723,7 +710,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                 }}
               >
                 <ChevronLeft size={14} />
-                Back
+                {t("common:actions.back")}
               </button>
             ) : (
               <div />
