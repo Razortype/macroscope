@@ -1,0 +1,65 @@
+import { MoreHorizontal } from "lucide-react";
+import { invoke } from "@tauri-apps/api/core";
+import { toast } from "sonner";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "./ui/dropdown-menu";
+
+interface Props {
+  path: string;
+}
+
+export default function RowActions({ path }: Props) {
+  function handleReveal() {
+    invoke("reveal_in_finder", { path }).catch((err: unknown) => {
+      toast.error(`Could not open Finder: ${String(err)}`);
+    });
+  }
+
+  function handleCopy() {
+    navigator.clipboard.writeText(path).catch((err: unknown) => {
+      toast.error(`Could not copy path: ${String(err)}`);
+    });
+  }
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            background: "none",
+            border: "none",
+            padding: "2px 4px",
+            borderRadius: "var(--radius-xs)",
+            cursor: "pointer",
+            color: "var(--color-text-muted)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flexShrink: 0,
+          }}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLElement).style.background = "var(--color-bg-elev-3)";
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLElement).style.background = "none";
+          }}
+        >
+          <MoreHorizontal size={14} />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem onSelect={handleReveal}>
+          Reveal in Finder
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={handleCopy}>
+          Copy path
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
