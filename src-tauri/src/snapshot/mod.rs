@@ -111,6 +111,9 @@ async fn probe_timed_infallible<T>(
 pub async fn take_snapshot(app: &AppHandle) -> Snapshot {
     let mut partial_failures = Vec::new();
 
+    // Probes invoked here must be mirrored in
+    // src/lib/system-probes.ts — keep the read-only Settings
+    // panel and onboarding step in sync when adding/removing.
     let (disk_res, procs_res, net_res, persist_res, users_res, kernel_res, apps_res, large_files_snap) =
         tokio::join!(
             probe_timed(app, "disk", disk::probe()),
