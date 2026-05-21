@@ -449,6 +449,12 @@ export default function StartupTab({ snapshot, findings, onTogglePersistence }: 
 
   return (
     <div style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: "16px" }}>
+      {/* Subtitle */}
+      <p style={{ margin: 0, fontSize: "12px", color: "var(--color-text-secondary)", lineHeight: 1.55 }}>
+        Programs that run automatically at login or in the background.
+        Macroscope flags suspicious entries and lists everything for review — manage them in macOS System Settings.
+      </p>
+
       {/* Section 1 — Network exposure findings */}
       {networkFindings.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
@@ -462,7 +468,7 @@ export default function StartupTab({ snapshot, findings, onTogglePersistence }: 
               fontFamily: "var(--font-mono)",
             }}
           >
-            network & security · {networkFindings.length} finding{networkFindings.length !== 1 ? "s" : ""}
+            network exposure · {networkFindings.length} finding{networkFindings.length !== 1 ? "s" : ""}
           </div>
           {networkFindings.map((f) => (
             <NetworkFindingCard key={f.id} finding={f} />
