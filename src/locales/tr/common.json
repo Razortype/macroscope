@@ -22,7 +22,12 @@
     "testing": "Test Ediliyor…",
     "fetching": "Alınıyor…",
     "resetting": "Sıfırlanıyor…",
-    "moving": "Taşınıyor…"
+    "moving": "Taşınıyor…",
+    "enabled": "açık",
+    "disabled": "kapalı",
+    "flagged": "işaretli",
+    "known": "bilinen",
+    "normal": "normal"
   },
   "errors": {
     "could_not_open_finder": "Finder açılamadı: {{detail}}",

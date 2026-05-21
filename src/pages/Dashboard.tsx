@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { invoke } from "@tauri-apps/api/core";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { check as checkUpdate, type Update } from "@tauri-apps/plugin-updater";
@@ -76,6 +77,7 @@ function sortFindings(fs: Finding[]): Finding[] {
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function Dashboard() {
+  const { t } = useTranslation("tabs");
   const qc = useQueryClient();
   const { run, startRun, deactivateRun } = useAnalysisRun();
 
@@ -184,7 +186,7 @@ export default function Dashboard() {
       await pendingUpdate.downloadAndInstall();
       await relaunch();
     } catch (e) {
-      toast.error(`Update failed: ${String(e)}`);
+      toast.error(t("dashboard.update.install_failed", { detail: String(e) }));
       setInstalling(false);
     }
   }
@@ -262,7 +264,7 @@ export default function Dashboard() {
       setAnalyzeError(null);
     },
     mutationFn: async () => {
-      if (activeSnapshotId == null) throw new Error("No snapshot loaded");
+      if (activeSnapshotId == null) throw new Error(t("dashboard.no_snapshot_error"));
       return invoke<Finding[]>("analyze_snapshot", { snapshotId: activeSnapshotId, presets: ALL_PRESETS });
     },
     onSuccess: (data) => {
@@ -333,16 +335,16 @@ export default function Dashboard() {
       id: `leftover_clean_${name.replace(/\s+/g, "_")}`,
       severity: "medium",
       category: "apps",
-      title: `Clean leftover: ${name}`,
-      description: `Remove orphaned application data for ${name}.`,
-      rationale: "Application is no longer installed.",
+      title: t("dashboard.stubs.leftover_title", { name }),
+      description: t("dashboard.stubs.leftover_description", { name }),
+      rationale: t("dashboard.stubs.leftover_rationale"),
       suggested_action: "delete_paths",
       paths_to_remove: paths,
       estimated_bytes_freed: bytes,
     };
     setDialogFindings([stubFinding]);
     setDialogOpen(true);
-  }, []);
+  }, [t]);
 
   const handleFilesExecute = useCallback((paths: string[]) => {
     const totalBytes = (activeSnapshot?.large_files?.files ?? [])
@@ -352,16 +354,16 @@ export default function Dashboard() {
       id: `files_trash_${Date.now()}`,
       severity: totalBytes >= 5_000_000_000 ? "high" : totalBytes >= 1_000_000_000 ? "medium" : "low",
       category: "files",
-      title: `Move ${paths.length} file${paths.length !== 1 ? "s" : ""} to trash (${formatBytes(totalBytes)})`,
-      description: `Move ${paths.length} selected large file${paths.length !== 1 ? "s" : ""} to the Trash.`,
-      rationale: "User-selected files to remove.",
+      title: t("dashboard.stubs.files_title", { count: paths.length, bytes: formatBytes(totalBytes) }),
+      description: t("dashboard.stubs.files_description", { count: paths.length }),
+      rationale: t("dashboard.stubs.files_rationale"),
       suggested_action: "delete_paths",
       paths_to_remove: paths,
       estimated_bytes_freed: totalBytes,
     };
     setDialogFindings([stubFinding]);
     setDialogOpen(true);
-  }, [activeSnapshot]);
+  }, [activeSnapshot, t]);
 
   const handleTogglePersistence = useCallback(
     async (entry: PersistenceEntry, action: "disable" | "enable") => {
@@ -384,7 +386,11 @@ export default function Dashboard() {
             },
           };
         });
-        toast.success(`${entry.label}: ${action}d`);
+        toast.success(
+          action === "disable"
+            ? t("dashboard.persistence.disabled", { label: entry.label })
+            : t("dashboard.persistence.enabled", { label: entry.label })
+        );
         if (activeSnapshotId != null) {
           invoke("patch_snapshot_persistence", {
             snapshotId: activeSnapshotId,
@@ -393,10 +399,14 @@ export default function Dashboard() {
           }).catch((e) => console.error("[patch_snapshot_persistence]", e));
         }
       } catch (err) {
-        toast.error(`Failed to ${action} ${entry.label}: ${String(err)}`);
+        toast.error(
+          action === "disable"
+            ? t("dashboard.persistence.disable_failed", { label: entry.label, detail: String(err) })
+            : t("dashboard.persistence.enable_failed", { label: entry.label, detail: String(err) })
+        );
       }
     },
-    [activeSnapshotId]
+    [activeSnapshotId, t]
   );
 
   const handleExecuteComplete = useCallback(({ moved, partial }: ExecuteResult) => {
@@ -426,7 +436,7 @@ export default function Dashboard() {
       <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
         <TopBar />
         <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <span style={{ color: "var(--color-text-muted)", fontSize: "var(--text-sm)" }}>Loading…</span>
+          <span style={{ color: "var(--color-text-muted)", fontSize: "var(--text-sm)" }}>{t("common:status.loading")}</span>
         </div>
       </div>
     );
@@ -463,7 +473,7 @@ export default function Dashboard() {
               color: "var(--color-text-secondary)",
             }}
           >
-            Macroscope v{pendingUpdate.version} is available.
+            {t("dashboard.update.available", { version: pendingUpdate.version })}
           </span>
           <button
             onClick={handleInstallUpdate}
@@ -481,7 +491,7 @@ export default function Dashboard() {
               flexShrink: 0,
             }}
           >
-            {installing ? "Downloading…" : "Install on restart"}
+            {installing ? t("common:status.downloading") : t("common:actions.install_on_restart")}
           </button>
           <button
             onClick={handleSnoozeUpdate}
@@ -497,7 +507,7 @@ export default function Dashboard() {
               flexShrink: 0,
             }}
           >
-            Remind me later
+            {t("common:actions.remind_me_later")}
           </button>
         </div>
       )}
@@ -522,6 +532,7 @@ export default function Dashboard() {
               color: "var(--color-severity-medium-fg)",
             }}
           >
+            {/* i18n: providerReady.reason is a Rust-side string — stays English (Rust-side follow-up) */}
             {providerReady.reason}
             <span
               style={{
@@ -530,7 +541,7 @@ export default function Dashboard() {
                 fontFamily: "var(--font-sans)",
               }}
             >
-              Configure in Settings to enable analysis.
+              {t("dashboard.provider_banner.hint")}
             </span>
           </span>
           <Link
@@ -548,7 +559,7 @@ export default function Dashboard() {
               flexShrink: 0,
             }}
           >
-            Configure
+            {t("common:actions.configure")}
           </Link>
         </div>
       )}
@@ -644,10 +655,10 @@ export default function Dashboard() {
           }}
         >
           <span style={{ fontSize: "var(--text-sm)", color: "var(--color-text-secondary)" }}>
-            {selectedIds.size} selected
+            {t("dashboard.selection.count", { count: selectedIds.size })}
             {totalBytesToFree > 0 && (
               <span style={{ fontFamily: "var(--font-mono)", marginLeft: "8px", color: "var(--color-text-muted)" }}>
-                · {formatBytes(totalBytesToFree)} to free
+                {t("dashboard.selection.to_free", { bytes: formatBytes(totalBytesToFree) })}
               </span>
             )}
           </span>
@@ -665,7 +676,7 @@ export default function Dashboard() {
               cursor: "pointer",
             }}
           >
-            Execute selected ({selectedIds.size})
+            {t("dashboard.selection.execute", { count: selectedIds.size })}
           </button>
         </div>
       )}

@@ -22,7 +22,12 @@
     "testing": "Testing…",
     "fetching": "Fetching…",
     "resetting": "Resetting…",
-    "moving": "Moving…"
+    "moving": "Moving…",
+    "enabled": "enabled",
+    "disabled": "disabled",
+    "flagged": "flagged",
+    "known": "known",
+    "normal": "normal"
   },
   "errors": {
     "could_not_open_finder": "Could not open Finder: {{detail}}",

@@ -1,1 +1,43 @@
-{}
+{
+  "topbar": {
+    "app_name": "Macroscope",
+    "snapshot_label": "Snapshot #{{id}}",
+    "snapshot_findings": "{{count}} findings",
+    "re_analyze": "Re-analyze",
+    "take_snapshot": "Take snapshot",
+    "analyzing": "Analyzing…",
+    "settings_link_title": "Settings",
+    "blocked_title": "Configure an AI provider first"
+  },
+  "dashboard": {
+    "update": {
+      "available": "Macroscope v{{version}} is available.",
+      "install_failed": "Update failed: {{detail}}"
+    },
+    "provider_banner": {
+      "hint": "Configure in Settings to enable analysis."
+    },
+    "selection": {
+      "count": "{{count}} selected",
+      "to_free": "· {{bytes}} to free",
+      "execute": "Execute selected ({{count}})"
+    },
+    "persistence": {
+      "disabled": "{{label}}: disabled",
+      "enabled": "{{label}}: enabled",
+      "disable_failed": "Failed to disable {{label}}: {{detail}}",
+      "enable_failed": "Failed to enable {{label}}: {{detail}}"
+    },
+    "stubs": {
+      "leftover_title": "Clean leftover: {{name}}",
+      "leftover_description": "Remove orphaned application data for {{name}}.",
+      "leftover_rationale": "Application is no longer installed.",
+      "files_title_one": "Move {{count}} file to trash ({{bytes}})",
+      "files_title_other": "Move {{count}} files to trash ({{bytes}})",
+      "files_description_one": "Move {{count}} selected large file to the Trash.",
+      "files_description_other": "Move {{count}} selected large files to the Trash.",
+      "files_rationale": "User-selected files to remove."
+    },
+    "no_snapshot_error": "No snapshot loaded"
+  }
+}

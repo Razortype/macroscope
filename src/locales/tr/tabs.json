@@ -1,1 +1,43 @@
-{}
+{
+  "topbar": {
+    "app_name": "Macroscope",
+    "snapshot_label": "Snapshot #{{id}}",
+    "snapshot_findings": "{{count}} finding",
+    "re_analyze": "Yeniden Analiz Et",
+    "take_snapshot": "Snapshot Al",
+    "analyzing": "Analiz Ediliyor…",
+    "settings_link_title": "Ayarlar",
+    "blocked_title": "Önce bir AI sağlayıcısı yapılandır"
+  },
+  "dashboard": {
+    "update": {
+      "available": "Macroscope v{{version}} kullanılabilir.",
+      "install_failed": "Güncelleme başarısız: {{detail}}"
+    },
+    "provider_banner": {
+      "hint": "Analizi etkinleştirmek için Ayarlar'dan yapılandır."
+    },
+    "selection": {
+      "count": "{{count}} seçili",
+      "to_free": "· {{bytes}} boşaltılacak",
+      "execute": "Seçilenleri çalıştır ({{count}})"
+    },
+    "persistence": {
+      "disabled": "{{label}}: kapalı",
+      "enabled": "{{label}}: açık",
+      "disable_failed": "{{label}} devre dışı bırakılamadı: {{detail}}",
+      "enable_failed": "{{label}} etkinleştirilemedi: {{detail}}"
+    },
+    "stubs": {
+      "leftover_title": "Kalıntıyı temizle: {{name}}",
+      "leftover_description": "{{name}} için yetim uygulama verilerini kaldır.",
+      "leftover_rationale": "Uygulama artık yüklü değil.",
+      "files_title_one": "{{count}} dosyayı çöpe taşı ({{bytes}})",
+      "files_title_other": "{{count}} dosyayı çöpe taşı ({{bytes}})",
+      "files_description_one": "{{count}} seçili büyük dosyayı Çöp Kutusu'na taşı.",
+      "files_description_other": "{{count}} seçili büyük dosyayı Çöp Kutusu'na taşı.",
+      "files_rationale": "Kullanıcı tarafından kaldırılmak üzere seçilen dosyalar."
+    },
+    "no_snapshot_error": "Snapshot yüklenmedi"
+  }
+}
