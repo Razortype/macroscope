@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import { LayoutGrid, CircleAlert, Grid3x3, FileText, Activity } from "lucide-react";
 
 export type TabId = "overview" | "findings" | "apps" | "files" | "startup";
@@ -9,15 +10,16 @@ interface TabBarProps {
   counts?: { findings?: number; apps?: number; files?: number; startup?: number };
 }
 
-const TABS: { id: TabId; label: string; icon: ReactNode }[] = [
-  { id: "overview", label: "overview", icon: <LayoutGrid size={13} /> },
-  { id: "findings", label: "findings", icon: <CircleAlert size={13} /> },
-  { id: "apps", label: "apps", icon: <Grid3x3 size={13} /> },
-  { id: "files", label: "files", icon: <FileText size={13} /> },
-  { id: "startup", label: "startup & background", icon: <Activity size={13} /> },
+const TAB_CONFIGS: { id: TabId; icon: ReactNode }[] = [
+  { id: "overview", icon: <LayoutGrid size={13} /> },
+  { id: "findings", icon: <CircleAlert size={13} /> },
+  { id: "apps",     icon: <Grid3x3 size={13} /> },
+  { id: "files",    icon: <FileText size={13} /> },
+  { id: "startup",  icon: <Activity size={13} /> },
 ];
 
 export default function TabBar({ active, onChange, counts = {} }: TabBarProps) {
+  const { t } = useTranslation("tabs");
   const [hoveredId, setHoveredId] = useState<TabId | null>(null);
 
   return (
@@ -29,7 +31,7 @@ export default function TabBar({ active, onChange, counts = {} }: TabBarProps) {
         flexShrink: 0,
       }}
     >
-      {TABS.map((tab) => {
+      {TAB_CONFIGS.map((tab) => {
         const isActive = tab.id === active;
         const isHovered = hoveredId === tab.id;
         const count = counts[tab.id as keyof typeof counts];
@@ -59,7 +61,7 @@ export default function TabBar({ active, onChange, counts = {} }: TabBarProps) {
             }}
           >
             {tab.icon}
-            <span>{tab.label}</span>
+            <span>{t(`tabbar.${tab.id}`)}</span>
             {count !== undefined && (
               <span style={{ color: "var(--color-text-muted)", fontSize: "11px" }}>
                 {count}

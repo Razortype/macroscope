@@ -1,4 +1,5 @@
 import { MoreHorizontal } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { invoke } from "@tauri-apps/api/core";
 import { toast } from "sonner";
 import {
@@ -13,15 +14,17 @@ interface Props {
 }
 
 export default function RowActions({ path }: Props) {
+  const { t } = useTranslation("common");
+
   function handleReveal() {
     invoke("reveal_in_finder", { path }).catch((err: unknown) => {
-      toast.error(`Could not open Finder: ${String(err)}`);
+      toast.error(t("errors.could_not_open_finder", { detail: String(err) }));
     });
   }
 
   function handleCopy() {
     navigator.clipboard.writeText(path).catch((err: unknown) => {
-      toast.error(`Could not copy path: ${String(err)}`);
+      toast.error(t("errors.could_not_copy_path", { detail: String(err) }));
     });
   }
 
@@ -54,10 +57,10 @@ export default function RowActions({ path }: Props) {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <DropdownMenuItem onSelect={handleReveal}>
-          Reveal in Finder
+          {t("actions.reveal_in_finder")}
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={handleCopy}>
-          Copy path
+          {t("actions.copy_path")}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

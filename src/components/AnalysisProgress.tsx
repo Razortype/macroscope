@@ -1,4 +1,5 @@
 import { Search, Sparkles, Cpu, Circle, Loader2, Check } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import {
   useAnalysisRun,
   DISPLAY_PRESETS,
@@ -70,6 +71,7 @@ function ProbeRow({ probe }: { probe: ProbeState }) {
 // ── ProbeSection ─────────────────────────────────────────────────────────────
 
 function ProbeSection({ probes, allComplete }: { probes: ProbeState[]; allComplete: boolean }) {
+  const { t } = useTranslation("tabs");
   const runningCount = probes.filter((p) => p.status === "running").length;
   const doneCount = probes.filter((p) => p.status === "complete" || p.status === "failed").length;
   const totalDur = allComplete ? Math.max(...probes.map((p) => p.duration_ms ?? 0)) : null;
@@ -88,7 +90,7 @@ function ProbeSection({ probes, allComplete }: { probes: ProbeState[]; allComple
             flex: 1,
           }}
         >
-          step 1 · local probes
+          {t("progress.step1_label")}
         </span>
         <span
           style={{
@@ -98,10 +100,10 @@ function ProbeSection({ probes, allComplete }: { probes: ProbeState[]; allComple
           }}
         >
           {allComplete
-            ? `complete · ${fmtS(totalDur!)}`
+            ? t("progress.step1_done", { time: fmtS(totalDur!) })
             : runningCount > 0
-            ? "running…"
-            : `${doneCount}/${probes.length}`}
+            ? t("progress.step1_running")
+            : t("progress.step1_progress", { done: doneCount, total: probes.length })}
         </span>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px 20px" }}>
@@ -116,6 +118,7 @@ function ProbeSection({ probes, allComplete }: { probes: ProbeState[]; allComple
 // ── AuditRow ─────────────────────────────────────────────────────────────────
 
 function AuditRow({ preset, audit }: { preset: string; audit: AuditState }) {
+  const { t } = useTranslation("tabs");
   const isComplete = audit.phase === "complete";
   const isError = audit.phase === "error";
   const isRunning =
@@ -130,12 +133,12 @@ function AuditRow({ preset, audit }: { preset: string; audit: AuditState }) {
     ? "#5da3f5"
     : "rgba(255,255,255,0.25)";
 
-  const labelMap: Record<string, string> = {
-    "disk-audit": "disk audit",
-    "security-audit": "startup audit",
-    "app-lifecycle-audit": "app lifecycle audit",
+  const auditLabelMap: Record<string, string> = {
+    "disk-audit": t("progress.audit_labels.disk_audit"),
+    "security-audit": t("progress.audit_labels.security_audit"),
+    "app-lifecycle-audit": t("progress.audit_labels.app_lifecycle_audit"),
   };
-  const label = labelMap[preset] ?? preset;
+  const label = auditLabelMap[preset] ?? preset;
 
   return (
     <div
@@ -182,9 +185,9 @@ function AuditRow({ preset, audit }: { preset: string; audit: AuditState }) {
           }}
         >
           {isComplete
-            ? `complete · ${fmtS(audit.elapsed_ms)}`
+            ? t("progress.audit_complete", { time: fmtS(audit.elapsed_ms) })
             : isError
-            ? "failed"
+            ? t("progress.audit_failed")
             : isPending
             ? "—"
             : fmtS(audit.elapsed_ms)}
@@ -276,6 +279,7 @@ function ClaudeSection({
   audits: Record<string, AuditState>;
   providerLabel?: string;
 }) {
+  const { t } = useTranslation("tabs");
   return (
     <div
       style={{
@@ -298,10 +302,10 @@ function ClaudeSection({
             flex: 1,
           }}
         >
-          step 2 · ai analysis ({providerLabel ?? "claude sonnet"})
+          {t("progress.step2_label", { provider: providerLabel ?? "claude sonnet" })}
         </span>
         <span style={{ fontFamily: "var(--font-mono)", fontSize: "10px", color: "rgba(255,255,255,0.25)" }}>
-          claude -p · stream-json
+          {t("progress.step2_stream")}
         </span>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
@@ -324,6 +328,7 @@ export default function AnalysisProgress({
   providerLabel?: string;
   rootCount?: number;
 }) {
+  const { t } = useTranslation("tabs");
   const { run } = useAnalysisRun();
 
   const allProbesComplete = run.probes.every(
@@ -361,7 +366,7 @@ export default function AnalysisProgress({
           }}
         />
         <span style={{ fontSize: "var(--text-sm)", fontWeight: 500, color: "#e8e8ed", flex: 1 }}>
-          {allComplete ? "Analysis complete" : "Analyzing your system"}
+          {allComplete ? t("progress.title_done") : t("progress.title_running")}
         </span>
         <span
           style={{
@@ -379,7 +384,7 @@ export default function AnalysisProgress({
           <span
             style={{ fontFamily: "var(--font-mono)", fontSize: "10px", color: "rgba(255,255,255,0.4)" }}
           >
-            powered by {providerLabel ?? "claude code cli"}
+            {t("progress.powered_by", { provider: providerLabel ?? "claude code cli" })}
           </span>
         </span>
         <span
@@ -397,9 +402,9 @@ export default function AnalysisProgress({
       {/* Subtitle */}
       <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.4)", marginTop: "-6px" }}>
         {rootCount > 0
-          ? `scanning system locations + ${rootCount} project ${rootCount === 1 ? "directory" : "directories"}`
-          : "scanning system locations"}
-        {" · disk + startup + apps"}
+          ? t("progress.subtitle_with_roots", { count: rootCount })
+          : t("progress.subtitle_no_roots")}
+        {" "}{t("progress.subtitle_suffix")}
       </div>
 
       {/* Step 1 */}

@@ -1,1 +1,36 @@
-{}
+{
+  "card": {
+    "identity_companion": "companion",
+    "identity_ambiguous": "tanımlanamadı",
+    "in_trash": "✓ Çöp Kutusu",
+    "partial": "○ kısmi",
+    "bytes_freed": "↑ {{bytes}} boşaltıldı"
+  },
+  "preview": {
+    "title_loading": "Hedefler analiz ediliyor…",
+    "title_review_one": "Çalıştırmadan önce {{count}} eylemi incele",
+    "title_review_other": "Çalıştırmadan önce {{count}} eylemi incele",
+    "subtitle_safe": "{{bytes}} güvenli biçimde boşaltılabilir",
+    "subtitle_skipped_one": "· {{count}} eylem otomatik olarak atlanacak",
+    "subtitle_skipped_other": "· {{count}} eylem otomatik olarak atlanacak",
+    "body_loading": "Hedefler sınıflandırılıyor…",
+    "error_fallback": "Önizleme yüklenemedi",
+    "empty": "Önizlenecek hedef yok.",
+    "section_safe": "Silinmesi güvenli",
+    "section_companion": "Companion verisi (uygulama çalışmıyor)",
+    "section_skipped": "Atlanacak",
+    "companion_note": "Bu veri {{app}}'e ait. Ayarlar/önbellek bir sonraki başlatmada sıfırlanacak.",
+    "footer_selected_one": "{{count}} eylem seçili · {{bytes}} boşaltılacak",
+    "footer_selected_other": "{{count}} eylem seçili · {{bytes}} boşaltılacak",
+    "footer_none": "Seçili eylem yok",
+    "execute_btn_one": "{{count}} eylemi çalıştır",
+    "execute_btn_other": "{{count}} eylemi çalıştır",
+    "moved_toast": "{{bytes}} Çöp Kutusu'na taşındı",
+    "moved_partial_toast": "{{bytes}} Çöp Kutusu'na taşındı · {{partial}} kısmi",
+    "nothing_moved_toast": "Hiçbir şey taşınmadı — tüm yollar engellendi veya başarısız oldu",
+    "partial_warning": "Bazı alt dizinler taşınamadı",
+    "failed_paths_toast_one": "{{count}} yol taşınamadı",
+    "failed_paths_toast_other": "{{count}} yol taşınamadı",
+    "execute_failed_toast": "Çalıştırma başarısız: {{detail}}"
+  }
+}
