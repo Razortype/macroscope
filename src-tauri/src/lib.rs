@@ -457,6 +457,7 @@ fn get_claude_status(status: State<'_, ClaudeStatus>) -> ClaudeStatus {
 async fn analyze_snapshot(
     snapshot_id: i64,
     presets: Vec<String>,
+    locale: Option<String>,
     db: State<'_, Db>,
     app: tauri::AppHandle,
 ) -> Result<Vec<Finding>, String> {
@@ -477,7 +478,8 @@ async fn analyze_snapshot(
         ));
     }
 
-    analyzer::analyze_snapshot(snapshot_id, presets, db.inner(), provider, &app)
+    let resolved_locale = locale.unwrap_or_else(|| "en".to_string());
+    analyzer::analyze_snapshot(snapshot_id, presets, &resolved_locale, db.inner(), provider, &app)
         .await
         .map_err(Into::into)
 }
