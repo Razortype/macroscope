@@ -1,10 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
+import { relaunch } from "@tauri-apps/plugin-process";
+import { check as checkUpdate, type Update } from "@tauri-apps/plugin-updater";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Download } from "lucide-react";
 import type { Finding } from "../types/finding";
 import type { AuditTokenUsage, PersistenceEntry, Snapshot } from "../types/snapshot";
 import type { ProviderConfig } from "../types/provider";
@@ -90,6 +92,8 @@ export default function Dashboard() {
   const [lastAnalysis, setLastAnalysis] = useState<LastAnalysisSummary | null>(null);
   const [providerLabel, setProviderLabel] = useState<string>("claude code cli");
   const [rootCount, setRootCount] = useState<number>(0);
+  const [pendingUpdate, setPendingUpdate] = useState<Update | null>(null);
+  const [installing, setInstalling] = useState(false);
   const analysisStartedAtRef = useRef<number | null>(null);
 
   const runAuditsRef = useRef(run.audits);
@@ -155,6 +159,41 @@ export default function Dashboard() {
       unlisten?.();
     };
   }, []);
+
+  useEffect(() => {
+    async function runUpdateCheck() {
+      const now = new Date().toISOString();
+      try {
+        const update = await checkUpdate();
+        await invoke("set_setting", { key: "update_last_checked", value: now }).catch(() => {});
+        if (!update) return;
+        const snoozed = await invoke<string | null>("get_setting", { key: "update_snoozed_version" }).catch(() => null);
+        if (snoozed === update.version) return;
+        setPendingUpdate(update);
+      } catch {
+        // network failure at launch is expected — silent skip
+      }
+    }
+    runUpdateCheck();
+  }, []);
+
+  async function handleInstallUpdate() {
+    if (!pendingUpdate || installing) return;
+    setInstalling(true);
+    try {
+      await pendingUpdate.downloadAndInstall();
+      await relaunch();
+    } catch (e) {
+      toast.error(`Update failed: ${String(e)}`);
+      setInstalling(false);
+    }
+  }
+
+  async function handleSnoozeUpdate() {
+    if (!pendingUpdate) return;
+    await invoke("set_setting", { key: "update_snoozed_version", value: pendingUpdate.version }).catch(() => {});
+    setPendingUpdate(null);
+  }
 
   const latestIdQuery = useQuery<number | null>({
     queryKey: ["latest_snapshot_id"],
@@ -404,6 +443,64 @@ export default function Dashboard() {
         onTakeSnapshot={() => runFullScan.mutate()}
         onReAnalyze={() => reAnalyze.mutate()}
       />
+      {pendingUpdate && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "10px",
+            padding: "8px 20px",
+            background: "var(--color-bg-elev-2)",
+            borderBottom: "1px solid var(--color-border-divider)",
+            flexShrink: 0,
+          }}
+        >
+          <Download size={13} style={{ color: "var(--color-accent)", flexShrink: 0 }} />
+          <span
+            style={{
+              flex: 1,
+              fontSize: "var(--text-xs)",
+              color: "var(--color-text-secondary)",
+            }}
+          >
+            Macroscope v{pendingUpdate.version} is available.
+          </span>
+          <button
+            onClick={handleInstallUpdate}
+            disabled={installing}
+            style={{
+              fontSize: "var(--text-xs)",
+              fontFamily: "var(--font-sans)",
+              fontWeight: 500,
+              color: installing ? "var(--color-text-disabled)" : "var(--color-accent-on)",
+              background: installing ? "var(--color-text-muted)" : "var(--color-accent)",
+              border: "none",
+              borderRadius: "var(--radius-sm)",
+              padding: "3px 10px",
+              cursor: installing ? "not-allowed" : "pointer",
+              flexShrink: 0,
+            }}
+          >
+            {installing ? "Downloading…" : "Install on restart"}
+          </button>
+          <button
+            onClick={handleSnoozeUpdate}
+            disabled={installing}
+            style={{
+              fontSize: "var(--text-xs)",
+              fontFamily: "var(--font-sans)",
+              color: "var(--color-text-muted)",
+              background: "none",
+              border: "none",
+              padding: "3px 6px",
+              cursor: installing ? "not-allowed" : "pointer",
+              flexShrink: 0,
+            }}
+          >
+            Remind me later
+          </button>
+        </div>
+      )}
       {providerReady !== null && !providerReady.ready && (
         <div
           style={{
