@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Check, Package, FolderX, FolderCheck, HelpCircle, Settings2 } from "lucide-react";
 import type { AppsSnapshot, InstalledApp, ClassifiedLeftover } from "../../types/snapshot";
 import RowActions from "../../components/RowActions";
@@ -12,6 +13,7 @@ function formatBytes(bytes: number): string {
 }
 
 function formatLastOpened(days: number | null): string {
+  // i18n-deferred: replace with Intl.RelativeTimeFormat keyed off locale
   if (days === null) return "unknown";
   if (days < 1) return "today";
   if (days < 7) return `${days}d ago`;
@@ -87,6 +89,7 @@ function StatusBadge({ label, semantic }: { label: string; semantic: "low" | "me
 }
 
 function SystemBadge() {
+  const { t } = useTranslation("tabs");
   return (
     <span style={{
       background: "var(--color-bg-elev-3)", color: "var(--color-text-muted)",
@@ -94,12 +97,13 @@ function SystemBadge() {
       borderRadius: "var(--radius-xs)", textTransform: "uppercase" as const,
       letterSpacing: "0.06em", fontFamily: "var(--font-mono)",
     }}>
-      SYSTEM
+      {t("apps_tab.badge_system")}
     </span>
   );
 }
 
 function SelfBadge() {
+  const { t } = useTranslation("tabs");
   return (
     <span style={{
       background: "var(--color-bg-elev-3)", color: "var(--color-text-disabled)",
@@ -107,7 +111,7 @@ function SelfBadge() {
       borderRadius: "var(--radius-xs)", textTransform: "uppercase" as const,
       letterSpacing: "0.06em", fontFamily: "var(--font-mono)",
     }}>
-      SELF
+      {t("apps_tab.badge_self")}
     </span>
   );
 }
@@ -149,14 +153,20 @@ function CleanButton({
         fontFamily: "var(--font-sans)", opacity: enabled ? 1 : 0.55,
       }}
     >
-      clean →
+      <CleanBtnLabel />
     </button>
   );
+}
+
+function CleanBtnLabel() {
+  const { t } = useTranslation("tabs");
+  return <>{t("apps_tab.clean_btn")}</>;
 }
 
 // ── Installed row ─────────────────────────────────────────────────────────────
 
 function InstalledRow({ row }: { row: AppRow & { kind: "installed" } }) {
+  const { t } = useTranslation("tabs");
   const { app, appStatus } = row;
   return (
     <div style={ROW_STYLE}>
@@ -176,7 +186,7 @@ function InstalledRow({ row }: { row: AppRow & { kind: "installed" } }) {
         {formatBytes(app.size_bytes)}
       </div>
       <div>
-        <StatusBadge label={appStatus} semantic={appStatus === "stale" ? "info" : "low"} />
+        <StatusBadge label={t(appStatus === "stale" ? "apps_tab.badge_stale" : "apps_tab.badge_active")} semantic={appStatus === "stale" ? "info" : "low"} />
       </div>
       <div />
       <div />
@@ -191,6 +201,7 @@ function LeftoverRow({
 }: {
   row: AppRow & { kind: "leftover" }; isExecuted: boolean; isPartial: boolean; onClean: () => void;
 }) {
+  const { t } = useTranslation("tabs");
   const { leftover } = row;
   const status = leftover.status;
   const isDimmed = isExecuted || isPartial;
@@ -213,24 +224,24 @@ function LeftoverRow({
 
   // Sub-line (shown below dir_name)
   const subLine = (() => {
-    if (status.type === "companion") return `belongs to ${status.belongs_to_display_name}`;
-    if (status.type === "ambiguous") return `unknown origin · ${status.pattern_hint}`;
-    if (status.type === "system_managed") return "managed by macOS";
-    if (status.type === "self_managed") return "Macroscope's own data";
-    return "— uninstalled";
+    if (status.type === "companion") return t("apps_tab.subline_companion", { name: status.belongs_to_display_name });
+    if (status.type === "ambiguous") return t("apps_tab.subline_ambiguous", { hint: status.pattern_hint });
+    if (status.type === "system_managed") return t("apps_tab.subline_system");
+    if (status.type === "self_managed") return t("apps_tab.subline_self");
+    return t("apps_tab.subline_orphaned");
   })();
 
   // Badge
   const badge = (() => {
     if (isExecuted && !isPartial) return (
-      <span style={{ background: "rgba(105,211,176,0.15)", color: "var(--color-severity-low-fg)", fontSize: "9px", padding: "2px 6px", borderRadius: "3px", letterSpacing: "0.06em", fontWeight: 500, fontFamily: "var(--font-mono)" }}>MOVED</span>
+      <span style={{ background: "rgba(105,211,176,0.15)", color: "var(--color-severity-low-fg)", fontSize: "9px", padding: "2px 6px", borderRadius: "3px", letterSpacing: "0.06em", fontWeight: 500, fontFamily: "var(--font-mono)" }}>{t("apps_tab.badge_moved")}</span>
     );
     if (isPartial) return (
-      <span style={{ background: "rgba(245,166,35,0.15)", color: "var(--color-severity-medium-fg)", fontSize: "9px", padding: "2px 6px", borderRadius: "3px", letterSpacing: "0.06em", fontWeight: 500, fontFamily: "var(--font-mono)" }}>PARTIAL</span>
+      <span style={{ background: "rgba(245,166,35,0.15)", color: "var(--color-severity-medium-fg)", fontSize: "9px", padding: "2px 6px", borderRadius: "3px", letterSpacing: "0.06em", fontWeight: 500, fontFamily: "var(--font-mono)" }}>{t("apps_tab.badge_partial")}</span>
     );
-    if (status.type === "orphaned") return <StatusBadge label="ORPHANED" semantic="medium" />;
-    if (status.type === "companion") return <StatusBadge label="COMPANION" semantic="info" />;
-    if (status.type === "ambiguous") return <StatusBadge label="INVESTIGATE" semantic="medium" />;
+    if (status.type === "orphaned") return <StatusBadge label={t("apps_tab.badge_orphaned")} semantic="medium" />;
+    if (status.type === "companion") return <StatusBadge label={t("apps_tab.badge_companion")} semantic="info" />;
+    if (status.type === "ambiguous") return <StatusBadge label={t("apps_tab.badge_investigate")} semantic="medium" />;
     if (status.type === "self_managed") return <SelfBadge />;
     return <SystemBadge />;
   })();
@@ -238,11 +249,11 @@ function LeftoverRow({
   // Clean button
   const [cleanEnabled, cleanTooltip] = (() => {
     if (isExecuted) return [false, ""];
-    if (status.type === "orphaned") return [true, "Move to Trash"];
-    if (status.type === "companion") return [false, "Active app data — uninstall the app first"];
-    if (status.type === "ambiguous") return [false, "Identify the source before removing"];
-    if (status.type === "self_managed") return [false, "Macroscope's own data — don't delete"];
-    return [false, "Managed by macOS — don't delete"];
+    if (status.type === "orphaned") return [true, t("apps_tab.tooltip_clean")];
+    if (status.type === "companion") return [false, t("apps_tab.tooltip_companion")];
+    if (status.type === "ambiguous") return [false, t("apps_tab.tooltip_ambiguous")];
+    if (status.type === "self_managed") return [false, t("apps_tab.tooltip_self")];
+    return [false, t("apps_tab.tooltip_system")];
   })();
 
   return (
@@ -280,6 +291,7 @@ function LeftoverRow({
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function AppsTab({ apps, executedPaths, partialPaths, onCleanLeftover }: AppsTabProps) {
+  const { t } = useTranslation("tabs");
   const [filter, setFilter] = useState<FilterKey>("all");
   const [sort, setSort] = useState<SortKey>("size");
   const [showSystem, setShowSystem] = useState(false);
@@ -287,7 +299,7 @@ export default function AppsTab({ apps, executedPaths, partialPaths, onCleanLeft
   if (!apps || (apps.installed.length === 0 && apps.classified_leftovers.length === 0 && apps.leftovers.length === 0)) {
     return (
       <div style={{ padding: "40px 20px", textAlign: "center", color: "var(--color-text-muted)", fontSize: "var(--text-sm)" }}>
-        {!apps ? "Take a snapshot to scan installed apps." : "No apps found on this system."}
+        {!apps ? t("apps_tab.empty_no_snapshot") : t("apps_tab.empty_none")}
       </div>
     );
   }
@@ -345,20 +357,20 @@ export default function AppsTab({ apps, executedPaths, partialPaths, onCleanLeft
     <div style={{ display: "flex", flexDirection: "column" }}>
       {/* Filter chip row */}
       <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "14px 20px 12px", borderBottom: "1px solid var(--color-border-divider)", flexWrap: "wrap" }}>
-        <FilterChip label={`all ${totalCount}`} isActive={filter === "all"} dot={null} onClick={() => setFilter("all")} />
-        <FilterChip label={`orphaned ${orphanedCount}`} isActive={filter === "orphaned"} dot="var(--color-severity-medium-fg)" onClick={() => setFilter("orphaned")} />
-        <FilterChip label={`companion ${companionCount}`} isActive={filter === "companion"} dot="var(--color-severity-info-fg)" onClick={() => setFilter("companion")} />
+        <FilterChip label={t("apps_tab.filter_all", { count: totalCount })} isActive={filter === "all"} dot={null} onClick={() => setFilter("all")} />
+        <FilterChip label={t("apps_tab.filter_orphaned", { count: orphanedCount })} isActive={filter === "orphaned"} dot="var(--color-severity-medium-fg)" onClick={() => setFilter("orphaned")} />
+        <FilterChip label={t("apps_tab.filter_companion", { count: companionCount })} isActive={filter === "companion"} dot="var(--color-severity-info-fg)" onClick={() => setFilter("companion")} />
         {ambiguousCount > 0 && (
-          <FilterChip label={`ambiguous ${ambiguousCount}`} isActive={filter === "ambiguous"} dot="var(--color-severity-medium-fg)" onClick={() => setFilter("ambiguous")} />
+          <FilterChip label={t("apps_tab.filter_ambiguous", { count: ambiguousCount })} isActive={filter === "ambiguous"} dot="var(--color-severity-medium-fg)" onClick={() => setFilter("ambiguous")} />
         )}
-        <FilterChip label={`active ${activeCount}`} isActive={filter === "active"} dot="var(--color-severity-low-fg)" onClick={() => setFilter("active")} />
+        <FilterChip label={t("apps_tab.filter_active", { count: activeCount })} isActive={filter === "active"} dot="var(--color-severity-low-fg)" onClick={() => setFilter("active")} />
 
         <div style={{ flex: 1 }} />
 
         {/* Show system toggle */}
         <button
           onClick={() => setShowSystem((v) => !v)}
-          title={showSystem ? "Hide system-managed entries" : "Show system-managed entries"}
+          title={undefined}
           style={{
             display: "flex", alignItems: "center", gap: "4px", background: showSystem ? "rgba(255,255,255,0.08)" : "transparent",
             border: "1px solid var(--color-border-subtle)", borderRadius: "12px", padding: "4px 10px",
@@ -367,7 +379,7 @@ export default function AppsTab({ apps, executedPaths, partialPaths, onCleanLeft
           }}
         >
           <Settings2 size={11} />
-          show system
+          {t("apps_tab.show_system")}
         </button>
 
         <select
@@ -379,9 +391,9 @@ export default function AppsTab({ apps, executedPaths, partialPaths, onCleanLeft
             padding: "4px 8px", cursor: "pointer", fontFamily: "var(--font-sans)",
           }}
         >
-          <option value="size">size ▾</option>
-          <option value="last_opened">last opened ▾</option>
-          <option value="name">name ▾</option>
+          <option value="size">{t("apps_tab.sort_size")}</option>
+          <option value="last_opened">{t("apps_tab.sort_last_opened")}</option>
+          <option value="name">{t("apps_tab.sort_name")}</option>
         </select>
       </div>
 
@@ -391,13 +403,13 @@ export default function AppsTab({ apps, executedPaths, partialPaths, onCleanLeft
         borderBottom: "1px solid var(--color-border-divider)", fontFamily: "var(--font-mono)",
         fontSize: "10px", color: "var(--color-text-muted)", textTransform: "uppercase", letterSpacing: "0.06em",
       }}>
-        <div /><div>name</div><div>last opened</div><div>size</div><div>status</div><div /><div />
+        <div /><div>{t("apps_tab.col_name")}</div><div>{t("apps_tab.col_last_opened")}</div><div>{t("apps_tab.col_size")}</div><div>{t("apps_tab.col_status")}</div><div /><div />
       </div>
 
       {/* Rows */}
       {sortedRows.length === 0 ? (
         <div style={{ padding: "24px 20px", color: "var(--color-text-muted)", fontSize: "var(--text-sm)" }}>
-          No {filter} entries
+          {t("apps_tab.empty_filter", { filter })}
         </div>
       ) : (
         sortedRows.map((row, i) => {

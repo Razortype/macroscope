@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import type { Finding, Severity } from "../../types/finding";
 import type { ClassifiedLeftover } from "../../types/snapshot";
 import FindingCard from "../../components/FindingCard";
@@ -55,6 +56,8 @@ export default function FindingsTab({
     return m;
   }, [classifiedLeftovers]);
 
+  const { t } = useTranslation("tabs");
+
   if (!findings) {
     return (
       <div
@@ -65,7 +68,7 @@ export default function FindingsTab({
           fontSize: "var(--text-sm)",
         }}
       >
-        No findings yet — take a snapshot to analyze your system.
+        {t("findings_tab.empty_no_snapshot")}
       </div>
     );
   }
@@ -90,7 +93,7 @@ export default function FindingsTab({
       >
         {/* "all" chip */}
         <FilterChip
-          label={`all ${findings.length}`}
+          label={t("findings_tab.filter_all", { count: findings.length })}
           isActive={filterSeverity === "all"}
           dot={null}
           onClick={() => setFilterSeverity("all")}
@@ -98,7 +101,7 @@ export default function FindingsTab({
         {SEVERITIES.map((s) => (
           <FilterChip
             key={s}
-            label={`${s} ${countBySeverity(s)}`}
+            label={t("findings_tab.filter_severity", { severity: s, count: countBySeverity(s) })}
             isActive={filterSeverity === s}
             dot={`var(--color-severity-${s}-fg)`}
             onClick={() => setFilterSeverity(s)}
@@ -119,7 +122,9 @@ export default function FindingsTab({
               color: "var(--color-text-muted)",
             }}
           >
-            {selectedIds.size === deleteableCount ? "⊟ deselect all" : "⊞ select all"}
+            {selectedIds.size === deleteableCount
+              ? `⊟ ${t("common:actions.deselect_all")}`
+              : `⊞ ${t("common:actions.select_all")}`}
           </button>
         )}
       </div>
@@ -135,8 +140,8 @@ export default function FindingsTab({
           }}
         >
           {filterSeverity === "all"
-            ? "No findings — system looks clean"
-            : `No ${filterSeverity} findings`}
+            ? t("findings_tab.empty_clean")
+            : t("findings_tab.empty_severity", { severity: filterSeverity })}
         </div>
       ) : (
         filtered.map((f) => {

@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { Check } from "lucide-react";
 import type { LargeFile } from "../../types/snapshot";
 import RowActions from "../../components/RowActions";
@@ -14,6 +15,7 @@ function formatBytes(bytes: number): string {
 }
 
 function formatRelativeDays(days: number): string {
+  // i18n-deferred: replace with Intl.RelativeTimeFormat keyed off locale
   if (days === 0) return "today";
   if (days === 1) return "yesterday";
   if (days < 30) return `${days} days ago`;
@@ -72,6 +74,7 @@ interface FilesTabProps {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function FilesTab({ files, executedPaths, partialPaths, onExecute }: FilesTabProps) {
+  const { t } = useTranslation("tabs");
   const [filter, setFilter] = useState<FilterCategory>("all");
   const [sortBy, setSortBy] = useState<SortBy>("size");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
@@ -160,10 +163,10 @@ export default function FilesTab({ files, executedPaths, partialPaths, onExecute
       >
         <span style={{ fontSize: "24px" }}>📁</span>
         <span style={{ fontSize: "var(--text-sm)", color: "var(--color-text-secondary)" }}>
-          No large files detected ✓
+          {t("files_tab.empty_title")}
         </span>
         <span style={{ fontSize: "11px", color: "var(--color-text-muted)" }}>
-          Run a snapshot to scan ~/Desktop, ~/Downloads, ~/Documents, ~/Movies, ~/Music, ~/Pictures
+          {t("files_tab.empty_hint")}
         </span>
       </div>
     );
@@ -187,7 +190,7 @@ export default function FilesTab({ files, executedPaths, partialPaths, onExecute
   const formatCategoryLabel = (cat: string) => {
     const s = categoryStats[cat];
     if (!s || s.count === 0) return `${cat} 0`;
-    return `${cat} ${s.count} · ${formatBytes(s.bytes)}`;
+    return t("files_tab.filter_category", { cat, count: s.count, bytes: formatBytes(s.bytes) });
   };
 
   const GRID = "32px minmax(0,1fr) 110px 100px 70px 28px";
@@ -197,7 +200,7 @@ export default function FilesTab({ files, executedPaths, partialPaths, onExecute
       {/* Filter chips + action row */}
       <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
         <button style={filterChipStyle(filter === "all")} onClick={() => setFilter("all")}>
-          all {files.length}
+          {t("files_tab.filter_all", { count: files.length })}
         </button>
         {(["video", "archive", "binary", "other"] as const).map((cat) => (
           <button
@@ -220,7 +223,7 @@ export default function FilesTab({ files, executedPaths, partialPaths, onExecute
               whiteSpace: "nowrap",
             }}
           >
-            {selected.size} selected · {formatBytes(totalSelectedBytes)}
+            {t("files_tab.selected_summary", { count: selected.size, bytes: formatBytes(totalSelectedBytes) })}
           </span>
         )}
         <button
@@ -240,7 +243,7 @@ export default function FilesTab({ files, executedPaths, partialPaths, onExecute
             opacity: selected.size > 0 ? 1 : 0.5,
           }}
         >
-          move selected to trash
+          {t("files_tab.move_to_trash")}
         </button>
       </div>
 
@@ -271,7 +274,7 @@ export default function FilesTab({ files, executedPaths, partialPaths, onExecute
             color: sortBy === "path" ? "var(--color-text-secondary)" : "var(--color-text-muted)",
           }}
         >
-          path{sortArrow("path")}
+          {t("files_tab.col_path")}{sortArrow("path")}
         </button>
         <button
           onClick={() => handleSort("age")}
@@ -289,7 +292,7 @@ export default function FilesTab({ files, executedPaths, partialPaths, onExecute
             color: sortBy === "age" ? "var(--color-text-secondary)" : "var(--color-text-muted)",
           }}
         >
-          last modified{sortArrow("age")}
+          {t("files_tab.col_last_modified")}{sortArrow("age")}
         </button>
         <button
           onClick={() => handleSort("size")}
@@ -307,7 +310,7 @@ export default function FilesTab({ files, executedPaths, partialPaths, onExecute
             color: sortBy === "size" ? "var(--color-text-secondary)" : "var(--color-text-muted)",
           }}
         >
-          size{sortArrow("size")}
+          {t("files_tab.col_size")}{sortArrow("size")}
         </button>
         <div
           style={{
@@ -319,7 +322,7 @@ export default function FilesTab({ files, executedPaths, partialPaths, onExecute
             color: "var(--color-text-muted)",
           }}
         >
-          cat
+          {t("files_tab.col_cat")}
         </div>
         <div />
       </div>
@@ -462,7 +465,7 @@ export default function FilesTab({ files, executedPaths, partialPaths, onExecute
                       fontFamily: "var(--font-mono)",
                     }}
                   >
-                    MOVED
+                    {t("files_tab.badge_moved")}
                   </span>
                 )}
                 {isPartial && (
@@ -478,7 +481,7 @@ export default function FilesTab({ files, executedPaths, partialPaths, onExecute
                       fontFamily: "var(--font-mono)",
                     }}
                   >
-                    PARTIAL
+                    {t("files_tab.badge_partial")}
                   </span>
                 )}
               </div>

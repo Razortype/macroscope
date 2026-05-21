@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import type { Finding, Severity } from "../../types/finding";
 import type { Snapshot } from "../../types/snapshot";
 
@@ -19,6 +20,7 @@ function diskBarColor(pct: number): string {
 }
 
 function formatRelativeTime(ts: number): string {
+  // i18n-deferred: replace with Intl.RelativeTimeFormat keyed off locale
   const secs = Math.floor((Date.now() - ts) / 1000);
   if (secs < 60) return `${secs}s ago`;
   if (secs < 3600) return `${Math.floor(secs / 60)}m ago`;
@@ -188,13 +190,14 @@ function SeverityBar({ findings }: { findings: Finding[] }) {
 }
 
 function CompactFindingRow({ finding: f, isLast }: { finding: Finding; isLast: boolean }) {
+  const { t } = useTranslation("tabs");
   const hint =
     f.suggested_action === "delete_paths"
       ? f.estimated_bytes_freed
-        ? `${formatBytes(f.estimated_bytes_freed)} freeable`
-        : "deleteable"
+        ? t("overview.finding_hint_freeable", { bytes: formatBytes(f.estimated_bytes_freed) })
+        : t("overview.finding_hint_deleteable")
       : f.suggested_action === "investigate"
-      ? "investigate"
+      ? t("overview.finding_hint_investigate")
       : f.suggested_action;
 
   return (
@@ -258,6 +261,15 @@ function CompactFindingRow({ finding: f, isLast }: { finding: Finding; isLast: b
   );
 }
 
+function AuditFindingCount({ count }: { count: number }) {
+  const { t } = useTranslation("tabs");
+  return (
+    <div style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--color-text-muted)" }}>
+      {t("overview.finding_count", { count })}
+    </div>
+  );
+}
+
 function AuditSummaryCard({ label, findingCount }: { label: string; findingCount: number }) {
   return (
     <div
@@ -285,14 +297,13 @@ function AuditSummaryCard({ label, findingCount }: { label: string; findingCount
           {label}
         </span>
       </div>
-      <div style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--color-text-muted)" }}>
-        {findingCount} finding{findingCount !== 1 ? "s" : ""}
-      </div>
+      <AuditFindingCount count={findingCount} />
     </div>
   );
 }
 
 function LastAnalysisSection({ lastAnalysis }: { lastAnalysis: LastAnalysisSummary }) {
+  const { t } = useTranslation("tabs");
   const [relTime, setRelTime] = useState(() => formatRelativeTime(lastAnalysis.completedAt));
 
   useEffect(() => {
@@ -332,23 +343,29 @@ function LastAnalysisSection({ lastAnalysis }: { lastAnalysis: LastAnalysisSumma
             color: "var(--color-text-secondary)",
           }}
         >
-          last analysis
+          {t("overview.last_analysis_label")}
         </span>
         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
           {lastAnalysis.tokenTotals && (
             <span
               style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--color-text-muted)" }}
             >
-              {lastAnalysis.tokenTotals.input.toLocaleString("en-US")} in · {lastAnalysis.tokenTotals.output.toLocaleString("en-US")} out tokens
               {lastAnalysis.tokenTotals.cacheRead > 0
-                ? ` · ${lastAnalysis.tokenTotals.cacheRead.toLocaleString("en-US")} cached`
-                : ""}
+                ? t("overview.last_analysis_tokens_cached", {
+                    input: lastAnalysis.tokenTotals.input.toLocaleString("en-US"),
+                    output: lastAnalysis.tokenTotals.output.toLocaleString("en-US"),
+                    cached: lastAnalysis.tokenTotals.cacheRead.toLocaleString("en-US"),
+                  })
+                : t("overview.last_analysis_tokens", {
+                    input: lastAnalysis.tokenTotals.input.toLocaleString("en-US"),
+                    output: lastAnalysis.tokenTotals.output.toLocaleString("en-US"),
+                  })}
             </span>
           )}
           <span
             style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--color-text-muted)" }}
           >
-            {totalSecs}s total
+            {t("overview.last_analysis_time", { secs: totalSecs })}
           </span>
           <span
             style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--color-text-muted)" }}
@@ -376,6 +393,8 @@ export default function OverviewTab({
   onJumpToApps,
   onJumpToFiles,
 }: OverviewTabProps) {
+  const { t } = useTranslation("tabs");
+
   // Empty state
   if (!latestSnapshot) {
     return (
@@ -390,7 +409,7 @@ export default function OverviewTab({
           fontSize: "var(--text-sm)",
         }}
       >
-        Take your first snapshot to begin.
+        {t("overview.empty")}
       </div>
     );
   }
@@ -434,11 +453,11 @@ export default function OverviewTab({
       >
         {/* Disk card */}
         <MetricCard>
-          <CardLabel>Disk</CardLabel>
-          <HeroNumber value={freeGb} suffix="GB free" />
+          <CardLabel>{t("overview.disk_label")}</CardLabel>
+          <HeroNumber value={freeGb} suffix={t("overview.disk_free_suffix")} />
           {vol && (
             <>
-              <SubLine>{usedPct}% used of {totalStr}</SubLine>
+              <SubLine>{t("overview.disk_used", { pct: usedPct, total: totalStr })}</SubLine>
               <ProgressBar percent={usedPct} color={diskBarColor(usedPct)} />
             </>
           )}
@@ -446,19 +465,19 @@ export default function OverviewTab({
 
         {/* Findings card */}
         <MetricCard>
-          <CardLabel>Findings</CardLabel>
-          <HeroNumber value={String(allFindings.length)} suffix="total" />
+          <CardLabel>{t("overview.findings_label")}</CardLabel>
+          <HeroNumber value={String(allFindings.length)} suffix={t("overview.findings_total_suffix")} />
           <SubLine>
-            {actionableFindings.length} actionable · {investigateCount} to investigate
+            {t("overview.findings_breakdown", { actionable: actionableFindings.length, investigate: investigateCount })}
           </SubLine>
           <SeverityBar findings={allFindings} />
         </MetricCard>
 
         {/* Recoverable card */}
         <MetricCard>
-          <CardLabel>Recoverable</CardLabel>
-          <HeroNumber value={recoverableGb} suffix="GB" color="var(--color-accent)" />
-          <SubLine>across {pathCount} paths</SubLine>
+          <CardLabel>{t("overview.recoverable_label")}</CardLabel>
+          <HeroNumber value={recoverableGb} suffix={t("overview.recoverable_suffix")} color="var(--color-accent)" />
+          <SubLine>{t("overview.recoverable_paths", { count: pathCount })}</SubLine>
           {recoverablePct != null && (
             <span
               style={{
@@ -467,7 +486,7 @@ export default function OverviewTab({
                 color: "var(--color-text-muted)",
               }}
             >
-              ↑ ~{recoverablePct}% of used space
+              {t("overview.recoverable_pct", { pct: recoverablePct })}
             </span>
           )}
         </MetricCard>
@@ -502,7 +521,7 @@ export default function OverviewTab({
               color: "var(--color-text-secondary)",
             }}
           >
-            top priority findings
+            {t("overview.top_findings_label")}
           </span>
           <button
             onClick={onJumpToFindings}
@@ -515,7 +534,7 @@ export default function OverviewTab({
               color: "var(--color-text-muted)",
             }}
           >
-            view all {allFindings.length} →
+            {t("overview.top_findings_view_all", { count: allFindings.length })}
           </button>
         </div>
         {topFindings.length === 0 ? (
@@ -527,7 +546,7 @@ export default function OverviewTab({
               fontFamily: "var(--font-mono)",
             }}
           >
-            No findings — system looks clean
+            {t("overview.top_findings_empty")}
           </div>
         ) : (
           topFindings.map((f, i) => (
@@ -569,16 +588,16 @@ export default function OverviewTab({
                 color: "var(--color-text-muted)",
               }}
             >
-              Apps
+              {t("overview.apps_label")}
             </span>
             <span style={{ fontSize: "12px", color: "var(--color-text-muted)" }}>→</span>
           </div>
           <span style={{ fontSize: "var(--text-sm)", color: "var(--color-text-secondary)" }}>
             {(() => {
               const a = latestSnapshot.apps;
-              if (!a) return "Take a snapshot to scan apps";
+              if (!a) return t("overview.apps_empty");
               const stale = a.installed.filter((app) => (app.last_opened_days_ago ?? 0) > 180).length;
-              return `${a.installed.length} installed · ${a.leftovers.length} leftovers · ${stale} stale`;
+              return t("overview.apps_summary", { installed: a.installed.length, leftovers: a.leftovers.length, stale });
             })()}
           </span>
         </button>
@@ -614,16 +633,16 @@ export default function OverviewTab({
                 color: "var(--color-text-muted)",
               }}
             >
-              Large Files
+              {t("overview.files_label")}
             </span>
             <span style={{ fontSize: "12px", color: "var(--color-text-muted)" }}>→</span>
           </div>
           <span style={{ fontSize: "var(--text-sm)", color: "var(--color-text-secondary)" }}>
             {(() => {
               const lf = latestSnapshot.large_files;
-              if (!lf) return "Take a snapshot to scan large files";
+              if (!lf) return t("overview.files_empty");
               const totalBytes = lf.files.reduce((s, f) => s + f.size_bytes, 0);
-              return `${lf.files.length} over 50 MB · ${formatBytes(totalBytes)} total`;
+              return t("overview.files_summary", { count: lf.files.length, bytes: formatBytes(totalBytes) });
             })()}
           </span>
         </button>
