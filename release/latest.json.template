@@ -1,0 +1,11 @@
+{
+  "version": "{{VERSION}}",
+  "notes": "{{RELEASE_NOTES}}",
+  "pub_date": "{{ISO_DATE}}",
+  "platforms": {
+    "darwin-aarch64": {
+      "signature": "{{SIGNATURE}}",
+      "url": "https://github.com/Razortype/macroscope/releases/download/v{{VERSION}}/Macroscope_{{VERSION}}_aarch64.app.tar.gz"
+    }
+  }
+}
