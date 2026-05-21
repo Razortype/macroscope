@@ -1,6 +1,6 @@
 [package]
 name = "macroscope"
-version = "0.2.0"
+version = "0.2.1"
 description = "Macroscope — local macOS system snapshot and analysis tool"
 authors = ["Orkun Kurul"]
 license = "AGPL-3.0"
