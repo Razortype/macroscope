@@ -75,6 +75,18 @@
         "fda": {
           "title": "Full Disk Access",
           "description": "Tüm ana dizinine okuma erişimi sağlar"
+        },
+        "keychain": {
+          "title": "Keychain Erişimi",
+          "description": "Macroscope, API anahtarlarını macOS Keychain'de saklar",
+          "grant_button": "İzin ver",
+          "modal_title": "Keychain Erişimine İzin Ver",
+          "modal_body": "macOS izin isteyecek. HER ZAMAN İZİN VER'e tıkla ki Macroscope tekrar sormak zorunda kalmasın.",
+          "modal_continue": "Devam et",
+          "status_granted": "VERİLDİ",
+          "status_pending": "İZİN VERİLMEDİ",
+          "status_denied": "REDDEDİLDİ",
+          "status_not_needed": "GEREKMİYOR"
         }
       }
     },

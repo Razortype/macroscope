@@ -124,6 +124,10 @@
       "ollama": { "label": "Ollama", "sublabel": "local" }
     }
   },
+  "section_permissions": {
+    "title": "Permissions",
+    "description": "System permissions Macroscope needs to operate"
+  },
   "save_success_toast": "Settings saved",
   "save_failed_toast": "Could not save: {{detail}}",
   "probes": {

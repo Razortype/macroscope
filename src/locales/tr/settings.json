@@ -124,6 +124,10 @@
       "ollama": { "label": "Ollama", "sublabel": "yerel" }
     }
   },
+  "section_permissions": {
+    "title": "İzinler",
+    "description": "Macroscope'un çalışması için gereken sistem izinleri"
+  },
   "save_success_toast": "Ayarlar kaydedildi",
   "save_failed_toast": "Kaydedilemedi: {{detail}}",
   "probes": {
