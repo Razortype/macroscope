@@ -215,7 +215,11 @@ function TestConnectionButton({ onTest }: { onTest: () => Promise<TestState> }) 
       const r = await onTest();
       setResult(r);
     } catch (e) {
-      setResult({ ok: false, msg: String(e) });
+      const msg = String(e);
+      if (msg.includes("keychain")) {
+        toast.error(t("settings:ai_provider.errors.keychain_denied"));
+      }
+      setResult({ ok: false, msg });
     } finally {
       setTesting(false);
     }

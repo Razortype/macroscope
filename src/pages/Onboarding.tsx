@@ -541,20 +541,20 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
     step === TOTAL_STEPS ? t("nav.take_first_snapshot") :
     t("common:actions.continue");
 
-  const cardMaxWidth = step === 2 || step === 3 || step === 5 ? "600px" : "520px";
+  const cardMaxWidth = step === 2 || step === 4 || step === 5 ? "600px" : "520px";
 
   function renderStep() {
     switch (step) {
       case 1: return <StepWelcome />;
       case 2: return <StepScanScope />;
-      case 3: return <StepAIProvider />;
-      case 4: return (
+      case 3: return (
         <StepPermissions
           mode={permMode}
           onModeChange={setPermMode}
           onGrantedCountChange={setPermGrantedCount}
         />
       );
+      case 4: return <StepAIProvider />;
       case 5: return <StepProjectRoots />;
       case 6: return (
         <StepDone

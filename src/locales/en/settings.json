@@ -64,7 +64,8 @@
     "reset_dialog_description": "This deletes all snapshots, clears project roots, resets the AI provider, and triggers onboarding on next launch. API keys in macOS Keychain are preserved. This cannot be undone. Continue?",
     "reset_confirm": "Reset",
     "reset_success_toast": "App state reset",
-    "reset_failed_toast": "Reset failed: {{detail}}"
+    "reset_failed_toast": "Reset failed: {{detail}}",
+    "reset_keychain_warning": "Note: API keys in macOS Keychain remain unless you remove them manually via Keychain Access."
   },
   "always_scanned": {
     "title": "Always-scanned locations",
@@ -113,6 +114,9 @@
     "models_found_toast_one": "{{count}} model found",
     "models_found_toast_other": "{{count}} models found",
     "models_fetch_failed_toast": "Could not fetch models: {{detail}}",
+    "errors": {
+      "keychain_denied": "Could not save API key — keychain access was denied. Open the Permissions section to grant access."
+    },
     "providers": {
       "gemini": { "label": "Gemini", "sublabel": "API key" },
       "claude_cli": { "label": "Claude CLI", "sublabel": "subscription" },
@@ -120,6 +124,10 @@
       "open_ai": { "label": "OpenAI", "sublabel": "API key" },
       "ollama": { "label": "Ollama", "sublabel": "local" }
     }
+  },
+  "section_permissions": {
+    "title": "Permissions",
+    "description": "System permissions Macroscope needs to operate"
   },
   "save_success_toast": "Settings saved",
   "save_failed_toast": "Could not save: {{detail}}",

@@ -75,6 +75,18 @@
         "fda": {
           "title": "Full Disk Access",
           "description": "Grants read access to your entire home directory"
+        },
+        "keychain": {
+          "title": "Keychain Access",
+          "description": "Macroscope stores API keys in your macOS Keychain",
+          "grant_button": "Grant access",
+          "modal_title": "Allow Keychain Access",
+          "modal_body": "macOS will ask for permission. Click ALWAYS ALLOW so Macroscope doesn't have to ask again.",
+          "modal_continue": "Continue",
+          "status_granted": "GRANTED",
+          "status_pending": "NOT YET GRANTED",
+          "status_denied": "DENIED",
+          "status_not_needed": "NOT NEEDED"
         }
       }
     },

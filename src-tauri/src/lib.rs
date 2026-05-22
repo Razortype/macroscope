@@ -258,11 +258,14 @@ async fn set_provider_secret(
     secret: String,
     db: State<'_, Db>,
 ) -> Result<(), String> {
-    let account = provider
+    let account: &'static str = provider
         .keychain_account()
         .ok_or_else(|| format!("{} does not use API keys", provider.display_name()))?;
-    // Keychain write first; only flag if successful.
-    keychain::keychain_set(account, &secret).map_err(Into::<String>::into)?;
+    // Keychain write on a blocking thread — macOS Security framework may show a UI prompt.
+    tokio::task::spawn_blocking(move || keychain::keychain_set(account, &secret))
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(Into::<String>::into)?;
     // Mirror existence into SQLite so has_provider_secret never touches keychain.
     let flag_key = format!("provider_has_key:{}", provider.as_str());
     let db = db.inner().clone();
@@ -274,10 +277,13 @@ async fn set_provider_secret(
 
 #[tauri::command]
 async fn clear_provider_secret(provider: ProviderId) -> Result<(), String> {
-    let account = provider
+    let account: &'static str = provider
         .keychain_account()
         .ok_or_else(|| format!("{} does not use API keys", provider.display_name()))?;
-    keychain::keychain_delete(account).map_err(Into::into)
+    tokio::task::spawn_blocking(move || keychain::keychain_delete(account))
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(Into::into)
 }
 
 #[tauri::command]
@@ -377,8 +383,177 @@ async fn test_provider_connection(
         .map_err(|e| e.to_string())?
         .map_err(|e: crate::error::AppError| e.to_string())?;
 
-    let provider = build_provider(&provider_id, &config)?;
-    provider.test_connection().await.map_err(Into::into)
+    // 10-second timeout covers both the blocking keychain read (may show macOS UI
+    // prompt) and the subsequent network call, bounding the worst-case hang.
+    tokio::time::timeout(std::time::Duration::from_secs(10), async move {
+        let provider = tokio::task::spawn_blocking(move || build_provider(&provider_id, &config))
+            .await
+            .map_err(|e| e.to_string())??;
+        provider.test_connection().await.map_err(Into::into)
+    })
+    .await
+    .map_err(|_| "keychain timeout".to_string())?
+}
+
+// ── Keychain permission probe ─────────────────────────────────────────────────
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+enum KeychainState {
+    Granted,
+    Denied,
+    Unknown,
+    /// Active provider needs no API key; keychain access is irrelevant.
+    NotNeeded,
+}
+
+#[derive(serde::Serialize)]
+struct KeychainAccessResult {
+    state: KeychainState,
+    prompt_shown: bool,
+}
+
+/// Probe name used by the write-read-delete permission check.
+const KEYCHAIN_PROBE_ACCOUNT: &str = "permission_probe";
+const KEYCHAIN_PROBE_VALUE: &str = "v1";
+
+/// Check whether Macroscope has keychain access without triggering an
+/// unsolicited prompt.
+///
+/// - `allow_probe: false` — safe for mount/launch; only reads existing entries.
+/// - `allow_probe: true`  — may trigger the macOS prompt; call only when the
+///   user has explicitly clicked "Grant access".
+#[tauri::command]
+async fn check_keychain_access(
+    allow_probe: bool,
+    db: State<'_, Db>,
+) -> Result<KeychainAccessResult, String> {
+    let db_inner = db.inner().clone();
+
+    tokio::task::spawn_blocking(move || -> Result<KeychainAccessResult, String> {
+        use provider_config::ProviderId;
+
+        // Step 1 & 2: Scan provider_has_key:* flags and attempt a keychain read
+        // for each provider that has previously stored a key.
+        let api_key_providers = [
+            ProviderId::AnthropicApi,
+            ProviderId::OpenAi,
+            ProviderId::Gemini,
+        ];
+
+        for provider in &api_key_providers {
+            let flag_key = format!("provider_has_key:{}", provider.as_str());
+            let has_flag = db_inner
+                .get_setting(&flag_key)
+                .map(|v| v.as_deref() == Some("1"))
+                .unwrap_or(false);
+
+            if !has_flag {
+                continue;
+            }
+
+            // Flag is set — try to read the actual keychain entry.
+            let account = provider.keychain_account().unwrap(); // safe: always Some for these
+            match keychain::keychain_get(account) {
+                Ok(Some(_)) => {
+                    tracing::info!("check_keychain_access: fast-path granted via {}", provider.as_str());
+                    return Ok(KeychainAccessResult {
+                        state: KeychainState::Granted,
+                        prompt_shown: false,
+                    });
+                }
+                Ok(None) => {
+                    // Entry gone (stale flag) — check remaining providers.
+                    continue;
+                }
+                Err(crate::error::AppError::KeychainDenied) => {
+                    tracing::info!("check_keychain_access: fast-path denied via {}", provider.as_str());
+                    let _ = db_inner.set_setting("keychain_access_granted", "0");
+                    return Ok(KeychainAccessResult {
+                        state: KeychainState::Denied,
+                        prompt_shown: true,
+                    });
+                }
+                Err(_) => {
+                    // Other error (locked keychain, etc.) — inconclusive; continue.
+                    continue;
+                }
+            }
+        }
+
+        // Step 2b: Check the probe-grant flag written when the user explicitly
+        // granted access before storing any provider API key. This flag persists
+        // across focus changes so the status doesn't flip back to "unknown".
+        let probe_granted = db_inner
+            .get_setting("keychain_access_granted")
+            .map(|v| v.as_deref() == Some("1"))
+            .unwrap_or(false);
+        if probe_granted {
+            tracing::info!("check_keychain_access: fast-path granted via probe flag");
+            return Ok(KeychainAccessResult {
+                state: KeychainState::Granted,
+                prompt_shown: false,
+            });
+        }
+
+        // Step 3 / 4: No existing key or probe flag found.
+        // Load provider config to determine whether keychain is needed at all.
+        let config = provider_config::ProviderConfig::load(&db_inner)
+            .map_err(|e: crate::error::AppError| e.to_string())?;
+
+        // Step 4: Active provider needs no keychain (Claude CLI, Ollama).
+        if config.active_provider.keychain_account().is_none() {
+            tracing::info!("check_keychain_access: not_needed (provider has no keychain account)");
+            return Ok(KeychainAccessResult {
+                state: KeychainState::NotNeeded,
+                prompt_shown: false,
+            });
+        }
+
+        // Step 3: Active provider needs a key but none is stored yet.
+        if !allow_probe {
+            tracing::info!("check_keychain_access: unknown (no flag, no probe allowed)");
+            return Ok(KeychainAccessResult {
+                state: KeychainState::Unknown,
+                prompt_shown: false,
+            });
+        }
+
+        // Write-read-delete probe — intentionally triggers the macOS prompt.
+        // Only reached when the user clicked "Grant access" (allow_probe: true).
+        tracing::info!("check_keychain_access: running write-read-delete probe");
+        match keychain::keychain_set(KEYCHAIN_PROBE_ACCOUNT, KEYCHAIN_PROBE_VALUE) {
+            Ok(()) => {
+                let _ = keychain::keychain_get(KEYCHAIN_PROBE_ACCOUNT);
+                let _ = keychain::keychain_delete(KEYCHAIN_PROBE_ACCOUNT);
+                // Persist the grant so silent re-probes (allow_probe: false) can
+                // return "granted" without re-entering the probe path.
+                let _ = db_inner.set_setting("keychain_access_granted", "1");
+                tracing::info!("check_keychain_access: probe granted — flag written");
+                Ok(KeychainAccessResult {
+                    state: KeychainState::Granted,
+                    prompt_shown: true,
+                })
+            }
+            Err(crate::error::AppError::KeychainDenied) => {
+                let _ = db_inner.set_setting("keychain_access_granted", "0");
+                tracing::info!("check_keychain_access: probe denied");
+                Ok(KeychainAccessResult {
+                    state: KeychainState::Denied,
+                    prompt_shown: true,
+                })
+            }
+            Err(e) => {
+                tracing::info!("check_keychain_access: probe unknown error: {e}");
+                Ok(KeychainAccessResult {
+                    state: KeychainState::Unknown,
+                    prompt_shown: true,
+                })
+            }
+        }
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 // ── Ollama model discovery ────────────────────────────────────────────────────
@@ -571,13 +746,17 @@ async fn analyze_snapshot(
         .map_err(|e| e.to_string())?
         .map_err(|e: crate::error::AppError| e.to_string())?;
 
-    // Pre-flight: verify the active provider is reachable before starting audits
-    let provider = build_provider(&config.active_provider, &config)?;
+    // Pre-flight: verify the active provider is reachable before starting audits.
+    // build_provider reads from keychain (blocking) — run on a blocking thread.
+    let provider_display = config.active_provider.display_name();
+    let provider = tokio::task::spawn_blocking(move || build_provider(&config.active_provider, &config))
+        .await
+        .map_err(|e| e.to_string())??;
     let pre = provider.test_connection().await.map_err(|e| e.to_string())?;
     if !pre.ok {
         return Err(format!(
             "{} is not reachable: {} — check Settings → AI Provider",
-            config.active_provider.display_name(),
+            provider_display,
             pre.error.as_deref().unwrap_or("unknown error")
         ));
     }
@@ -744,6 +923,38 @@ async fn set_first_run_state(completed: bool, db: State<'_, Db>) -> Result<(), S
 
 #[tauri::command]
 async fn reset_app_state(db: State<'_, Db>) -> Result<(), String> {
+    // Best-effort keychain cleanup before wiping SQLite. Each deletion runs
+    // under its own 5-second timeout so a blocked macOS prompt cannot stall
+    // the reset. All errors are logged and skipped — the reset always succeeds
+    // from the frontend's perspective, even if some keychain entries remain.
+    let keychain_accounts: &[&'static str] = &[
+        keychain::ACCOUNT_ANTHROPIC,
+        keychain::ACCOUNT_OPENAI,
+        keychain::ACCOUNT_GEMINI,
+        KEYCHAIN_PROBE_ACCOUNT,
+    ];
+    for &account in keychain_accounts {
+        let outcome = tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            tokio::task::spawn_blocking(move || keychain::keychain_delete(account)),
+        )
+        .await;
+        match outcome {
+            Ok(Ok(Ok(()))) => {
+                tracing::info!("reset_app_state: removed keychain entry '{account}'");
+            }
+            Ok(Ok(Err(e))) => {
+                tracing::warn!("reset_app_state: keychain delete skipped for '{account}': {e}");
+            }
+            Ok(Err(e)) => {
+                tracing::warn!("reset_app_state: spawn error for '{account}': {e}");
+            }
+            Err(_) => {
+                tracing::warn!("reset_app_state: keychain delete timed out for '{account}' — entry may remain");
+            }
+        }
+    }
+
     let db = db.inner().clone();
     tokio::task::spawn_blocking(move || db.factory_reset())
         .await
@@ -982,6 +1193,7 @@ pub fn run() {
             probe_automation_permission,
             probe_full_disk_access,
             open_system_settings_pane,
+            check_keychain_access,
             is_provider_ready,
             check_for_update,
             get_system_locale,

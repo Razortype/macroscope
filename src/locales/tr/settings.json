@@ -64,7 +64,8 @@
     "reset_dialog_description": "Bu işlem tüm snapshot'ları siler, project root'ları temizler, AI sağlayıcısını sıfırlar ve bir sonraki başlatmada onboarding'i tetikler. macOS Anahtar Zinciri'ndeki API anahtarları korunur. Bu işlem geri alınamaz. Devam edilsin mi?",
     "reset_confirm": "Sıfırla",
     "reset_success_toast": "Uygulama durumu sıfırlandı",
-    "reset_failed_toast": "Sıfırlama başarısız: {{detail}}"
+    "reset_failed_toast": "Sıfırlama başarısız: {{detail}}",
+    "reset_keychain_warning": "Not: macOS Keychain'deki API anahtarları, Keychain Access'ten manuel kaldırılana kadar saklı kalır."
   },
   "always_scanned": {
     "title": "Her zaman taranan konumlar",
@@ -113,6 +114,9 @@
     "models_found_toast_one": "{{count}} model bulundu",
     "models_found_toast_other": "{{count}} model bulundu",
     "models_fetch_failed_toast": "Modeller alınamadı: {{detail}}",
+    "errors": {
+      "keychain_denied": "API anahtarı kaydedilemedi — keychain erişimi reddedildi. İzin vermek için İzinler bölümünü aç."
+    },
     "providers": {
       "gemini": { "label": "Gemini", "sublabel": "API anahtarı" },
       "claude_cli": { "label": "Claude CLI", "sublabel": "abonelik" },
@@ -120,6 +124,10 @@
       "open_ai": { "label": "OpenAI", "sublabel": "API anahtarı" },
       "ollama": { "label": "Ollama", "sublabel": "yerel" }
     }
+  },
+  "section_permissions": {
+    "title": "İzinler",
+    "description": "Macroscope'un çalışması için gereken sistem izinleri"
   },
   "save_success_toast": "Ayarlar kaydedildi",
   "save_failed_toast": "Kaydedilemedi: {{detail}}",

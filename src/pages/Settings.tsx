@@ -28,6 +28,7 @@ import { settingsSchema, type SettingsValues } from "../types/settings";
 import { loadSettings, saveSettings } from "../lib/settings";
 import { Section } from "../components/settings/SectionWrapper";
 import { SectionAIProvider } from "../components/settings/AIProviderSection";
+import { SectionPermissions } from "../components/settings/PermissionsSection";
 import { SectionProjectRoots } from "../components/settings/ProjectRootsSection";
 import { SectionSystemAudit } from "../components/settings/SystemAuditSection";
 
@@ -603,7 +604,7 @@ function SectionDeveloper() {
         >
           {t("developer.description")}
         </p>
-        <div>
+        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <button
@@ -647,6 +648,9 @@ function SectionDeveloper() {
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
+          <p style={{ margin: 0, fontSize: "var(--text-xs)", color: "var(--color-text-disabled)" }}>
+            {t("developer.reset_keychain_warning")}
+          </p>
         </div>
       </div>
     </Section>
@@ -762,6 +766,7 @@ export default function Settings() {
             >
               <SectionGeneral />
               <SectionAIProvider />
+              <SectionPermissions />
               <SectionHotkey />
               <SectionSystemAudit />
               <SectionProjectRoots onChanged={() => setRootsVersion((v) => v + 1)} />

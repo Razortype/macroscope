@@ -27,6 +27,11 @@ pub enum AppError {
     #[error("keychain error: {0}")]
     Keychain(String),
 
+    /// macOS Security framework returned errSecUserCanceled (-128) or
+    /// errSecAuthFailed (-25293) — the user explicitly denied keychain access.
+    #[error("keychain error: denied")]
+    KeychainDenied,
+
     #[error("http error: {0}")]
     Http(String),
 }
