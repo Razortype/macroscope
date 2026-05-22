@@ -258,11 +258,14 @@ async fn set_provider_secret(
     secret: String,
     db: State<'_, Db>,
 ) -> Result<(), String> {
-    let account = provider
+    let account: &'static str = provider
         .keychain_account()
         .ok_or_else(|| format!("{} does not use API keys", provider.display_name()))?;
-    // Keychain write first; only flag if successful.
-    keychain::keychain_set(account, &secret).map_err(Into::<String>::into)?;
+    // Keychain write on a blocking thread — macOS Security framework may show a UI prompt.
+    tokio::task::spawn_blocking(move || keychain::keychain_set(account, &secret))
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(Into::<String>::into)?;
     // Mirror existence into SQLite so has_provider_secret never touches keychain.
     let flag_key = format!("provider_has_key:{}", provider.as_str());
     let db = db.inner().clone();
@@ -274,10 +277,13 @@ async fn set_provider_secret(
 
 #[tauri::command]
 async fn clear_provider_secret(provider: ProviderId) -> Result<(), String> {
-    let account = provider
+    let account: &'static str = provider
         .keychain_account()
         .ok_or_else(|| format!("{} does not use API keys", provider.display_name()))?;
-    keychain::keychain_delete(account).map_err(Into::into)
+    tokio::task::spawn_blocking(move || keychain::keychain_delete(account))
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(Into::into)
 }
 
 #[tauri::command]
@@ -377,8 +383,16 @@ async fn test_provider_connection(
         .map_err(|e| e.to_string())?
         .map_err(|e: crate::error::AppError| e.to_string())?;
 
-    let provider = build_provider(&provider_id, &config)?;
-    provider.test_connection().await.map_err(Into::into)
+    // 10-second timeout covers both the blocking keychain read (may show macOS UI
+    // prompt) and the subsequent network call, bounding the worst-case hang.
+    tokio::time::timeout(std::time::Duration::from_secs(10), async move {
+        let provider = tokio::task::spawn_blocking(move || build_provider(&provider_id, &config))
+            .await
+            .map_err(|e| e.to_string())??;
+        provider.test_connection().await.map_err(Into::into)
+    })
+    .await
+    .map_err(|_| "keychain timeout".to_string())?
 }
 
 // ── Ollama model discovery ────────────────────────────────────────────────────
@@ -571,13 +585,17 @@ async fn analyze_snapshot(
         .map_err(|e| e.to_string())?
         .map_err(|e: crate::error::AppError| e.to_string())?;
 
-    // Pre-flight: verify the active provider is reachable before starting audits
-    let provider = build_provider(&config.active_provider, &config)?;
+    // Pre-flight: verify the active provider is reachable before starting audits.
+    // build_provider reads from keychain (blocking) — run on a blocking thread.
+    let provider_display = config.active_provider.display_name();
+    let provider = tokio::task::spawn_blocking(move || build_provider(&config.active_provider, &config))
+        .await
+        .map_err(|e| e.to_string())??;
     let pre = provider.test_connection().await.map_err(|e| e.to_string())?;
     if !pre.ok {
         return Err(format!(
             "{} is not reachable: {} — check Settings → AI Provider",
-            config.active_provider.display_name(),
+            provider_display,
             pre.error.as_deref().unwrap_or("unknown error")
         ));
     }
