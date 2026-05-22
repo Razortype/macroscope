@@ -19,7 +19,7 @@
     "section_safe": "Silinmesi güvenli",
     "section_companion": "Companion verisi (uygulama çalışmıyor)",
     "section_skipped": "Atlanacak",
-    "companion_note": "Bu veri {{app}}'e ait. Ayarlar/önbellek bir sonraki başlatmada sıfırlanacak.",
+    "companion_note": "Bu veri {{app}}'e ait. Ayarlar ve önbellek bir sonraki başlatmada sıfırlanacak.",
     "footer_selected_one": "{{count}} eylem seçili · {{bytes}} boşaltılacak",
     "footer_selected_other": "{{count}} eylem seçili · {{bytes}} boşaltılacak",
     "footer_none": "Seçili eylem yok",

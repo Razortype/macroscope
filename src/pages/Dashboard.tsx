@@ -49,6 +49,7 @@ function sumTokenUsage(usage: Record<string, AuditTokenUsage>): LastAnalysisToke
 function buildLastAnalysis(
   data: Finding[],
   startedAt: number | null,
+  t: (key: string) => string,
   tokenTotals?: LastAnalysisTokenTotals
 ): LastAnalysisSummary {
   const now = Date.now();
@@ -56,11 +57,11 @@ function buildLastAnalysis(
     completedAt: now,
     totalDurationMs: now - (startedAt ?? now),
     audits: [
-      { preset: "disk-audit", label: "disk", findingCount: data.filter((f) => f.category === "disk").length },
-      { preset: "security-audit", label: "security", findingCount: data.filter((f) => ["security", "persistence", "network"].includes(f.category)).length },
-      { preset: "app-lifecycle-audit", label: "apps", findingCount: data.filter((f) => f.category === "apps").length },
-      { preset: "file-inventory-audit", label: "files", findingCount: data.filter((f) => f.category === "files").length },
-      { preset: "project-artifacts-audit", label: "artifacts", findingCount: data.filter((f) => f.category === "project_artifacts").length },
+      { preset: "disk-audit", label: t("progress.audit_labels.disk_audit"), findingCount: data.filter((f) => f.category === "disk").length },
+      { preset: "security-audit", label: t("progress.audit_labels.security_audit"), findingCount: data.filter((f) => ["security", "persistence", "network"].includes(f.category)).length },
+      { preset: "app-lifecycle-audit", label: t("progress.audit_labels.app_lifecycle_audit"), findingCount: data.filter((f) => f.category === "apps").length },
+      { preset: "file-inventory-audit", label: t("progress.audit_labels.file_inventory_audit"), findingCount: data.filter((f) => f.category === "files").length },
+      { preset: "project-artifacts-audit", label: t("progress.audit_labels.project_artifacts_audit"), findingCount: data.filter((f) => f.category === "project_artifacts").length },
     ],
     tokenTotals,
   };
@@ -249,7 +250,7 @@ export default function Dashboard() {
           .map(([preset, a]) => [preset, a.token_usage!])
       );
       setFindings(sortFindings(data));
-      setLastAnalysis(buildLastAnalysis(data, analysisStartedAtRef.current, sumTokenUsage(tokenUsage)));
+      setLastAnalysis(buildLastAnalysis(data, analysisStartedAtRef.current, t, sumTokenUsage(tokenUsage)));
     },
     onError: (err) => { deactivateRun(); setAnalyzeError(err); },
   });
@@ -275,7 +276,7 @@ export default function Dashboard() {
           .map(([preset, a]) => [preset, a.token_usage!])
       );
       setFindings(sortFindings(data));
-      setLastAnalysis(buildLastAnalysis(data, analysisStartedAtRef.current, sumTokenUsage(tokenUsage)));
+      setLastAnalysis(buildLastAnalysis(data, analysisStartedAtRef.current, t, sumTokenUsage(tokenUsage)));
     },
     onError: (err) => { deactivateRun(); setAnalyzeError(err); },
   });

@@ -14,7 +14,7 @@
   },
   "hotkey": {
     "title": "Kısayol Tuşu",
-    "description": "Macroscope'u her yerden çağırmak için global kısayol. Aktivasyon gelecek bir güncellemede gelecek.",
+    "description": "Macroscope'u her yerden çağırmak için global kısayol. Aktivasyon ilerleyen bir güncellemede eklenecek.",
     "enable_label": "Global kısayol tuşunu etkinleştir",
     "combo_label": "Kısayol kombinasyonu",
     "inactive_note": "Şu an etkin değil — değerler kaydedildi ama sisteme kayıtlı değil."
