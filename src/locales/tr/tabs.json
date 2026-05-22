@@ -43,7 +43,7 @@
   "progress": {
     "title_running": "Sistem analiz ediliyor",
     "title_done": "Analiz tamamlandı",
-    "powered_by": "{{provider}} ile desteklenir",
+    "powered_by": "{{provider}} ile destekleniyor",
     "step1_label": "adım 1 · yerel tarama",
     "step1_running": "çalışıyor…",
     "step1_done": "tamamlandı · {{time}}",
