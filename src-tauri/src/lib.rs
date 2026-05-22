@@ -403,6 +403,8 @@ enum KeychainState {
     Granted,
     Denied,
     Unknown,
+    /// Active provider needs no API key; keychain access is irrelevant.
+    NotNeeded,
 }
 
 #[derive(serde::Serialize)]
@@ -482,10 +484,10 @@ async fn check_keychain_access(
         let config = provider_config::ProviderConfig::load(&db_inner)
             .map_err(|e: crate::error::AppError| e.to_string())?;
 
-        // Step 4: Active provider needs no keychain (Claude CLI, Ollama) — vacuously granted.
+        // Step 4: Active provider needs no keychain (Claude CLI, Ollama).
         if config.active_provider.keychain_account().is_none() {
             return Ok(KeychainAccessResult {
-                state: KeychainState::Granted,
+                state: KeychainState::NotNeeded,
                 prompt_shown: false,
             });
         }
