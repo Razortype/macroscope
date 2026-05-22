@@ -604,7 +604,7 @@ function SectionDeveloper() {
         >
           {t("developer.description")}
         </p>
-        <div>
+        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <button
@@ -648,6 +648,9 @@ function SectionDeveloper() {
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
+          <p style={{ margin: 0, fontSize: "var(--text-xs)", color: "var(--color-text-disabled)" }}>
+            {t("developer.reset_keychain_warning")}
+          </p>
         </div>
       </div>
     </Section>

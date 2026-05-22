@@ -64,7 +64,8 @@
     "reset_dialog_description": "This deletes all snapshots, clears project roots, resets the AI provider, and triggers onboarding on next launch. API keys in macOS Keychain are preserved. This cannot be undone. Continue?",
     "reset_confirm": "Reset",
     "reset_success_toast": "App state reset",
-    "reset_failed_toast": "Reset failed: {{detail}}"
+    "reset_failed_toast": "Reset failed: {{detail}}",
+    "reset_keychain_warning": "Note: API keys in macOS Keychain remain unless you remove them manually via Keychain Access."
   },
   "always_scanned": {
     "title": "Always-scanned locations",

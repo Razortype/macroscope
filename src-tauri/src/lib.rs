@@ -923,6 +923,38 @@ async fn set_first_run_state(completed: bool, db: State<'_, Db>) -> Result<(), S
 
 #[tauri::command]
 async fn reset_app_state(db: State<'_, Db>) -> Result<(), String> {
+    // Best-effort keychain cleanup before wiping SQLite. Each deletion runs
+    // under its own 5-second timeout so a blocked macOS prompt cannot stall
+    // the reset. All errors are logged and skipped — the reset always succeeds
+    // from the frontend's perspective, even if some keychain entries remain.
+    let keychain_accounts: &[&'static str] = &[
+        keychain::ACCOUNT_ANTHROPIC,
+        keychain::ACCOUNT_OPENAI,
+        keychain::ACCOUNT_GEMINI,
+        KEYCHAIN_PROBE_ACCOUNT,
+    ];
+    for &account in keychain_accounts {
+        let outcome = tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            tokio::task::spawn_blocking(move || keychain::keychain_delete(account)),
+        )
+        .await;
+        match outcome {
+            Ok(Ok(Ok(()))) => {
+                tracing::info!("reset_app_state: removed keychain entry '{account}'");
+            }
+            Ok(Ok(Err(e))) => {
+                tracing::warn!("reset_app_state: keychain delete skipped for '{account}': {e}");
+            }
+            Ok(Err(e)) => {
+                tracing::warn!("reset_app_state: spawn error for '{account}': {e}");
+            }
+            Err(_) => {
+                tracing::warn!("reset_app_state: keychain delete timed out for '{account}' — entry may remain");
+            }
+        }
+    }
+
     let db = db.inner().clone();
     tokio::task::spawn_blocking(move || db.factory_reset())
         .await
