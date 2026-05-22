@@ -110,6 +110,110 @@ async fn list_settings(db: State<'_, Db>) -> Result<Vec<(String, String)>, Strin
         .map_err(Into::into)
 }
 
+// ── Project-root validation ──────────────────────────────────────────────────
+
+/// Error variants returned by [`validate_project_root`].
+///
+/// Serializes as `{"kind":"<Variant>","path":"<offending path>"}`.
+/// The frontend reads `err.kind` to select the i18n key and `err.path` for
+/// interpolation. All variants carry `path` for a uniform JSON shape.
+#[derive(Debug, serde::Serialize)]
+#[serde(tag = "kind")]
+pub enum PathValidationError {
+    /// Path is not absolute after `~` expansion.
+    /// (Macroscope does not expand `$VAR` forms; environment
+    /// variable references stay literal and fail this check.)
+    NotAbsolute      { path: String },
+    DoesNotExist     { path: String },
+    NotADirectory    { path: String },
+    AlreadyAdded     { path: String },
+    ForbiddenPrefix  { path: String },
+    NoReadPermission { path: String },
+}
+
+/// Paths that may never be added as project roots.
+/// Narrower than the executor's DENIED_PREFIXES (which governs trashable paths).
+const FORBIDDEN_ROOT_PREFIXES: &[&str] = &[
+    "/System",
+    "/Library/System",
+    "/private/var/db",
+    "/etc",
+    "/var/log",
+    "/var/db",
+    "/var/folders",
+    "/.Spotlight-V100",
+    "/.fseventsd",
+    "/.Trashes",
+];
+
+/// Validates `path` as a candidate project root and returns the canonicalized
+/// absolute path on success (symlinks resolved).
+///
+/// Checks in order: absolute → exists → is_dir → canonicalize →
+/// not_duplicate → not_forbidden → readable. First failure returns the
+/// matching [`PathValidationError`] variant.
+#[tauri::command]
+async fn validate_project_root(
+    path: String,
+    db: State<'_, Db>,
+) -> Result<String, PathValidationError> {
+    let expanded = analyzer::expand_tilde(&path);
+    let expanded_str = expanded.display().to_string();
+
+    if !expanded.is_absolute() {
+        return Err(PathValidationError::NotAbsolute { path: expanded_str });
+    }
+
+    let meta = tokio::fs::metadata(&expanded)
+        .await
+        .map_err(|_| PathValidationError::DoesNotExist { path: expanded_str.clone() })?;
+
+    if !meta.is_dir() {
+        return Err(PathValidationError::NotADirectory { path: expanded_str });
+    }
+
+    // Resolve symlinks so two different symlinks to the same directory are
+    // caught by the duplicate check, and so forbidden-prefix checks apply to
+    // the real path rather than the link.
+    let canonical = tokio::fs::canonicalize(&expanded)
+        .await
+        .map_err(|_| PathValidationError::DoesNotExist { path: expanded_str.clone() })?;
+    let canonical_str = canonical.display().to_string();
+
+    let db_clone = db.inner().clone();
+    let existing: Vec<std::path::PathBuf> =
+        tokio::task::spawn_blocking(move || db_clone.get_setting("project_roots"))
+            .await
+            .ok()
+            .and_then(|r| r.ok())
+            .flatten()
+            .and_then(|s| serde_json::from_str::<Vec<String>>(&s).ok())
+            .unwrap_or_default()
+            .into_iter()
+            .map(|s| {
+                let p = analyzer::expand_tilde(&s);
+                // Fall back to expanded path if an existing root has gone stale.
+                std::fs::canonicalize(&p).unwrap_or(p)
+            })
+            .collect();
+
+    if existing.contains(&canonical) {
+        return Err(PathValidationError::AlreadyAdded { path: canonical_str });
+    }
+
+    for prefix in FORBIDDEN_ROOT_PREFIXES {
+        if canonical_str == *prefix || canonical_str.starts_with(&format!("{}/", prefix)) {
+            return Err(PathValidationError::ForbiddenPrefix { path: canonical_str });
+        }
+    }
+
+    let _ = tokio::fs::read_dir(&canonical)
+        .await
+        .map_err(|_| PathValidationError::NoReadPermission { path: canonical_str.clone() })?;
+
+    Ok(canonical_str)
+}
+
 /// Reads the macOS LANG environment variable and returns "tr" if the locale
 /// is Turkish, "en" for everything else. Used once on first launch to seed
 /// the locale setting before the user reaches the dashboard.
@@ -847,6 +951,7 @@ pub fn run() {
             get_setting,
             set_setting,
             list_settings,
+            validate_project_root,
             get_provider_config,
             set_provider_config,
             set_provider_secret,
