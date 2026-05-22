@@ -53,9 +53,33 @@
     "audit_complete": "tamamlandı · {{time}}",
     "audit_failed": "başarısız",
     "audit_labels": {
-      "disk_audit": "disk audit",
-      "security_audit": "startup audit",
-      "app_lifecycle_audit": "app lifecycle audit"
+      "disk_audit": "disk denetimi",
+      "security_audit": "başlangıç denetimi",
+      "app_lifecycle_audit": "uygulama yaşam döngüsü denetimi",
+      "file_inventory_audit": "dosya envanteri denetimi",
+      "project_artifacts_audit": "proje artefakt denetimi"
+    },
+    "probes": {
+      "disk": "disk birim bilgisi",
+      "processes": "süreçler",
+      "network": "dinleyen portlar",
+      "persistence": "launch agents",
+      "users": "kullanıcı hesapları",
+      "kernel": "çekirdek uzantıları",
+      "apps": "yüklü uygulamalar"
+    },
+    "preset_shorts": {
+      "disk_audit": "disk",
+      "security_audit": "başlangıç",
+      "app_lifecycle_audit": "uygulamalar"
+    },
+    "events": {
+      "spawn_claude": "spawn claude -p",
+      "received_init": "sistem/başlatma alındı",
+      "rate_limit": "rate_limit_event acknowledged",
+      "composing": "claude bulgular oluşturuyor...",
+      "analysis": "{{provider}} analizi",
+      "parsed": "bulgular ayrıştırıldı ve doğrulandı"
     },
     "subtitle_with_roots_one": "sistem konumları + {{count}} proje dizini taranıyor",
     "subtitle_with_roots_other": "sistem konumları + {{count}} proje dizini taranıyor",

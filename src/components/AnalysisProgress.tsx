@@ -28,6 +28,7 @@ function fmtS(ms: number): string {
 // ── ProbeRow ─────────────────────────────────────────────────────────────────
 
 function ProbeRow({ probe }: { probe: ProbeState }) {
+  const { t } = useTranslation("tabs");
   const isPending = probe.status === "pending";
   const isRunning = probe.status === "running";
   const isDone = probe.status === "complete" || probe.status === "failed";
@@ -57,7 +58,7 @@ function ProbeRow({ probe }: { probe: ProbeState }) {
           whiteSpace: "nowrap",
         }}
       >
-        {probe.label}
+        {t(`progress.probes.${probe.key}`)}
       </span>
       {probe.duration_ms != null && (
         <span style={{ fontFamily: "var(--font-mono)", fontSize: "10px", color: "rgba(255,255,255,0.45)" }}>
@@ -108,7 +109,7 @@ function ProbeSection({ probes, allComplete }: { probes: ProbeState[]; allComple
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px 20px" }}>
         {probes.map((p) => (
-          <ProbeRow key={p.label} probe={p} />
+          <ProbeRow key={p.key} probe={p} />
         ))}
       </div>
     </div>
@@ -117,7 +118,7 @@ function ProbeSection({ probes, allComplete }: { probes: ProbeState[]; allComple
 
 // ── AuditRow ─────────────────────────────────────────────────────────────────
 
-function AuditRow({ preset, audit }: { preset: string; audit: AuditState }) {
+function AuditRow({ preset, audit, providerLabel }: { preset: string; audit: AuditState; providerLabel?: string }) {
   const { t } = useTranslation("tabs");
   const isComplete = audit.phase === "complete";
   const isError = audit.phase === "error";
@@ -137,6 +138,16 @@ function AuditRow({ preset, audit }: { preset: string; audit: AuditState }) {
     "disk-audit": t("progress.audit_labels.disk_audit"),
     "security-audit": t("progress.audit_labels.security_audit"),
     "app-lifecycle-audit": t("progress.audit_labels.app_lifecycle_audit"),
+    "file-inventory-audit": t("progress.audit_labels.file_inventory_audit"),
+    "project-artifacts-audit": t("progress.audit_labels.project_artifacts_audit"),
+  };
+  const evLabelMap: Record<string, string> = {
+    "spawn claude -p": t("progress.events.spawn_claude"),
+    "received system/init": t("progress.events.received_init"),
+    "rate_limit_event acknowledged": t("progress.events.rate_limit"),
+    "claude is composing findings...": t("progress.events.composing"),
+    "claude analysis": t("progress.events.analysis", { provider: providerLabel ?? "claude" }),
+    "findings parsed and validated": t("progress.events.parsed"),
   };
   const label = auditLabelMap[preset] ?? preset;
 
@@ -219,7 +230,7 @@ function AuditRow({ preset, audit }: { preset: string; audit: AuditState }) {
                   flex: 1,
                 }}
               >
-                {ev.label}
+                {evLabelMap[ev.label] ?? ev.label}
               </span>
               <span
                 style={{
@@ -311,7 +322,7 @@ function ClaudeSection({
       <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
         {DISPLAY_PRESETS.map((preset) =>
           audits[preset] ? (
-            <AuditRow key={preset} preset={preset} audit={audits[preset]} />
+            <AuditRow key={preset} preset={preset} audit={audits[preset]} providerLabel={providerLabel} />
           ) : null
         )}
       </div>
@@ -338,6 +349,8 @@ export default function AnalysisProgress({
     (a) => a.phase === "complete" || a.phase === "error"
   );
   const allComplete = allProbesComplete && allAuditsComplete;
+
+  const subtitleSuffix = `· ${t("progress.preset_shorts.disk_audit")} + ${t("progress.preset_shorts.security_audit")} + ${t("progress.preset_shorts.app_lifecycle_audit")}`;
 
   return (
     <div
@@ -404,7 +417,7 @@ export default function AnalysisProgress({
         {rootCount > 0
           ? t("progress.subtitle_with_roots", { count: rootCount })
           : t("progress.subtitle_no_roots")}
-        {" "}{t("progress.subtitle_suffix")}
+        {" "}{subtitleSuffix}
       </div>
 
       {/* Step 1 */}

@@ -13,6 +13,7 @@ import type { AuditTokenUsage } from "../types/snapshot";
 
 export type ProbeStatus = "pending" | "running" | "complete" | "failed";
 export interface ProbeState {
+  key: ProbeKey;
   label: string;
   status: ProbeStatus;
   duration_ms?: number;
@@ -100,6 +101,7 @@ function fmtS(ms: number): string {
 
 export function makeProbes(): ProbeState[] {
   return PROBE_KEYS.map((k) => ({
+    key: k,
     label: PROBE_LABELS[k],
     status: "pending" as ProbeStatus,
   }));

@@ -55,7 +55,31 @@
     "audit_labels": {
       "disk_audit": "disk audit",
       "security_audit": "startup audit",
-      "app_lifecycle_audit": "app lifecycle audit"
+      "app_lifecycle_audit": "app lifecycle audit",
+      "file_inventory_audit": "file inventory audit",
+      "project_artifacts_audit": "project artifacts audit"
+    },
+    "probes": {
+      "disk": "disk volume",
+      "processes": "processes",
+      "network": "listening ports",
+      "persistence": "launch agents",
+      "users": "user accounts",
+      "kernel": "kernel extensions",
+      "apps": "installed apps"
+    },
+    "preset_shorts": {
+      "disk_audit": "disk",
+      "security_audit": "startup",
+      "app_lifecycle_audit": "apps"
+    },
+    "events": {
+      "spawn_claude": "spawn claude -p",
+      "received_init": "received system/init",
+      "rate_limit": "rate_limit_event acknowledged",
+      "composing": "claude is composing findings...",
+      "analysis": "{{provider}} analysis",
+      "parsed": "findings parsed and validated"
     },
     "subtitle_with_roots_one": "scanning system locations + {{count}} project directory",
     "subtitle_with_roots_other": "scanning system locations + {{count}} project directories",
