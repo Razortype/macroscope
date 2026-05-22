@@ -76,7 +76,18 @@
     "empty": "Yapılandırılmış proje dizini yok. Build artifact temizliğini etkinleştirmek için bir tane ekle.",
     "add_directory": "Dizin ekle…",
     "select_directory_dialog": "Proje dizinini seç",
-    "remove_aria": "{{path}} kaldır"
+    "remove_aria": "{{path}} kaldır",
+    "add_button": "Ekle",
+    "text_input_placeholder": "/proje/yolu",
+    "added_toast": "Eklendi: {{path}}",
+    "errors": {
+      "NotAbsolute": "Konum mutlak olmalı: {{path}}",
+      "DoesNotExist": "Konum bulunamadı: {{path}}",
+      "NotADirectory": "Bir klasör değil: {{path}}",
+      "AlreadyAdded": "Zaten bir project root",
+      "ForbiddenPrefix": "Bu konum korumalı bir sistem dizini",
+      "NoReadPermission": "Okuma izni yok: {{path}}"
+    }
   },
   "ai_provider": {
     "title": "AI Sağlayıcısı",

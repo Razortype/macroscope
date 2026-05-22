@@ -76,7 +76,18 @@
     "empty": "No project directories configured. Add one to enable build artifact cleanup.",
     "add_directory": "Add directory…",
     "select_directory_dialog": "Select project directory",
-    "remove_aria": "Remove {{path}}"
+    "remove_aria": "Remove {{path}}",
+    "add_button": "Add",
+    "text_input_placeholder": "/path/to/project",
+    "added_toast": "Added: {{path}}",
+    "errors": {
+      "NotAbsolute": "Path must be absolute: {{path}}",
+      "DoesNotExist": "Path doesn't exist: {{path}}",
+      "NotADirectory": "Not a directory: {{path}}",
+      "AlreadyAdded": "Already a project root",
+      "ForbiddenPrefix": "Path is inside a protected system location",
+      "NoReadPermission": "No read permission for {{path}}"
+    }
   },
   "ai_provider": {
     "title": "AI Provider",
