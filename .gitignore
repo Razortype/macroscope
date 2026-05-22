@@ -25,7 +25,7 @@ dist-ssr
 
 # Rust / Tauri
 src-tauri/target/
-src-tauri/gen/schemas/
+src-tauri/gen/
 
 # Tauri update signing key — private key must never be committed
 *.key
