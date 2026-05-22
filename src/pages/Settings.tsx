@@ -28,6 +28,7 @@ import { settingsSchema, type SettingsValues } from "../types/settings";
 import { loadSettings, saveSettings } from "../lib/settings";
 import { Section } from "../components/settings/SectionWrapper";
 import { SectionAIProvider } from "../components/settings/AIProviderSection";
+import { SectionPermissions } from "../components/settings/PermissionsSection";
 import { SectionProjectRoots } from "../components/settings/ProjectRootsSection";
 import { SectionSystemAudit } from "../components/settings/SystemAuditSection";
 
@@ -762,6 +763,7 @@ export default function Settings() {
             >
               <SectionGeneral />
               <SectionAIProvider />
+              <SectionPermissions />
               <SectionHotkey />
               <SectionSystemAudit />
               <SectionProjectRoots onChanged={() => setRootsVersion((v) => v + 1)} />

@@ -73,7 +73,7 @@ export type KeychainStatus = "granted" | "denied" | "unknown" | "not_needed";
 
 // ── Keychain status pill ──────────────────────────────────────────────────────
 
-function KeychainStatusPill({ status }: { status: KeychainStatus }) {
+export function KeychainStatusPill({ status }: { status: KeychainStatus }) {
   const { t } = useTranslation("onboarding");
   const styles: Record<KeychainStatus, { bg: string; fg: string }> = {
     granted:    { bg: "var(--color-severity-low-bg)",    fg: "var(--color-severity-low-fg)" },
@@ -111,7 +111,7 @@ function KeychainStatusPill({ status }: { status: KeychainStatus }) {
 
 // ── Keychain permission row ───────────────────────────────────────────────────
 
-function KeychainPermRow({
+export function KeychainPermRow({
   status,
   onGrant,
 }: {
