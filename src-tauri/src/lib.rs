@@ -456,7 +456,7 @@ async fn check_keychain_access(
             let account = provider.keychain_account().unwrap(); // safe: always Some for these
             match keychain::keychain_get(account) {
                 Ok(Some(_)) => {
-                    // Readable without a prompt — "Always Allow" was granted.
+                    tracing::info!("check_keychain_access: fast-path granted via {}", provider.as_str());
                     return Ok(KeychainAccessResult {
                         state: KeychainState::Granted,
                         prompt_shown: false,
@@ -467,6 +467,8 @@ async fn check_keychain_access(
                     continue;
                 }
                 Err(crate::error::AppError::KeychainDenied) => {
+                    tracing::info!("check_keychain_access: fast-path denied via {}", provider.as_str());
+                    let _ = db_inner.set_setting("keychain_access_granted", "0");
                     return Ok(KeychainAccessResult {
                         state: KeychainState::Denied,
                         prompt_shown: true,
@@ -479,13 +481,29 @@ async fn check_keychain_access(
             }
         }
 
-        // Step 3 / 4: No existing key found.
+        // Step 2b: Check the probe-grant flag written when the user explicitly
+        // granted access before storing any provider API key. This flag persists
+        // across focus changes so the status doesn't flip back to "unknown".
+        let probe_granted = db_inner
+            .get_setting("keychain_access_granted")
+            .map(|v| v.as_deref() == Some("1"))
+            .unwrap_or(false);
+        if probe_granted {
+            tracing::info!("check_keychain_access: fast-path granted via probe flag");
+            return Ok(KeychainAccessResult {
+                state: KeychainState::Granted,
+                prompt_shown: false,
+            });
+        }
+
+        // Step 3 / 4: No existing key or probe flag found.
         // Load provider config to determine whether keychain is needed at all.
         let config = provider_config::ProviderConfig::load(&db_inner)
             .map_err(|e: crate::error::AppError| e.to_string())?;
 
         // Step 4: Active provider needs no keychain (Claude CLI, Ollama).
         if config.active_provider.keychain_account().is_none() {
+            tracing::info!("check_keychain_access: not_needed (provider has no keychain account)");
             return Ok(KeychainAccessResult {
                 state: KeychainState::NotNeeded,
                 prompt_shown: false,
@@ -494,6 +512,7 @@ async fn check_keychain_access(
 
         // Step 3: Active provider needs a key but none is stored yet.
         if !allow_probe {
+            tracing::info!("check_keychain_access: unknown (no flag, no probe allowed)");
             return Ok(KeychainAccessResult {
                 state: KeychainState::Unknown,
                 prompt_shown: false,
@@ -502,23 +521,35 @@ async fn check_keychain_access(
 
         // Write-read-delete probe — intentionally triggers the macOS prompt.
         // Only reached when the user clicked "Grant access" (allow_probe: true).
+        tracing::info!("check_keychain_access: running write-read-delete probe");
         match keychain::keychain_set(KEYCHAIN_PROBE_ACCOUNT, KEYCHAIN_PROBE_VALUE) {
             Ok(()) => {
                 let _ = keychain::keychain_get(KEYCHAIN_PROBE_ACCOUNT);
                 let _ = keychain::keychain_delete(KEYCHAIN_PROBE_ACCOUNT);
+                // Persist the grant so silent re-probes (allow_probe: false) can
+                // return "granted" without re-entering the probe path.
+                let _ = db_inner.set_setting("keychain_access_granted", "1");
+                tracing::info!("check_keychain_access: probe granted — flag written");
                 Ok(KeychainAccessResult {
                     state: KeychainState::Granted,
                     prompt_shown: true,
                 })
             }
-            Err(crate::error::AppError::KeychainDenied) => Ok(KeychainAccessResult {
-                state: KeychainState::Denied,
-                prompt_shown: true,
-            }),
-            Err(_) => Ok(KeychainAccessResult {
-                state: KeychainState::Unknown,
-                prompt_shown: true,
-            }),
+            Err(crate::error::AppError::KeychainDenied) => {
+                let _ = db_inner.set_setting("keychain_access_granted", "0");
+                tracing::info!("check_keychain_access: probe denied");
+                Ok(KeychainAccessResult {
+                    state: KeychainState::Denied,
+                    prompt_shown: true,
+                })
+            }
+            Err(e) => {
+                tracing::info!("check_keychain_access: probe unknown error: {e}");
+                Ok(KeychainAccessResult {
+                    state: KeychainState::Unknown,
+                    prompt_shown: true,
+                })
+            }
         }
     })
     .await
