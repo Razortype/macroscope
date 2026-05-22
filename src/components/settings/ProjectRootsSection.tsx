@@ -10,6 +10,8 @@ import { Section } from "./SectionWrapper";
 export function ProjectRootsContent({ onChanged }: { onChanged: () => void }) {
   const { t } = useTranslation("settings");
   const [roots, setRoots] = useState<string[]>([]);
+  const [inputValue, setInputValue] = useState("");
+  const [isAdding] = useState(false);
 
   useEffect(() => {
     invoke<[string, string][]>("list_settings").then((rows) => {
@@ -36,6 +38,11 @@ export function ProjectRootsContent({ onChanged }: { onChanged: () => void }) {
 
   async function removeRoot(root: string) {
     await persistRoots(roots.filter((r) => r !== root));
+  }
+
+  function addByText() {
+    if (isAdding || inputValue.trim() === "") return;
+    console.log("would validate", inputValue.trim());
   }
 
   async function addRoot() {
@@ -115,27 +122,69 @@ export function ProjectRootsContent({ onChanged }: { onChanged: () => void }) {
           ))}
         </div>
       )}
-      <button
-        type="button"
-        onClick={addRoot}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "4px",
-          alignSelf: "flex-start",
-          background: "none",
-          border: "1px solid var(--color-border-subtle)",
-          borderRadius: "var(--radius-sm)",
-          padding: "3px 8px",
-          color: "var(--color-text-secondary)",
-          fontSize: "var(--text-xs)",
-          fontFamily: "var(--font-sans)",
-          cursor: "pointer",
-        }}
-      >
-        <Plus size={12} />
-        {t("project_roots.add_directory")}
-      </button>
+      <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+        <input
+          type="text"
+          value={inputValue}
+          onChange={(e) => setInputValue(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") addByText(); }}
+          placeholder={t("project_roots.text_input_placeholder")}
+          style={{
+            flex: 1,
+            background: "var(--color-bg-elev-2)",
+            border: "1px solid var(--color-border-subtle)",
+            borderRadius: "var(--radius-sm)",
+            padding: "3px 8px",
+            color: "var(--color-text-primary)",
+            fontSize: "var(--text-xs)",
+            fontFamily: "var(--font-mono)",
+            outline: "none",
+            minWidth: 0,
+          }}
+        />
+        <button
+          type="button"
+          onClick={addByText}
+          disabled={isAdding || inputValue.trim() === ""}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            background: "none",
+            border: "1px solid var(--color-border-subtle)",
+            borderRadius: "var(--radius-sm)",
+            padding: "3px 8px",
+            color: "var(--color-text-secondary)",
+            fontSize: "var(--text-xs)",
+            fontFamily: "var(--font-sans)",
+            cursor: isAdding || inputValue.trim() === "" ? "not-allowed" : "pointer",
+            opacity: isAdding || inputValue.trim() === "" ? 0.4 : 1,
+            flexShrink: 0,
+          }}
+        >
+          {t("project_roots.add_button")}
+        </button>
+        <button
+          type="button"
+          onClick={addRoot}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "4px",
+            background: "none",
+            border: "1px solid var(--color-border-subtle)",
+            borderRadius: "var(--radius-sm)",
+            padding: "3px 8px",
+            color: "var(--color-text-secondary)",
+            fontSize: "var(--text-xs)",
+            fontFamily: "var(--font-sans)",
+            cursor: "pointer",
+            flexShrink: 0,
+          }}
+        >
+          <Plus size={12} />
+          {t("project_roots.add_directory")}
+        </button>
+      </div>
     </div>
   );
 }
