@@ -113,6 +113,9 @@
     "models_found_toast_one": "{{count}} model found",
     "models_found_toast_other": "{{count}} models found",
     "models_fetch_failed_toast": "Could not fetch models: {{detail}}",
+    "errors": {
+      "keychain_denied": "Could not save API key — keychain access was denied. Open the Permissions section to grant access."
+    },
     "providers": {
       "gemini": { "label": "Gemini", "sublabel": "API key" },
       "claude_cli": { "label": "Claude CLI", "sublabel": "subscription" },

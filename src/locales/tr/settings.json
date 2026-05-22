@@ -113,6 +113,9 @@
     "models_found_toast_one": "{{count}} model bulundu",
     "models_found_toast_other": "{{count}} model bulundu",
     "models_fetch_failed_toast": "Modeller alınamadı: {{detail}}",
+    "errors": {
+      "keychain_denied": "API anahtarı kaydedilemedi — keychain erişimi reddedildi. İzin vermek için İzinler bölümünü aç."
+    },
     "providers": {
       "gemini": { "label": "Gemini", "sublabel": "API anahtarı" },
       "claude_cli": { "label": "Claude CLI", "sublabel": "abonelik" },
