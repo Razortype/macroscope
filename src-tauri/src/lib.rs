@@ -395,6 +395,134 @@ async fn test_provider_connection(
     .map_err(|_| "keychain timeout".to_string())?
 }
 
+// ── Keychain permission probe ─────────────────────────────────────────────────
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+enum KeychainState {
+    Granted,
+    Denied,
+    Unknown,
+}
+
+#[derive(serde::Serialize)]
+struct KeychainAccessResult {
+    state: KeychainState,
+    prompt_shown: bool,
+}
+
+/// Probe name used by the write-read-delete permission check.
+const KEYCHAIN_PROBE_ACCOUNT: &str = "permission_probe";
+const KEYCHAIN_PROBE_VALUE: &str = "v1";
+
+/// Check whether Macroscope has keychain access without triggering an
+/// unsolicited prompt.
+///
+/// - `allow_probe: false` — safe for mount/launch; only reads existing entries.
+/// - `allow_probe: true`  — may trigger the macOS prompt; call only when the
+///   user has explicitly clicked "Grant access".
+#[tauri::command]
+async fn check_keychain_access(
+    allow_probe: bool,
+    db: State<'_, Db>,
+) -> Result<KeychainAccessResult, String> {
+    let db_inner = db.inner().clone();
+
+    tokio::task::spawn_blocking(move || -> Result<KeychainAccessResult, String> {
+        use provider_config::ProviderId;
+
+        // Step 1 & 2: Scan provider_has_key:* flags and attempt a keychain read
+        // for each provider that has previously stored a key.
+        let api_key_providers = [
+            ProviderId::AnthropicApi,
+            ProviderId::OpenAi,
+            ProviderId::Gemini,
+        ];
+
+        for provider in &api_key_providers {
+            let flag_key = format!("provider_has_key:{}", provider.as_str());
+            let has_flag = db_inner
+                .get_setting(&flag_key)
+                .map(|v| v.as_deref() == Some("1"))
+                .unwrap_or(false);
+
+            if !has_flag {
+                continue;
+            }
+
+            // Flag is set — try to read the actual keychain entry.
+            let account = provider.keychain_account().unwrap(); // safe: always Some for these
+            match keychain::keychain_get(account) {
+                Ok(Some(_)) => {
+                    // Readable without a prompt — "Always Allow" was granted.
+                    return Ok(KeychainAccessResult {
+                        state: KeychainState::Granted,
+                        prompt_shown: false,
+                    });
+                }
+                Ok(None) => {
+                    // Entry gone (stale flag) — check remaining providers.
+                    continue;
+                }
+                Err(crate::error::AppError::KeychainDenied) => {
+                    return Ok(KeychainAccessResult {
+                        state: KeychainState::Denied,
+                        prompt_shown: true,
+                    });
+                }
+                Err(_) => {
+                    // Other error (locked keychain, etc.) — inconclusive; continue.
+                    continue;
+                }
+            }
+        }
+
+        // Step 3 / 4: No existing key found.
+        // Load provider config to determine whether keychain is needed at all.
+        let config = provider_config::ProviderConfig::load(&db_inner)
+            .map_err(|e: crate::error::AppError| e.to_string())?;
+
+        // Step 4: Active provider needs no keychain (Claude CLI, Ollama) — vacuously granted.
+        if config.active_provider.keychain_account().is_none() {
+            return Ok(KeychainAccessResult {
+                state: KeychainState::Granted,
+                prompt_shown: false,
+            });
+        }
+
+        // Step 3: Active provider needs a key but none is stored yet.
+        if !allow_probe {
+            return Ok(KeychainAccessResult {
+                state: KeychainState::Unknown,
+                prompt_shown: false,
+            });
+        }
+
+        // Write-read-delete probe — intentionally triggers the macOS prompt.
+        // Only reached when the user clicked "Grant access" (allow_probe: true).
+        match keychain::keychain_set(KEYCHAIN_PROBE_ACCOUNT, KEYCHAIN_PROBE_VALUE) {
+            Ok(()) => {
+                let _ = keychain::keychain_get(KEYCHAIN_PROBE_ACCOUNT);
+                let _ = keychain::keychain_delete(KEYCHAIN_PROBE_ACCOUNT);
+                Ok(KeychainAccessResult {
+                    state: KeychainState::Granted,
+                    prompt_shown: true,
+                })
+            }
+            Err(crate::error::AppError::KeychainDenied) => Ok(KeychainAccessResult {
+                state: KeychainState::Denied,
+                prompt_shown: true,
+            }),
+            Err(_) => Ok(KeychainAccessResult {
+                state: KeychainState::Unknown,
+                prompt_shown: true,
+            }),
+        }
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 // ── Ollama model discovery ────────────────────────────────────────────────────
 
 #[tauri::command]
@@ -1000,6 +1128,7 @@ pub fn run() {
             probe_automation_permission,
             probe_full_disk_access,
             open_system_settings_pane,
+            check_keychain_access,
             is_provider_ready,
             check_for_update,
             get_system_locale,
