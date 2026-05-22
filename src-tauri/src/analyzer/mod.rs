@@ -218,12 +218,14 @@ fn appsupport_prompt_path(preset: &str) -> Result<std::path::PathBuf, AppError> 
 pub async fn analyze_snapshot(
     snapshot_id: i64,
     presets: Vec<String>,
+    locale: &str,
     db: &Db,
     provider: Arc<dyn AnalyzerService>,
     app: &AppHandle,
 ) -> Result<Vec<Finding>, AppError> {
     let payload = db.get_snapshot_payload(snapshot_id)?;
     let snapshot: Snapshot = serde_json::from_str(&payload)?;
+    let locale_owned = locale.to_string();
 
     let tasks: Vec<_> = presets
         .into_iter()
@@ -232,8 +234,9 @@ pub async fn analyze_snapshot(
             let db = db.clone();
             let app = app.clone();
             let provider = Arc::clone(&provider);
+            let locale_clone = locale_owned.clone();
             tokio::spawn(async move {
-                let result = run_single_preset(&snap, &preset, provider, &app).await;
+                let result = run_single_preset(&snap, &preset, &locale_clone, provider, &app).await;
                 match result {
                     Ok((findings, usage)) => {
                         if let Err(e) = db.save_analysis_result(snapshot_id, &preset, &findings) {
@@ -293,9 +296,26 @@ pub async fn analyze_snapshot(
 
 // ── Single-preset execution ───────────────────────────────────────────────────
 
+fn locale_directive(locale: &str) -> Option<String> {
+    if locale == "en" {
+        return None;
+    }
+    let locale_name = match locale {
+        "tr" => "Turkish",
+        other => other,
+    };
+    Some(format!(
+        "\n\nRespond in {locale_name}. The JSON schema, field names, and enum values \
+(e.g. severity: \"high\", category: \"files\", suggested_action: \"delete_paths\") MUST \
+stay in English. Only the user-facing text content — title, description, and rationale \
+— should be in {locale_name}."
+    ))
+}
+
 async fn run_single_preset(
     snapshot: &Snapshot,
     preset: &str,
+    locale: &str,
     provider: Arc<dyn AnalyzerService>,
     app: &AppHandle,
 ) -> Result<(Vec<Finding>, AuditTokenUsage), AppError> {
@@ -303,9 +323,11 @@ async fn run_single_preset(
     let filtered_json = serde_json::to_string_pretty(&filtered)?;
     let template = load_prompt(preset)?;
 
-    // system_prompt: the audit instructions template
-    // user_prompt: the snapshot data section
-    let system_prompt = template;
+    // Append locale directive to system prompt when locale is non-English.
+    let mut system_prompt = template;
+    if let Some(directive) = locale_directive(locale) {
+        system_prompt.push_str(&directive);
+    }
     let user_prompt = format!("# Snapshot data\n\n```json\n{filtered_json}\n```");
 
     let _ = app.emit(

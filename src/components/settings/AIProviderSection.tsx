@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import {
   Activity, Check, AlertCircle, Loader2,
@@ -16,20 +17,13 @@ import {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-interface ProviderCard {
-  id: ProviderId;
-  label: string;
-  sublabel: string;
-  Icon: React.ComponentType<{ size?: number; style?: React.CSSProperties }>;
-}
-
-const PROVIDER_CARDS: ProviderCard[] = [
-  { id: "gemini",        label: "Gemini",        sublabel: "API key",      Icon: Zap },
-  { id: "claude_cli",   label: "Claude CLI",    sublabel: "subscription", Icon: Terminal },
-  { id: "anthropic_api", label: "Anthropic API", sublabel: "API key",      Icon: Cpu },
-  { id: "open_ai",      label: "OpenAI",        sublabel: "API key",      Icon: Sparkles },
-  { id: "ollama",       label: "Ollama",        sublabel: "local",        Icon: Server },
-];
+const PROVIDER_CARD_ICONS: Record<ProviderId, React.ComponentType<{ size?: number; style?: React.CSSProperties }>> = {
+  gemini: Zap,
+  claude_cli: Terminal,
+  anthropic_api: Cpu,
+  open_ai: Sparkles,
+  ollama: Server,
+};
 
 const KEY_PROVIDERS: ProviderId[] = ["anthropic_api", "open_ai", "gemini"];
 
@@ -63,6 +57,7 @@ function ApiKeyInput({
   hasKey: boolean;
   onKeySet: () => void;
 }) {
+  const { t } = useTranslation("settings");
   const [draft, setDraft] = useState("");
   const [visible, setVisible] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -74,9 +69,9 @@ function ApiKeyInput({
       await invoke("set_provider_secret", { provider, secret: draft.trim() });
       setDraft("");
       onKeySet();
-      toast.success("API key saved to Keychain");
+      toast.success(t("ai_provider.api_key_saved_toast"));
     } catch (e) {
-      toast.error(`Could not save key: ${String(e)}`);
+      toast.error(t("ai_provider.api_key_save_failed_toast", { detail: String(e) }));
     } finally {
       setSaving(false);
     }
@@ -84,7 +79,7 @@ function ApiKeyInput({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-      <FieldLabel>API key</FieldLabel>
+      <FieldLabel>{t("ai_provider.api_key_label")}</FieldLabel>
       <div style={{ display: "flex", gap: "6px" }}>
         <div style={{ position: "relative", flex: 1 }}>
           <input
@@ -93,7 +88,7 @@ function ApiKeyInput({
             onChange={(e) => setDraft(e.target.value)}
             onBlur={commitKey}
             onKeyDown={(e) => e.key === "Enter" && commitKey()}
-            placeholder={hasKey ? "••••••••  Key set — replace" : "Paste API key…"}
+            placeholder={hasKey ? t("ai_provider.api_key_placeholder_set") : t("ai_provider.api_key_placeholder_empty")}
             disabled={saving}
             style={{
               width: "100%",
@@ -132,7 +127,7 @@ function ApiKeyInput({
       </div>
       {hasKey && (
         <span style={{ fontSize: "var(--text-xs)", color: "var(--color-text-muted)" }}>
-          Key stored in macOS Keychain · enter a new value to replace
+          {t("ai_provider.api_key_stored")}
         </span>
       )}
     </div>
@@ -150,6 +145,7 @@ function ModelSelect({
   models: readonly string[];
   onChange: (v: string) => void;
 }) {
+  const { t } = useTranslation("settings");
   const [custom, setCustom] = useState(!models.includes(value) && value !== "");
 
   return (
@@ -181,7 +177,7 @@ function ModelSelect({
           {models.map((m) => (
             <option key={m} value={m}>{m}</option>
           ))}
-          <option value="__custom__">Custom…</option>
+          <option value="__custom__">{t("ai_provider.model_custom")}</option>
         </select>
         {custom && (
           <input
@@ -208,6 +204,7 @@ function ModelSelect({
 }
 
 function TestConnectionButton({ onTest }: { onTest: () => Promise<TestState> }) {
+  const { t } = useTranslation(["settings", "common"]);
   const [testing, setTesting] = useState(false);
   const [result, setResult] = useState<TestState | null>(null);
 
@@ -248,7 +245,7 @@ function TestConnectionButton({ onTest }: { onTest: () => Promise<TestState> }) 
         {testing
           ? <Loader2 size={11} style={{ animation: "spin 1s linear infinite" }} />
           : <Activity size={11} />}
-        {testing ? "Testing…" : "Test connection"}
+        {testing ? t("common:status.testing") : t("settings:ai_provider.test_connection_btn")}
       </button>
       {result && (
         <span
@@ -264,7 +261,7 @@ function TestConnectionButton({ onTest }: { onTest: () => Promise<TestState> }) 
           }}
         >
           {result.ok ? <Check size={11} /> : <AlertCircle size={11} />}
-          {result.ok ? `Connected · ${result.msg}` : result.msg.slice(0, 80)}
+          {result.ok ? t("settings:ai_provider.connected", { model: result.msg }) : result.msg.slice(0, 80)}
         </span>
       )}
     </div>
@@ -274,6 +271,7 @@ function TestConnectionButton({ onTest }: { onTest: () => Promise<TestState> }) 
 // ── AIProviderContent (inner; no Section wrapper) ─────────────────────────────
 
 export function AIProviderContent() {
+  const { t } = useTranslation("settings");
   const [config, setConfig] = useState<ProviderConfig | null>(null);
   const [keyStatus, setKeyStatus] = useState<Record<string, boolean>>({});
   const [ollamaModels, setOllamaModels] = useState<string[]>([]);
@@ -296,7 +294,7 @@ export function AIProviderContent() {
       try {
         await invoke("set_provider_config", { config: updated });
       } catch (e) {
-        toast.error(`Could not save provider config: ${String(e)}`);
+        toast.error(t("ai_provider.provider_save_failed_toast", { detail: String(e) }));
       }
     }, 400);
   }
@@ -327,9 +325,9 @@ export function AIProviderContent() {
       if (models.length > 0 && !config.ollama.model) {
         await saveConfig({ ...config, ollama: { ...config.ollama, model: models[0] } });
       }
-      toast.success(`${models.length} model(s) found`);
+      toast.success(t("ai_provider.models_found_toast", { count: models.length }));
     } catch (e) {
-      toast.error(`Could not fetch models: ${String(e)}`);
+      toast.error(t("ai_provider.models_fetch_failed_toast", { detail: String(e) }));
     } finally {
       setFetchingModels(false);
     }
@@ -343,17 +341,16 @@ export function AIProviderContent() {
     claude_cli: (
       <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-          <FieldLabel>CLI path override</FieldLabel>
+          <FieldLabel>{t("ai_provider.cli_path_label")}</FieldLabel>
           <Input
-            placeholder="Auto-detected"
+            placeholder={t("ai_provider.cli_path_placeholder")}
             value={config.claude_cli.path_override}
             onChange={(e) =>
               saveConfig({ ...config, claude_cli: { path_override: e.target.value } })
             }
           />
           <span style={{ fontSize: "var(--text-xs)", color: "var(--color-text-muted)" }}>
-            Auto-detection order: /opt/homebrew/bin/claude, ~/.local/bin/claude,
-            /usr/local/bin/claude, ~/.claude/local/claude
+            {t("ai_provider.cli_path_hint")}
           </span>
         </div>
         <TestConnectionButton onTest={() => testProvider("claude_cli")} />
@@ -367,7 +364,7 @@ export function AIProviderContent() {
           onKeySet={() => setKeyStatus((p) => ({ ...p, anthropic_api: true }))}
         />
         <ModelSelect
-          label="Model"
+          label={t("ai_provider.model_label")}
           value={config.anthropic_api.model}
           models={ANTHROPIC_MODEL_LIST}
           onChange={(m) => saveConfig({ ...config, anthropic_api: { model: m } })}
@@ -383,7 +380,7 @@ export function AIProviderContent() {
           onKeySet={() => setKeyStatus((p) => ({ ...p, open_ai: true }))}
         />
         <ModelSelect
-          label="Model"
+          label={t("ai_provider.model_label")}
           value={config.openai.model}
           models={OPENAI_MODEL_LIST}
           onChange={(m) => saveConfig({ ...config, openai: { model: m } })}
@@ -399,7 +396,7 @@ export function AIProviderContent() {
           onKeySet={() => setKeyStatus((p) => ({ ...p, gemini: true }))}
         />
         <ModelSelect
-          label="Model"
+          label={t("ai_provider.model_label")}
           value={config.gemini.model}
           models={GEMINI_MODEL_LIST}
           onChange={(m) => saveConfig({ ...config, gemini: { model: m } })}
@@ -410,7 +407,7 @@ export function AIProviderContent() {
     ollama: (
       <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-          <FieldLabel>Endpoint</FieldLabel>
+          <FieldLabel>{t("ai_provider.endpoint_label")}</FieldLabel>
           <Input
             placeholder="http://localhost:11434"
             value={config.ollama.endpoint}
@@ -420,7 +417,7 @@ export function AIProviderContent() {
           />
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-          <FieldLabel>Model</FieldLabel>
+          <FieldLabel>{t("ai_provider.model_label")}</FieldLabel>
           <div style={{ display: "flex", gap: "6px" }}>
             <select
               value={config.ollama.model}
@@ -446,7 +443,7 @@ export function AIProviderContent() {
                 <option key={m} value={m}>{m}</option>
               ))}
               {ollamaModels.length === 0 && !config.ollama.model && (
-                <option value="" disabled>Fetch models first</option>
+                <option value="" disabled>{t("ai_provider.fetch_models_empty")}</option>
               )}
             </select>
             <button
@@ -472,12 +469,12 @@ export function AIProviderContent() {
               {fetchingModels
                 ? <Loader2 size={11} style={{ animation: "spin 1s linear infinite" }} />
                 : null}
-              {fetchingModels ? "Fetching…" : "Fetch"}
+              {fetchingModels ? t("common:status.fetching") : t("ai_provider.fetch_models_btn")}
             </button>
           </div>
           {ollamaModels.length > 0 && (
             <span style={{ fontSize: "var(--text-xs)", color: "var(--color-text-muted)" }}>
-              {ollamaModels.length} model(s) installed locally
+              {t("ai_provider.models_installed", { count: ollamaModels.length })}
             </span>
           )}
         </div>
@@ -496,7 +493,10 @@ export function AIProviderContent() {
           gap: "8px",
         }}
       >
-        {PROVIDER_CARDS.map(({ id, label, sublabel, Icon }) => {
+        {(Object.keys(PROVIDER_CARD_ICONS) as ProviderId[]).map((id) => {
+          const Icon = PROVIDER_CARD_ICONS[id];
+          const label = t(`ai_provider.providers.${id}.label`);
+          const sublabel = t(`ai_provider.providers.${id}.sublabel`);
           const selected = active === id;
           return (
             <button
@@ -570,8 +570,9 @@ export function AIProviderContent() {
 // ── SectionAIProvider (with Section wrapper; used in Settings) ────────────────
 
 export function SectionAIProvider() {
+  const { t } = useTranslation("settings");
   return (
-    <Section title="AI Provider">
+    <Section title={t("ai_provider.title")}>
       <AIProviderContent />
     </Section>
   );

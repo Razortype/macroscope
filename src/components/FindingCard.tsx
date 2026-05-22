@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import type { Finding, Severity } from "../types/finding";
 import RowActions from "./RowActions";
 
@@ -58,6 +59,7 @@ function PathRow({ path }: { path: string }) {
 }
 
 export default function FindingCard({ finding: f, selected, onSelectChange, executed = false, partial = false, identityHint }: Props) {
+  const { t } = useTranslation("findings");
   const { fg, bg } = severityColors(f.severity);
   const isSelectable = f.suggested_action === "delete_paths" && !executed && !partial;
 
@@ -140,7 +142,7 @@ export default function FindingCard({ finding: f, selected, onSelectChange, exec
                 flexShrink: 0,
               }}
             >
-              companion
+              {t("card.identity_companion")}
             </span>
           )}
           {identityHint === "ambiguous" && (
@@ -158,7 +160,7 @@ export default function FindingCard({ finding: f, selected, onSelectChange, exec
                 flexShrink: 0,
               }}
             >
-              unidentified
+              {t("card.identity_ambiguous")}
             </span>
           )}
           <span
@@ -186,7 +188,7 @@ export default function FindingCard({ finding: f, selected, onSelectChange, exec
                 flexShrink: 0,
               }}
             >
-              ✓ Trash
+              {t("card.in_trash")}
             </span>
           )}
           {partial && !executed && (
@@ -197,7 +199,7 @@ export default function FindingCard({ finding: f, selected, onSelectChange, exec
                 flexShrink: 0,
               }}
             >
-              ○ partial
+              {t("card.partial")}
             </span>
           )}
           {!executed && !partial && f.suggested_action !== "delete_paths" && (
@@ -250,7 +252,7 @@ export default function FindingCard({ finding: f, selected, onSelectChange, exec
                   color: "var(--color-text-muted)",
                 }}
               >
-                ↑ {formatBytes(f.estimated_bytes_freed)} freed
+                {t("card.bytes_freed", { bytes: formatBytes(f.estimated_bytes_freed) })}
               </span>
             )}
           </div>

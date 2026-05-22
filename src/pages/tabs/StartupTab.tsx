@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { AlertTriangle, Check, CircleMinus, Shield } from "lucide-react";
 import type { Finding } from "../../types/finding";
 import type { PersistenceEntry, Snapshot } from "../../types/snapshot";
@@ -22,14 +23,17 @@ interface SectionEntry {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function kindLabel(kind: PersistenceEntry["kind"]): string {
-  switch (kind) {
-    case "user_agent": return "user agent";
-    case "user_daemon": return "user daemon";
-    case "system_daemon": return "root daemon";
-    case "system_agent": return "root agent";
-    case "login_item": return "login item";
-  }
+function useKindLabel() {
+  const { t } = useTranslation("tabs");
+  return (kind: PersistenceEntry["kind"]): string => {
+    switch (kind) {
+      case "user_agent":   return t("startup_tab.kind_user_agent");
+      case "user_daemon":  return t("startup_tab.kind_user_daemon");
+      case "system_daemon": return t("startup_tab.kind_system_daemon");
+      case "system_agent": return t("startup_tab.kind_system_agent");
+      case "login_item":   return t("startup_tab.kind_login_item");
+    }
+  };
 }
 
 // Bucket assignment ignores entry.disabled — disabled is a sort key, not a bucket.
@@ -60,12 +64,13 @@ function ToggleSwitch({
   pending: boolean;
   onChange: () => void;
 }) {
+  const { t } = useTranslation("tabs");
   const [hovered, setHovered] = useState(false);
   return (
     <button
       onClick={onChange}
       disabled={pending}
-      title={on ? "click to disable" : "click to enable"}
+      title={on ? t("startup_tab.toggle_disable") : t("startup_tab.toggle_enable")}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
@@ -136,11 +141,12 @@ function StatusBadge({ status }: { status: EntryStatus }) {
       color: "var(--color-text-muted)",
     },
   };
+  const { t } = useTranslation("common");
   const labels: Record<EntryStatus, string> = {
-    flagged: "FLAGGED",
-    known: "KNOWN",
-    disabled: "DISABLED",
-    normal: "NORMAL",
+    flagged: t("status.flagged"),
+    known: t("status.known"),
+    disabled: t("status.disabled"),
+    normal: t("status.normal"),
   };
   return (
     <span
@@ -249,6 +255,8 @@ function PersistenceRow({
   pending: boolean;
   onToggle: () => void;
 }) {
+  const { t } = useTranslation("tabs");
+  const kindLabel = useKindLabel();
   // Dim by disabled state directly — a flagged+disabled row is dimmed but shows FLAGGED badge.
   const isDimmed = entry.disabled;
 
@@ -306,7 +314,7 @@ function PersistenceRow({
             textDecoration: isDimmed ? "line-through" : "none",
           }}
         >
-          {entry.path || "registered via System Settings"}
+          {entry.path || t("startup_tab.registered_via_system")}
         </div>
       </div>
 
@@ -319,6 +327,7 @@ function PersistenceRow({
         }}
       >
         {kindLabel(entry.kind)}
+
       </div>
 
       <div>
@@ -342,19 +351,21 @@ function PersistenceRow({
 // ── Persistence section ───────────────────────────────────────────────────────
 
 function PersistenceSection({
-  label,
+  labelKey,
   entries,
   pendingLabels,
   onToggle,
   collapsible = false,
 }: {
-  label: string;
+  labelKey: string;
   entries: SectionEntry[];
   pendingLabels: Set<string>;
   onToggle: (entry: PersistenceEntry) => void;
   collapsible?: boolean;
 }) {
+  const { t } = useTranslation("tabs");
   const [expanded, setExpanded] = useState(!collapsible);
+  const label = t(labelKey);
 
   const headerText = (
     <span
@@ -430,6 +441,7 @@ function PersistenceSection({
 // ── Column headers ────────────────────────────────────────────────────────────
 
 function ColumnHeaders() {
+  const { t } = useTranslation("tabs");
   return (
     <div
       style={{
@@ -446,10 +458,10 @@ function ColumnHeaders() {
       }}
     >
       <div />
-      <div>label · path</div>
-      <div style={{ textAlign: "center" }}>kind</div>
-      <div>status</div>
-      <div style={{ textAlign: "right" }}>enabled</div>
+      <div>{t("startup_tab.col_label_path")}</div>
+      <div style={{ textAlign: "center" }}>{t("startup_tab.col_kind")}</div>
+      <div>{t("startup_tab.col_status")}</div>
+      <div style={{ textAlign: "right" }}>{t("startup_tab.col_enabled")}</div>
     </div>
   );
 }
@@ -571,6 +583,8 @@ export default function StartupTab({ snapshot, findings, onTogglePersistence }: 
     [onTogglePersistence]
   );
 
+  const { t } = useTranslation("tabs");
+
   if (!snapshot) {
     return (
       <div
@@ -585,10 +599,10 @@ export default function StartupTab({ snapshot, findings, onTogglePersistence }: 
       >
         <Shield size={28} color="var(--color-text-muted)" />
         <span style={{ fontSize: "var(--text-sm)", color: "var(--color-text-secondary)" }}>
-          No persistence concerns detected
+          {t("startup_tab.empty_title")}
         </span>
         <span style={{ fontSize: "11px", color: "var(--color-text-muted)" }}>
-          Run a snapshot to scan launch agents and daemons
+          {t("startup_tab.empty_hint")}
         </span>
       </div>
     );
@@ -598,8 +612,7 @@ export default function StartupTab({ snapshot, findings, onTogglePersistence }: 
     <div style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: "16px" }}>
       {/* Subtitle */}
       <p style={{ margin: 0, fontSize: "12px", color: "var(--color-text-secondary)", lineHeight: 1.55 }}>
-        Programs that run automatically at login or in the background.
-        Macroscope flags suspicious entries and lists everything for review — manage them in macOS System Settings.
+        {t("startup_tab.description")}
       </p>
 
       {/* Section 1 — Network exposure findings */}
@@ -615,7 +628,7 @@ export default function StartupTab({ snapshot, findings, onTogglePersistence }: 
               fontFamily: "var(--font-mono)",
             }}
           >
-            network exposure · {networkFindings.length} finding{networkFindings.length !== 1 ? "s" : ""}
+            {t("startup_tab.network_header", { count: networkFindings.length })}
           </div>
           {networkFindings.map((f) => (
             <NetworkFindingCard key={f.id} finding={f} />
@@ -630,7 +643,7 @@ export default function StartupTab({ snapshot, findings, onTogglePersistence }: 
 
           {sections.unknown.length > 0 && (
             <PersistenceSection
-              label="unknown publisher"
+              labelKey="startup_tab.section_unknown"
               entries={sections.unknown}
               pendingLabels={pendingLabels}
               onToggle={handleToggle}
@@ -639,7 +652,7 @@ export default function StartupTab({ snapshot, findings, onTogglePersistence }: 
 
           {sections.known.length > 0 && (
             <PersistenceSection
-              label="known publisher"
+              labelKey="startup_tab.section_known"
               entries={sections.known}
               pendingLabels={pendingLabels}
               onToggle={handleToggle}
@@ -648,7 +661,7 @@ export default function StartupTab({ snapshot, findings, onTogglePersistence }: 
 
           {sections.system.length > 0 && (
             <PersistenceSection
-              label="system-managed (macOS controls these)"
+              labelKey="startup_tab.section_system"
               entries={sections.system}
               pendingLabels={pendingLabels}
               onToggle={handleToggle}
@@ -665,7 +678,7 @@ export default function StartupTab({ snapshot, findings, onTogglePersistence }: 
             color: "var(--color-text-muted)",
           }}
         >
-          No entries
+          {t("startup_tab.no_entries")}
         </div>
       )}
 
@@ -680,7 +693,7 @@ export default function StartupTab({ snapshot, findings, onTogglePersistence }: 
             letterSpacing: "0.04em",
           }}
         >
-          toggling a switch runs launchctl disable/enable · sudo prompt for root daemons
+          {t("startup_tab.footer_hint")}
         </div>
       )}
     </div>

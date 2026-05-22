@@ -1,0 +1,97 @@
+{
+  "topbar": {
+    "app_name": "Macroscope",
+    "skip_setup": "Kurulumu atla"
+  },
+  "skip_dialog": {
+    "title": "Kurulum atlanacak mı?",
+    "description": "Kurulumu Ayarlar'dan istediğin zaman tamamlayabilirsin. Yapılandırılana kadar bazı özellikler çalışmayabilir.",
+    "confirm": "Yine de atla"
+  },
+  "nav": {
+    "get_started": "Başla",
+    "take_first_snapshot": "İlk snapshot'ı al",
+    "skip_to_dashboard": "Atla ve Dashboard'a git"
+  },
+  "steps": {
+    "welcome": {
+      "title": "Macroscope'a Hoş Geldin",
+      "subtitle": "4 hızlı adımda seni hazır hale getirelim.",
+      "features": {
+        "see_what_gets_scanned": {
+          "title": "Nelerin tarandığını gör",
+          "desc": "Macroscope'un her zaman denetlediği macOS konumlarını öğren"
+        },
+        "pick_an_ai_provider": {
+          "title": "Bir AI sağlayıcısı seç",
+          "desc": "Gemini, Claude, OpenAI seç ya da Ollama ile yerel çalıştır"
+        },
+        "grant_permissions": {
+          "title": "İzinleri ver",
+          "desc": "macOS belirli klasörler için erişim isteyecek"
+        },
+        "confirm_project_locations": {
+          "title": "Proje konumlarını onayla",
+          "desc": "Macroscope'a kodunun nerede olduğunu söyle"
+        }
+      }
+    },
+    "scan_scope": {
+      "header": "Macroscope Neyi Tarar",
+      "fixed_note": "Bu macOS konumları her snapshot'ta denetlenir — bu tasarım gereği sabittir ve devre dışı bırakılamaz.",
+      "optional_note": "İsteğe bağlı: Sonraki adımda projelerinin bulunduğu dizinleri ekleyebilirsin. Macroscope bu dizinlerde büyük build artifact'larını (node_modules, .venv, target/) yüzeye çıkarır."
+    },
+    "ai_provider": {
+      "header": "AI Sağlayıcısı",
+      "hint": "Bunu daha sonra Ayarlar'dan değiştirebilirsin."
+    },
+    "permissions": {
+      "header": "İzinler",
+      "hint": "Bunları sonra verebilirsin — Macroscope gerektiğinde soracak.",
+      "mode_granular": "Seçici",
+      "mode_fda": "Full Disk Access",
+      "helper_granular": "Macroscope yalnızca ihtiyaç duyduğu klasörleri ister.",
+      "helper_fda": "Tek bir izin tüm ana dizinine erişim sağlar.",
+      "status_granted": "VERİLDİ",
+      "status_pending": "BEKLİYOR",
+      "open_settings_btn": "Ayarları Aç",
+      "perms": {
+        "automation": {
+          "title": "System Events otomasyonu",
+          "description": "AppleScript aracılığıyla uygulama envanteri için gerekli"
+        },
+        "desktop": {
+          "title": "Desktop klasörü",
+          "description": "Desktop'taki dosyalara erişim"
+        },
+        "downloads": {
+          "title": "Downloads klasörü",
+          "description": "Downloads'daki dosyalara erişim"
+        },
+        "documents": {
+          "title": "Documents klasörü",
+          "description": "Documents'daki dosyalara erişim"
+        },
+        "fda": {
+          "title": "Full Disk Access",
+          "description": "Tüm ana dizinine okuma erişimi sağlar"
+        }
+      }
+    },
+    "project_roots": {
+      "header": "Project Roots",
+      "hint": "Projelerinin bulunduğu dizinleri ekle. Macroscope bu dizinlerde büyük build artifact'larını (node_modules, .venv, target/) yüzeye çıkarır."
+    },
+    "done": {
+      "title": "Her şey hazır",
+      "subtitle": "Macroscope ilk snapshot'ını almaya hazır.",
+      "stat_ai_provider": "AI Sağlayıcısı",
+      "stat_permissions": "İzinler",
+      "stat_project_roots": "Project Roots",
+      "permissions_fda": "Full Disk Access",
+      "permissions_granular": "{{count}} / 4 verildi",
+      "project_roots_one": "{{count}} klasör",
+      "project_roots_other": "{{count}} klasör"
+    }
+  }
+}

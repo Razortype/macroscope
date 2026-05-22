@@ -3,15 +3,14 @@ import ReactDOM from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter } from "react-router-dom";
 import { restoreStateCurrent, StateFlags } from "@tauri-apps/plugin-window-state";
+import { invoke } from "@tauri-apps/api/core";
 import App from "./App";
 import { AnalysisRunProvider } from "./context/AnalysisRunContext";
+import "./i18n";
+import i18next from "./i18n";
 import "./styles/tokens.css";
 
-// Restore window position and size saved from the previous session.
-// Runs before the first render so the window doesn't visibly jump.
-restoreStateCurrent(StateFlags.ALL).catch(() => {
-  // First launch — no saved state yet, silently ignore.
-});
+restoreStateCurrent(StateFlags.ALL).catch(() => {});
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -19,14 +18,25 @@ const queryClient = new QueryClient({
   },
 });
 
-ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
-  <React.StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
-        <AnalysisRunProvider>
-          <App />
-        </AnalysisRunProvider>
-      </BrowserRouter>
-    </QueryClientProvider>
-  </React.StrictMode>,
-);
+async function init() {
+  try {
+    const locale = await invoke<string | null>("get_setting", { key: "locale" });
+    if (locale === "tr") await i18next.changeLanguage("tr");
+  } catch {
+    // first launch or DB not ready — default "en" is fine
+  }
+
+  ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
+    <React.StrictMode>
+      <QueryClientProvider client={queryClient}>
+        <BrowserRouter>
+          <AnalysisRunProvider>
+            <App />
+          </AnalysisRunProvider>
+        </BrowserRouter>
+      </QueryClientProvider>
+    </React.StrictMode>,
+  );
+}
+
+init();

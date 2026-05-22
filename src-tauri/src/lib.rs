@@ -110,6 +110,23 @@ async fn list_settings(db: State<'_, Db>) -> Result<Vec<(String, String)>, Strin
         .map_err(Into::into)
 }
 
+/// Reads the macOS LANG environment variable and returns "tr" if the locale
+/// is Turkish, "en" for everything else. Used once on first launch to seed
+/// the locale setting before the user reaches the dashboard.
+#[tauri::command]
+fn get_system_locale() -> String {
+    std::env::var("LANG")
+        .ok()
+        .and_then(|lang| {
+            // "tr_TR.UTF-8" → "tr", "en_US.UTF-8" → "en"
+            lang.split(|c: char| c == '_' || c == '.' || c == '@')
+                .next()
+                .map(|s| s.to_lowercase())
+        })
+        .filter(|code| code == "tr")
+        .unwrap_or_else(|| "en".to_string())
+}
+
 // ── Provider config commands ─────────────────────────────────────────────────
 
 #[tauri::command]
@@ -440,6 +457,7 @@ fn get_claude_status(status: State<'_, ClaudeStatus>) -> ClaudeStatus {
 async fn analyze_snapshot(
     snapshot_id: i64,
     presets: Vec<String>,
+    locale: Option<String>,
     db: State<'_, Db>,
     app: tauri::AppHandle,
 ) -> Result<Vec<Finding>, String> {
@@ -460,7 +478,8 @@ async fn analyze_snapshot(
         ));
     }
 
-    analyzer::analyze_snapshot(snapshot_id, presets, db.inner(), provider, &app)
+    let resolved_locale = locale.unwrap_or_else(|| "en".to_string());
+    analyzer::analyze_snapshot(snapshot_id, presets, &resolved_locale, db.inner(), provider, &app)
         .await
         .map_err(Into::into)
 }
@@ -860,6 +879,7 @@ pub fn run() {
             open_system_settings_pane,
             is_provider_ready,
             check_for_update,
+            get_system_locale,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

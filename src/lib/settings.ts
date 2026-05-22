@@ -9,6 +9,7 @@ export async function loadSettings(): Promise<SettingsValues> {
     snapshot_retention: map[SETTINGS_KEYS.SNAPSHOT_RETENTION] ?? 10,
     hotkey_combo: map[SETTINGS_KEYS.HOTKEY_COMBO] ?? "Cmd+Shift+M",
     hotkey_enabled: map[SETTINGS_KEYS.HOTKEY_ENABLED] === "true",
+    locale: map[SETTINGS_KEYS.LOCALE] ?? "en",
   };
 
   return settingsSchema.parse(raw);
@@ -19,6 +20,7 @@ export async function saveSettings(values: SettingsValues): Promise<void> {
     [SETTINGS_KEYS.SNAPSHOT_RETENTION, String(values.snapshot_retention)],
     [SETTINGS_KEYS.HOTKEY_COMBO, values.hotkey_combo],
     [SETTINGS_KEYS.HOTKEY_ENABLED, String(values.hotkey_enabled)],
+    [SETTINGS_KEYS.LOCALE, values.locale],
   ];
 
   for (const [key, value] of entries) {

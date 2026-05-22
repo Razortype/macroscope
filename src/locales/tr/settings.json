@@ -1,0 +1,149 @@
+{
+  "page_title": "Ayarlar",
+  "general": {
+    "title": "Genel",
+    "language": {
+      "title": "Dil",
+      "en": "English",
+      "tr": "Türkçe"
+    },
+    "snapshot_retention": {
+      "label": "Snapshot saklama süresi",
+      "description": "Bu limit aşıldığında eski snapshot'lar otomatik olarak silinir."
+    }
+  },
+  "hotkey": {
+    "title": "Kısayol Tuşu",
+    "description": "Macroscope'u her yerden çağırmak için global kısayol. Aktivasyon ilerleyen bir güncellemede eklenecek.",
+    "enable_label": "Global kısayol tuşunu etkinleştir",
+    "combo_label": "Kısayol kombinasyonu",
+    "inactive_note": "Şu an etkin değil — değerler kaydedildi ama sisteme kayıtlı değil."
+  },
+  "project_artifacts": {
+    "title": "Project artifacts",
+    "description": "Build artifact'larının (node_modules, target/, .venv, vb.) analiz sırasında nasıl sınıflandırılacağını belirler.",
+    "active_threshold_label": "Aktif eşiği (gün)",
+    "active_threshold_description": "Bu kadar gün içinde değiştirilen projeler aktif kabul edilir (düşük önem).",
+    "stale_threshold_label": "Eski eşiği (gün)",
+    "stale_threshold_description": "Bu kadar gün boyunca değiştirilmeyen projeler eski kabul edilir (yüksek önem). Aktif ve eski eşiği arasındaki projeler boşta (orta önem) sayılır.",
+    "min_size_label": "Minimum boyut (MB)",
+    "min_size_description": "Bu boyutun altındaki artifact grupları bulgu olarak gösterilmez."
+  },
+  "safety": {
+    "title": "Güvenlik",
+    "allowed_paths_label": "İzin verilen yollar",
+    "allowed_paths_description": "Macroscope yalnızca bu konumlardan Çöp Kutusu'na öğe taşıyabilir. Bu liste yukarıdaki Project Roots'a göre otomatik güncellenir.",
+    "denied_paths_label": "Engellenen yollar (her zaman engelli)",
+    "denied_paths_description": "Bu konumlara hiçbir kural altında dokunulmaz.",
+    "audit_log_label": "Denetim günlüğü",
+    "audit_log_description": "Her Çöp Kutusu'na taşıma işlemi kayıt altına alınır.",
+    "glob_label": "(glob)"
+  },
+  "about": {
+    "title": "Hakkında",
+    "snapshots_taken": "Alınan snapshot'lar",
+    "findings_discovered": "Bulunan bulgular",
+    "space_freed": "Boşaltılan alan",
+    "build_info": "Macroscope v{{version}} · macOS için (Apple Silicon)"
+  },
+  "updates": {
+    "title": "Güncellemeler",
+    "version": "Macroscope v{{version}}",
+    "never": "Hiç",
+    "unknown": "Bilinmiyor",
+    "last_checked": "Son kontrol: {{time}}",
+    "available_toast": "Macroscope v{{version}} kullanılabilir.",
+    "up_to_date_toast": "Macroscope güncel.",
+    "check_failed_toast": "Güncelleme kontrolü başarısız: {{detail}}"
+  },
+  "developer": {
+    "title": "Geliştirici",
+    "description": "Tüm snapshot'ları ve analiz sonuçlarını siler, tüm ayarları sıfırlar ve bir sonraki başlatmada ilk kurulum sihirbazını tetikler. macOS Anahtar Zinciri'ndeki API anahtarları korunur.",
+    "reset_btn": "Uygulama durumunu sıfırla",
+    "reset_dialog_title": "Uygulama durumu sıfırlansın mı?",
+    "reset_dialog_description": "Bu işlem tüm snapshot'ları siler, project root'ları temizler, AI sağlayıcısını sıfırlar ve bir sonraki başlatmada onboarding'i tetikler. macOS Anahtar Zinciri'ndeki API anahtarları korunur. Bu işlem geri alınamaz. Devam edilsin mi?",
+    "reset_confirm": "Sıfırla",
+    "reset_success_toast": "Uygulama durumu sıfırlandı",
+    "reset_failed_toast": "Sıfırlama başarısız: {{detail}}"
+  },
+  "always_scanned": {
+    "title": "Her zaman taranan konumlar",
+    "description": "Macroscope her snapshot'ta bu konumları denetler. Bu liste sabittir — tasarım gereği devre dışı bırakılamaz."
+  },
+  "project_roots": {
+    "title": "Project Roots",
+    "description": "Macroscope bu dizinlerdeki build artifact'larını (node_modules, target, .venv, .gradle, vb.) temizler. İlk başlatmada otomatik algılanır — istediğin zaman düzenleyebilirsin.",
+    "empty": "Yapılandırılmış proje dizini yok. Build artifact temizliğini etkinleştirmek için bir tane ekle.",
+    "add_directory": "Dizin ekle…",
+    "select_directory_dialog": "Proje dizinini seç",
+    "remove_aria": "{{path}} kaldır"
+  },
+  "ai_provider": {
+    "title": "AI Sağlayıcısı",
+    "api_key_label": "API anahtarı",
+    "api_key_placeholder_set": "••••••••  Anahtar ayarlı — değiştirmek için yaz",
+    "api_key_placeholder_empty": "API anahtarını yapıştır…",
+    "api_key_stored": "Anahtar macOS Anahtar Zinciri'nde · değiştirmek için yeni değer gir",
+    "cli_path_label": "CLI yolu geçersiz kılma",
+    "cli_path_placeholder": "Otomatik algılandı",
+    "cli_path_hint": "Otomatik algılama sırası: /opt/homebrew/bin/claude, ~/.local/bin/claude, /usr/local/bin/claude, ~/.claude/local/claude",
+    "model_label": "Model",
+    "model_custom": "Özel…",
+    "endpoint_label": "Uç nokta",
+    "models_installed_one": "Yerel olarak {{count}} model yüklü",
+    "models_installed_other": "Yerel olarak {{count}} model yüklü",
+    "test_connection_btn": "Bağlantıyı Test Et",
+    "fetch_models_btn": "Al",
+    "fetch_models_empty": "Önce modelleri al",
+    "connected": "Bağlı · {{model}}",
+    "api_key_saved_toast": "API anahtarı Anahtar Zinciri'ne kaydedildi",
+    "api_key_save_failed_toast": "Anahtar kaydedilemedi: {{detail}}",
+    "provider_save_failed_toast": "Sağlayıcı yapılandırması kaydedilemedi: {{detail}}",
+    "models_found_toast_one": "{{count}} model bulundu",
+    "models_found_toast_other": "{{count}} model bulundu",
+    "models_fetch_failed_toast": "Modeller alınamadı: {{detail}}",
+    "providers": {
+      "gemini": { "label": "Gemini", "sublabel": "API anahtarı" },
+      "claude_cli": { "label": "Claude CLI", "sublabel": "abonelik" },
+      "anthropic_api": { "label": "Anthropic API", "sublabel": "API anahtarı" },
+      "open_ai": { "label": "OpenAI", "sublabel": "API anahtarı" },
+      "ollama": { "label": "Ollama", "sublabel": "yerel" }
+    }
+  },
+  "save_success_toast": "Ayarlar kaydedildi",
+  "save_failed_toast": "Kaydedilemedi: {{detail}}",
+  "probes": {
+    "disk": {
+      "label": "Disk ve depolama",
+      "description": "/ için birim kapasitesi ve bilinen önbellek ve veri konumlarının toplam boyutu. Yalnızca toplam boyutlar; dosya başına detay Büyük dosyalar'dan gelir."
+    },
+    "processes": {
+      "label": "Çalışan işlemler",
+      "description": "Şu anda önemli miktarda bellek kullanan tüm işlemler (≥ 10 MB RSS)."
+    },
+    "network": {
+      "label": "Ağ dinleyicileri",
+      "description": "Gelen bağlantıları kabul eden tüm portlar ve aktif giden TCP oturumları."
+    },
+    "persistence": {
+      "label": "Persistence & login item'lar",
+      "description": "Oturum açıldığında veya sistem başlangıcında otomatik çalışacak şekilde yapılandırılmış programlar."
+    },
+    "users": {
+      "label": "Kullanıcı hesapları",
+      "description": "Sistemde kayıtlı yerel macOS kullanıcı hesapları."
+    },
+    "kernel": {
+      "label": "Kernel uzantıları",
+      "description": "Şu anda kernel'e yüklü üçüncü taraf kernel uzantıları."
+    },
+    "apps": {
+      "label": "Yüklü apps ve kalıntılar",
+      "description": "Yüklü .app paketleri ve kaldırılmış apps'ten ~/Library'de kalan veriler. Önbellek dizinleri Disk ile örtüşür — Disk toplam boyutu gösterir, bu liste yetim kalıntıları listeler."
+    },
+    "large_files": {
+      "label": "Büyük dosyalar",
+      "description": "Ortak ana klasörlerde ≥ 50 MB olan dosyalar, tür ve güncellik durumuna göre gruplandırılmış."
+    }
+  }
+}

@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { Settings, RefreshCw } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import { useTranslation } from "react-i18next";
 import MacroscopeLogo from "./MacroscopeLogo";
 import type { Snapshot } from "../types/snapshot";
 
@@ -16,6 +17,7 @@ interface TopBarProps {
 
 function snapshotAge(ts: string): string {
   try {
+    // i18n-deferred: formatDistanceToNow — replace with Intl.RelativeTimeFormat keyed off locale
     return formatDistanceToNow(new Date(ts), { addSuffix: true });
   } catch {
     return ts;
@@ -31,6 +33,8 @@ export default function TopBar({
   onTakeSnapshot,
   onReAnalyze,
 }: TopBarProps) {
+  const { t } = useTranslation("tabs");
+
   return (
     <header
       style={{
@@ -58,7 +62,7 @@ export default function TopBar({
               letterSpacing: "0.01em",
             }}
           >
-            Macroscope
+            {t("topbar.app_name")}
           </span>
         </div>
         {activeSnapshot && activeSnapshotId != null && !isAnalyzing && (
@@ -72,10 +76,10 @@ export default function TopBar({
               whiteSpace: "nowrap",
             }}
           >
-            Snapshot #{activeSnapshotId}
+            {t("topbar.snapshot_label", { id: activeSnapshotId })}
             {" · "}
             {snapshotAge(activeSnapshot.created_at)}
-            {findingCount != null && ` · ${findingCount} findings`}
+            {findingCount != null && ` · ${t("topbar.snapshot_findings", { count: findingCount })}`}
           </span>
         )}
       </div>
@@ -104,14 +108,14 @@ export default function TopBar({
             }}
           >
             <RefreshCw size={12} />
-            Re-analyze
+            {t("topbar.re_analyze")}
           </button>
         )}
         {onTakeSnapshot && (
           <button
             onClick={onTakeSnapshot}
             disabled={isAnalyzing || snapshotBlocked}
-            title={snapshotBlocked ? "Configure an AI provider first" : undefined}
+            title={snapshotBlocked ? t("topbar.blocked_title") : undefined}
             style={{
               background: (isAnalyzing || snapshotBlocked) ? "var(--color-text-muted)" : "var(--color-accent)",
               color: (isAnalyzing || snapshotBlocked) ? "var(--color-text-disabled)" : "#1a1a26",
@@ -124,13 +128,13 @@ export default function TopBar({
               cursor: (isAnalyzing || snapshotBlocked) ? "not-allowed" : "pointer",
             }}
           >
-            {isAnalyzing ? "Analyzing…" : "Take snapshot"}
+            {isAnalyzing ? t("topbar.analyzing") : t("topbar.take_snapshot")}
           </button>
         )}
         <Link
           to="/settings"
           style={{ color: "var(--color-text-muted)", display: "flex", lineHeight: 0 }}
-          title="Settings"
+          title={t("topbar.settings_link_title")}
         >
           <Settings size={18} strokeWidth={1.5} />
         </Link>

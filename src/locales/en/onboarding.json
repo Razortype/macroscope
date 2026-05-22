@@ -1,0 +1,97 @@
+{
+  "topbar": {
+    "app_name": "Macroscope",
+    "skip_setup": "Skip setup"
+  },
+  "skip_dialog": {
+    "title": "Skip setup?",
+    "description": "You can complete setup at any time from Settings. Some features may not work until configured.",
+    "confirm": "Skip anyway"
+  },
+  "nav": {
+    "get_started": "Get started",
+    "take_first_snapshot": "Take first snapshot",
+    "skip_to_dashboard": "Skip and go to Dashboard"
+  },
+  "steps": {
+    "welcome": {
+      "title": "Welcome to Macroscope",
+      "subtitle": "Let's get you set up in 4 quick steps.",
+      "features": {
+        "see_what_gets_scanned": {
+          "title": "See what gets scanned",
+          "desc": "Learn which macOS locations Macroscope always audits"
+        },
+        "pick_an_ai_provider": {
+          "title": "Pick an AI provider",
+          "desc": "Choose Gemini, Claude, OpenAI, or run locally with Ollama"
+        },
+        "grant_permissions": {
+          "title": "Grant permissions",
+          "desc": "macOS will ask for access to specific folders"
+        },
+        "confirm_project_locations": {
+          "title": "Confirm project locations",
+          "desc": "Tell Macroscope where your code lives"
+        }
+      }
+    },
+    "scan_scope": {
+      "header": "What Macroscope Scans",
+      "fixed_note": "These macOS locations are audited on every snapshot — this is fixed by design and cannot be disabled.",
+      "optional_note": "Also optional: In a later step you can add directories where your projects live. Macroscope will then surface large build artifacts (node_modules, .venv, target/) inside them."
+    },
+    "ai_provider": {
+      "header": "AI Provider",
+      "hint": "You can change this later in Settings."
+    },
+    "permissions": {
+      "header": "Permissions",
+      "hint": "You can grant these later — Macroscope will prompt when needed.",
+      "mode_granular": "Granular",
+      "mode_fda": "Full Disk Access",
+      "helper_granular": "Macroscope only requests the folders it needs.",
+      "helper_fda": "One permission grants access to your entire home directory.",
+      "status_granted": "GRANTED",
+      "status_pending": "PENDING",
+      "open_settings_btn": "Open Settings",
+      "perms": {
+        "automation": {
+          "title": "System Events automation",
+          "description": "Needed for app inventory via AppleScript"
+        },
+        "desktop": {
+          "title": "Desktop folder",
+          "description": "Access to files on your Desktop"
+        },
+        "downloads": {
+          "title": "Downloads folder",
+          "description": "Access to files in Downloads"
+        },
+        "documents": {
+          "title": "Documents folder",
+          "description": "Access to files in Documents"
+        },
+        "fda": {
+          "title": "Full Disk Access",
+          "description": "Grants read access to your entire home directory"
+        }
+      }
+    },
+    "project_roots": {
+      "header": "Project Roots",
+      "hint": "Add directories where your projects live. Macroscope surfaces large build artifacts (node_modules, .venv, target/) inside them."
+    },
+    "done": {
+      "title": "You're all set",
+      "subtitle": "Macroscope is ready to take your first snapshot.",
+      "stat_ai_provider": "AI Provider",
+      "stat_permissions": "Permissions",
+      "stat_project_roots": "Project Roots",
+      "permissions_fda": "Full Disk Access",
+      "permissions_granular": "{{count}} / 4 granted",
+      "project_roots_one": "{{count}} folder",
+      "project_roots_other": "{{count}} folders"
+    }
+  }
+}

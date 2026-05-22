@@ -1,0 +1,36 @@
+{
+  "card": {
+    "identity_companion": "companion",
+    "identity_ambiguous": "unidentified",
+    "in_trash": "✓ Trash",
+    "partial": "○ partial",
+    "bytes_freed": "↑ {{bytes}} freed"
+  },
+  "preview": {
+    "title_loading": "Analyzing targets…",
+    "title_review_one": "Review {{count}} action before executing",
+    "title_review_other": "Review {{count}} actions before executing",
+    "subtitle_safe": "{{bytes}} confirmed safe to free",
+    "subtitle_skipped_one": "· {{count}} action will be skipped automatically",
+    "subtitle_skipped_other": "· {{count}} actions will be skipped automatically",
+    "body_loading": "Classifying targets…",
+    "error_fallback": "Failed to load preview",
+    "empty": "No targets to preview.",
+    "section_safe": "Safe to delete",
+    "section_companion": "Companion data (app not running)",
+    "section_skipped": "Will be skipped",
+    "companion_note": "This data belongs to {{app}}. Settings/cache will reset on next launch.",
+    "footer_selected_one": "{{count}} action selected · {{bytes}} to free",
+    "footer_selected_other": "{{count}} actions selected · {{bytes}} to free",
+    "footer_none": "No actions selected",
+    "execute_btn_one": "Execute {{count}} action",
+    "execute_btn_other": "Execute {{count}} actions",
+    "moved_toast": "Moved {{bytes}} to Trash",
+    "moved_partial_toast": "Moved {{bytes}} to Trash · {{partial}} partial",
+    "nothing_moved_toast": "Nothing moved — all paths were denied or failed",
+    "partial_warning": "Some subdirectories could not be moved",
+    "failed_paths_toast_one": "{{count}} path could not be moved",
+    "failed_paths_toast_other": "{{count}} paths could not be moved",
+    "execute_failed_toast": "Execution failed: {{detail}}"
+  }
+}

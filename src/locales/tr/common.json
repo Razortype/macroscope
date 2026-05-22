@@ -1,0 +1,37 @@
+{
+  "actions": {
+    "cancel": "İptal",
+    "save": "Kaydet",
+    "back": "Geri",
+    "continue": "Devam Et",
+    "skip": "Atla",
+    "configure": "Yapılandır",
+    "reset": "Sıfırla",
+    "install_on_restart": "Yeniden Başlatmada Yükle",
+    "remind_me_later": "Sonra Hatırlat",
+    "reveal_in_finder": "Finder'da Göster",
+    "copy_path": "Yolu Kopyala",
+    "select_all": "tümünü seç",
+    "deselect_all": "seçimi temizle",
+    "check_for_updates": "Güncellemeleri Kontrol Et"
+  },
+  "status": {
+    "loading": "Yükleniyor…",
+    "saving": "Kaydediliyor…",
+    "checking": "Kontrol Ediliyor…",
+    "downloading": "İndiriliyor…",
+    "testing": "Test Ediliyor…",
+    "fetching": "Alınıyor…",
+    "resetting": "Sıfırlanıyor…",
+    "moving": "Taşınıyor…",
+    "enabled": "açık",
+    "disabled": "kapalı",
+    "flagged": "işaretli",
+    "known": "bilinen",
+    "normal": "normal"
+  },
+  "errors": {
+    "could_not_open_finder": "Finder açılamadı: {{detail}}",
+    "could_not_copy_path": "Yol kopyalanamadı: {{detail}}"
+  }
+}

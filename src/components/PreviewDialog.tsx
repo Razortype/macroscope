@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { invoke } from "@tauri-apps/api/core";
 import { toast } from "sonner";
 import { X, CircleCheck, CircleAlert, OctagonX, Loader2 } from "lucide-react";
@@ -35,6 +36,8 @@ function isBlocked(ac: ActionClass): boolean {
   );
 }
 
+// chipLabel uses hardcoded English labels — these are technical classifications
+// that stay English per Q10 (technical jargon).
 function chipLabel(ac: ActionClass): string {
   if (ac.type === "safe_orphan") return "ORPHAN";
   if (ac.type === "companion_running") return `RUNNING · ${ac.app_display}`;
@@ -120,11 +123,7 @@ function TargetRow({
           {target.path}
         </div>
         {isCompanionNotRunning && (
-          <div style={{ fontSize: "10px", color: "var(--color-text-muted)", marginTop: "1px" }}>
-            This data belongs to{" "}
-            {(target.action_class as { app_display: string }).app_display}.
-            Settings/cache will reset on next launch.
-          </div>
+          <CompanionNote app={(target.action_class as { app_display: string }).app_display} />
         )}
       </div>
       {/* Size */}
@@ -139,6 +138,15 @@ function TargetRow({
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
         <RowActions path={target.path} />
       </div>
+    </div>
+  );
+}
+
+function CompanionNote({ app }: { app: string }) {
+  const { t } = useTranslation("findings");
+  return (
+    <div style={{ fontSize: "10px", color: "var(--color-text-muted)", marginTop: "1px" }}>
+      {t("preview.companion_note", { app })}
     </div>
   );
 }
@@ -177,6 +185,7 @@ interface Props {
 type Phase = "loading" | "review" | "executing" | "error";
 
 export default function PreviewDialog({ open, onOpenChange, findings, snapshotId, onComplete }: Props) {
+  const { t } = useTranslation("findings");
   const [phase, setPhase] = useState<Phase>("loading");
   const [targets, setTargets] = useState<ResolvedTarget[]>([]);
   const [checked, setChecked] = useState<Set<string>>(new Set());
@@ -229,11 +238,11 @@ export default function PreviewDialog({ open, onOpenChange, findings, snapshotId
     setPhase("executing");
     try {
       const safePaths = targets
-        .filter((t) => t.action_class.type === "safe_orphan" && checked.has(t.path))
-        .map((t) => t.path);
+        .filter((tgt) => tgt.action_class.type === "safe_orphan" && checked.has(tgt.path))
+        .map((tgt) => tgt.path);
       const companionApproved = targets
-        .filter((t) => t.action_class.type === "companion_not_running" && checked.has(t.path))
-        .map((t) => t.path);
+        .filter((tgt) => tgt.action_class.type === "companion_not_running" && checked.has(tgt.path))
+        .map((tgt) => tgt.path);
 
       const report = await invoke<ExecutionReport>("execute_previewed", {
         safePaths,
@@ -246,17 +255,20 @@ export default function PreviewDialog({ open, onOpenChange, findings, snapshotId
       const failed = report.items.filter((i) => i.status !== "moved" && i.status !== "partial");
 
       if (report.total_bytes_freed > 0) {
-        const note = partialItems.length > 0 ? ` · ${partialItems.length} partial` : "";
-        toast.success(`Moved ${formatBytes(report.total_bytes_freed)} to Trash${note}`);
+        if (partialItems.length > 0) {
+          toast.success(t("preview.moved_partial_toast", { bytes: formatBytes(report.total_bytes_freed), partial: partialItems.length }));
+        } else {
+          toast.success(t("preview.moved_toast", { bytes: formatBytes(report.total_bytes_freed) }));
+        }
       } else if (moved.size === 0 && partial.size === 0) {
-        toast.error("Nothing moved — all paths were denied or failed");
+        toast.error(t("preview.nothing_moved_toast"));
       }
 
       for (const item of partialItems) {
-        toast.warning(item.path, { description: item.error ?? "Some subdirectories could not be moved", duration: 8000 });
+        toast.warning(item.path, { description: item.error ?? t("preview.partial_warning"), duration: 8000 });
       }
       if (failed.length > 0) {
-        toast.error(`${failed.length} path${failed.length > 1 ? "s" : ""} could not be moved`, {
+        toast.error(t("preview.failed_paths_toast", { count: failed.length }), {
           description: failed.map((i) => `${i.path}: ${i.error ?? i.status}`).join("\n"),
           duration: 8000,
         });
@@ -265,10 +277,10 @@ export default function PreviewDialog({ open, onOpenChange, findings, snapshotId
       onComplete({ moved, partial });
       onOpenChange(false);
     } catch (e) {
-      toast.error(`Execution failed: ${String(e)}`);
+      toast.error(t("preview.execute_failed_toast", { detail: String(e) }));
       setPhase("review");
     }
-  }, [targets, checked, onComplete, onOpenChange]);
+  }, [targets, checked, onComplete, onOpenChange, t]);
 
   if (!open) return null;
 
@@ -334,12 +346,14 @@ export default function PreviewDialog({ open, onOpenChange, findings, snapshotId
             <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
               <div>
                 <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--color-text-primary)" }}>
-                  {phase === "loading" ? "Analyzing targets…" : `Review ${targets.length} action${targets.length !== 1 ? "s" : ""} before executing`}
+                  {phase === "loading"
+                    ? t("preview.title_loading")
+                    : t("preview.title_review", { count: targets.length })}
                 </div>
                 {phase === "review" && safeSize > 0 && (
                   <div style={{ fontSize: "12px", color: "var(--color-text-muted)", marginTop: "3px" }}>
-                    {formatBytes(safeSize)} confirmed safe to free
-                    {skipped.length > 0 && ` · ${skipped.length} action${skipped.length !== 1 ? "s" : ""} will be skipped automatically`}
+                    {t("preview.subtitle_safe", { bytes: formatBytes(safeSize) })}
+                    {skipped.length > 0 && t("preview.subtitle_skipped", { count: skipped.length })}
                   </div>
                 )}
               </div>
@@ -357,19 +371,19 @@ export default function PreviewDialog({ open, onOpenChange, findings, snapshotId
             {phase === "loading" && (
               <div style={{ padding: "40px 20px", display: "flex", alignItems: "center", justifyContent: "center", gap: "10px", color: "var(--color-text-muted)", fontSize: "var(--text-sm)" }}>
                 <Loader2 size={16} className="mscope-pulse" />
-                Classifying targets…
+                {t("preview.body_loading")}
               </div>
             )}
 
             {phase === "error" && (
               <div style={{ padding: "24px 20px", color: "var(--color-severity-medium-fg)", fontSize: "var(--text-sm)", fontFamily: "var(--font-mono)" }}>
-                {loadError ?? "Failed to load preview"}
+                {loadError ?? t("preview.error_fallback")}
               </div>
             )}
 
             {phase === "review" && targets.length === 0 && (
               <div style={{ padding: "24px 20px", color: "var(--color-text-muted)", fontSize: "var(--text-sm)" }}>
-                No targets to preview.
+                {t("preview.empty")}
               </div>
             )}
 
@@ -378,7 +392,7 @@ export default function PreviewDialog({ open, onOpenChange, findings, snapshotId
                 {/* Safe section */}
                 {safeTargets.length > 0 && (
                   <>
-                    <SectionHeader label="Safe to delete" count={safeTargets.length} subtotalBytes={safeSize} />
+                    <SectionHeader label={t("preview.section_safe")} count={safeTargets.length} subtotalBytes={safeSize} />
                     {safeTargets.map((t) => (
                       <TargetRow
                         key={t.path}
@@ -393,7 +407,7 @@ export default function PreviewDialog({ open, onOpenChange, findings, snapshotId
                 {/* Companion (not running) section */}
                 {companionNotRunning.length > 0 && (
                   <>
-                    <SectionHeader label="Companion data (app not running)" count={companionNotRunning.length} subtotalBytes={companionCheckedSize} />
+                    <SectionHeader label={t("preview.section_companion")} count={companionNotRunning.length} subtotalBytes={companionCheckedSize} />
                     {companionNotRunning.map((t) => (
                       <TargetRow
                         key={t.path}
@@ -408,7 +422,7 @@ export default function PreviewDialog({ open, onOpenChange, findings, snapshotId
                 {/* Skipped section */}
                 {skipped.length > 0 && (
                   <>
-                    <SectionHeader label="Will be skipped" count={skipped.length} subtotalBytes={skippedSize} />
+                    <SectionHeader label={t("preview.section_skipped")} count={skipped.length} subtotalBytes={skippedSize} />
                     {skipped.map((t) => (
                       <TargetRow key={t.path} target={t} checked={false} />
                     ))}
@@ -431,9 +445,9 @@ export default function PreviewDialog({ open, onOpenChange, findings, snapshotId
           >
             <span style={{ fontSize: "12px", color: "var(--color-text-muted)", fontFamily: "var(--font-mono)" }}>
               {phase === "review" && checkedCount > 0
-                ? `${checkedCount} action${checkedCount !== 1 ? "s" : ""} selected · ${formatBytes(checkedSize)} to free`
+                ? t("preview.footer_selected", { count: checkedCount, bytes: formatBytes(checkedSize) })
                 : phase === "review"
-                ? "No actions selected"
+                ? t("preview.footer_none")
                 : ""}
             </span>
             <div style={{ display: "flex", gap: "10px" }}>
@@ -451,7 +465,7 @@ export default function PreviewDialog({ open, onOpenChange, findings, snapshotId
                   opacity: phase === "executing" ? 0.5 : 1,
                 }}
               >
-                Cancel
+                {t("common:actions.cancel")}
               </button>
               <button
                 onClick={handleExecute}
@@ -468,7 +482,9 @@ export default function PreviewDialog({ open, onOpenChange, findings, snapshotId
                   minWidth: "120px",
                 }}
               >
-                {phase === "executing" ? "Moving…" : `Execute ${checkedCount > 0 ? checkedCount : ""} action${checkedCount !== 1 ? "s" : ""}`}
+                {phase === "executing"
+                  ? t("common:status.moving")
+                  : t("preview.execute_btn", { count: checkedCount })}
               </button>
             </div>
           </div>
