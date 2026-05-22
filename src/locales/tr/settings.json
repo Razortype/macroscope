@@ -27,7 +27,7 @@
     "stale_threshold_label": "Eski eşiği (gün)",
     "stale_threshold_description": "Bu kadar gün boyunca değiştirilmeyen projeler eski kabul edilir (yüksek önem). Aktif ve eski eşiği arasındaki projeler boşta (orta önem) sayılır.",
     "min_size_label": "Minimum boyut (MB)",
-    "min_size_description": "Bu boyutun altındaki artifact grupları finding olarak gösterilmez."
+    "min_size_description": "Bu boyutun altındaki artifact grupları bulgu olarak gösterilmez."
   },
   "safety": {
     "title": "Güvenlik",
@@ -42,7 +42,7 @@
   "about": {
     "title": "Hakkında",
     "snapshots_taken": "Alınan snapshot'lar",
-    "findings_discovered": "Bulunan finding'ler",
+    "findings_discovered": "Bulunan bulgular",
     "space_freed": "Boşaltılan alan",
     "build_info": "Macroscope v{{version}} · macOS için (Apple Silicon)"
   },
