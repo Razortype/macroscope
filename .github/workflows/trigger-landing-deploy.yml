@@ -1,0 +1,17 @@
+name: Trigger landing site redeploy
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  deploy-landing:
+    name: Notify Cloudflare Pages
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger CF Pages Deploy Hook
+        run: |
+          curl -s -X POST "${{ secrets.CF_LANDING_DEPLOY_HOOK_URL }}" \
+            --fail \
+            --retry 3 \
+            --retry-delay 5
