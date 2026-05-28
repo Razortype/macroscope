@@ -27,24 +27,30 @@ and asks for explicit confirmation per item before any destructive action.
 
 ## What it does
 
-- **Snapshot your system**: 8 parallel Rust probes capture disk usage,
-  installed apps, running processes, persistence entries, network listeners,
-  and large files in roughly 15 seconds.
+- **Snapshot your system**: 9 parallel Rust probes capture disk usage,
+  user accounts, kernel extensions, installed apps, running processes,
+  persistence entries, network listeners, large files, and project artifacts
+  in roughly 15 seconds.
 - **Classify with identity**: every leftover directory is matched against
   installed apps via bundle ID, vendor aliases, and display name. Results
   are marked as orphaned (safe to delete), companion (belongs to a running
   app, blocked), ambiguous (unknown origin, needs investigation),
   system-managed (macOS service, hidden), or self (Macroscope's own data,
   hidden).
-- **Get AI findings**: four parallel AI audits (disk, security, app
-  lifecycle, file inventory) read the structured snapshot and produce
-  prioritized findings with severity, rationale, and concrete recommendations.
+- **Get AI findings**: five parallel AI audits (disk, startup, app
+  lifecycle, file inventory, project artifacts) read the structured snapshot
+  and produce prioritized findings with severity, rationale, and concrete
+  recommendations.
 - **Review before executing**: every cleanup action goes through a preview
   modal that itemizes every path, classifies each by safety, and refuses
   destructive actions on companion / system / protected paths regardless
   of user intent.
 - **See what changed**: snapshot history persists across restarts; cleaned
   items stay marked even after the app closes.
+- **Reveal in Finder / Copy path**: every result row offers Reveal in Finder
+  and Copy path actions for quick access.
+- **Localization**: full English and Turkish localization across the UI and
+  AI-generated findings.
 
 ![Findings](docs/screenshots/findings.png)
 
@@ -126,15 +132,16 @@ osascript-driven password prompt. Status persists across snapshots.
 
 Files over 50 MB anywhere in scanned roots are categorized (video, archive,
 binary, other) and surfaced in the Files tab. Build artifacts in project
-roots (`node_modules`, `target`, `.venv`, etc.) are reachable by the
-allowlist but only the snapshot makes them visible; nothing is auto-deleted.
+roots (`node_modules`, `target/`, `.venv`, etc.) are surfaced as their own
+project-artifact findings with size and staleness details; nothing is
+auto-deleted.
 
 ![Files](docs/screenshots/files.png)
 
 ## Requirements
 
-- macOS Sequoia (15.x) or later on Apple Silicon. Intel and earlier macOS
-  versions are untested.
+- Apple Silicon Mac running macOS 15 (Sequoia) or later. Earlier macOS
+  versions and Intel Macs are untested.
 - An AI provider configured in Settings → AI Provider (see above). The
   default is Gemini, which needs a free API key from
   [aistudio.google.com](https://aistudio.google.com).
@@ -152,7 +159,7 @@ Macroscope asks for two macOS permissions during normal use:
 
 - **Automation (System Events)** - needed to read your login items. macOS
   prompts you once on the first snapshot. If denied, login items won't
-  appear in the Security tab but the rest of the snapshot still works.
+  appear in the Startup & Background tab but the rest of the snapshot still works.
 - **Administrator password** - needed only when toggling a persistence entry
   (enabling or disabling a launch agent or daemon). You are prompted each
   time, since the underlying `launchctl` call is sudo-protected.
@@ -166,8 +173,23 @@ choose Open to bypass this once.
 
 ## Install
 
-Macroscope is currently distributed as source. Auto-update and signed
-releases are not provided.
+Download the `.dmg` from the [GitHub releases page](https://github.com/Razortype/macroscope/releases/latest).
+Mount it and drag Macroscope into Applications.
+
+Macroscope checks for updates on every launch and prompts you to install
+when a new version is available. No manual downloads needed after the first
+install.
+
+First launch will silently auto-detect your project root directories
+(`~/Code`, `~/Projects`, `~/Desktop/*/Projects`, etc.) and populate the
+allowlist. You can edit project roots from Settings at any time — either
+pick a directory with the file picker or type a path directly; the app
+validates it before adding.
+
+See the Permissions section for the Gatekeeper bypass and macOS permission
+prompts you will encounter on first use.
+
+### Build from source
 
 ```bash
 git clone https://github.com/Razortype/macroscope.git
@@ -179,17 +201,10 @@ npm run tauri build
 The bundled app appears at `src-tauri/target/release/bundle/macos/
 Macroscope.app`. Drag it into Applications.
 
-First launch will silently auto-detect your project root directories
-(`~/Code`, `~/Projects`, `~/Desktop/*/Projects`, etc.) and populate the
-allowlist. You can edit project roots from Settings at any time.
-
-See the Permissions section for the Gatekeeper bypass and macOS permission
-prompts you will encounter on first use.
-
 ## Usage
 
 1. Click **Take snapshot** in the top right.
-2. Wait for the local probes and four parallel AI audits to complete.
+2. Wait for the local probes and five parallel AI audits to complete.
    Timing depends on your provider; Gemini Flash typically finishes in
    under a minute. The progress UI streams stage-by-stage.
 3. Browse the tabs:
@@ -199,8 +214,8 @@ prompts you will encounter on first use.
    - **Apps**: every detected app and leftover, classified by identity
      status. Filter by orphaned, companion, ambiguous, or active.
    - **Files**: large files in scanned roots with category filters.
-   - **Security**: network listeners and persistence entries with toggles
-     for disabling user-actionable daemons.
+   - **Startup & Background**: network listeners and persistence entries
+     with toggles for disabling user-actionable daemons.
 4. Select findings in the Findings tab and click **Execute selected** to
    open the preview modal. Review every path, opt into companion items
    individually if you want them included, then execute. Only items in
@@ -225,13 +240,16 @@ prompts you will encounter on first use.
 
 ## Roadmap
 
-Planned for v0.2.1:
+Shipped:
 
-- First-run onboarding wizard (provider selection, permission setup, project
-  roots) - to replace the current "open Settings and configure" flow with a
-  proper guided setup
-- Support for custom OpenAI-compatible endpoints (Groq, OpenRouter, Together)
-- Prompt tuning for consistent finding length across providers
+- First-run onboarding wizard (v0.2.1) - guided provider selection, permission
+  setup, and project roots configuration
+- Auto-update via the Tauri updater plugin (v0.2.1)
+- Build artifacts surfaced as findings (v0.2.1) - `node_modules`, `target/`,
+  `.venv` reported as project-artifact findings with size and staleness
+- Reveal in Finder + Copy path on every result row (v0.2.1)
+- Full Turkish localization (v0.2.2)
+- Type-a-path project root with validation (v0.2.2)
 
 Planned for v0.3.0:
 
@@ -241,8 +259,8 @@ Planned for v0.3.0:
 
 Planned for later:
 
-- Auto-update mechanism via the Tauri updater plugin
-- Landing page at macroscope.razortype.com
+- Support for custom OpenAI-compatible endpoints (Groq, OpenRouter, Together)
+- Prompt tuning for consistent finding length across providers
 - Code signing and notarization (removes the Gatekeeper warning)
 
 Out of scope:
@@ -259,5 +277,5 @@ AGPL-3.0. See LICENSE for full text.
 
 ## Status
 
-Macroscope is at v0.2.0. It works on my machine and the macOS systems I
+Macroscope is at v0.2.2. It works on my machine and the macOS systems I
 have access to. Issues and pull requests welcome.
